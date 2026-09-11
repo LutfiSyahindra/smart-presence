@@ -7,6 +7,8 @@ use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepository;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepository;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepositoryInterface;
+use App\Repositories\Absensi\AdminWeb\MasterData\Shift\ShiftRepository;
+use App\Repositories\Absensi\AdminWeb\MasterData\Shift\ShiftRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\Permission\PermissionRepository;
 use App\Repositories\Absensi\AdminWeb\Setting\Permission\PermissionRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepository;
@@ -25,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(JabatanRepositoryInterface::class, JabatanRepository::class);
         $this->app->bind(PegawaiRepositoryInterface::class, PegawaiRepository::class);
+        $this->app->bind(ShiftRepositoryInterface::class, ShiftRepository::class);
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
         $this->app->bind(RoleRepositoryInterface::class, RoleRepository::class);
         $this->app->bind(PermissionRepositoryInterface::class, PermissionRepository::class);

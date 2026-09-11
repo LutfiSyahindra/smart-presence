@@ -20,6 +20,14 @@ final class AccessPermission
 
     public const PEGAWAI_DELETE = 'pegawai.delete';
 
+    public const SHIFT_VIEW = 'shift.view';
+
+    public const SHIFT_CREATE = 'shift.create';
+
+    public const SHIFT_UPDATE = 'shift.update';
+
+    public const SHIFT_DELETE = 'shift.delete';
+
     public const USERS_VIEW = 'users.view';
 
     public const USERS_CREATE = 'users.create';
@@ -58,6 +66,10 @@ final class AccessPermission
             self::PEGAWAI_CREATE,
             self::PEGAWAI_UPDATE,
             self::PEGAWAI_DELETE,
+            self::SHIFT_VIEW,
+            self::SHIFT_CREATE,
+            self::SHIFT_UPDATE,
+            self::SHIFT_DELETE,
             self::USERS_VIEW,
             self::USERS_CREATE,
             self::USERS_UPDATE,

@@ -10,6 +10,7 @@ import {
     LayoutDashboard,
     Palette,
     ShieldCheck,
+    Timer,
     UserCog,
     UserRound,
     UsersRound,
@@ -43,13 +44,6 @@ const navigation = computed(() =>
             items: [{ title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }],
         },
         {
-            category: 'Master data',
-            items: [
-                can('jabatan.view') ? { title: 'Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
-                can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
-            ].filter((item) => item !== null),
-        },
-        {
             category: 'Settings',
             items: [
                 can('users.view') ? { title: 'Pengguna', href: '/absensi/admin-web/setting/users', icon: UsersRound } : null,
@@ -58,13 +52,21 @@ const navigation = computed(() =>
             ].filter((item) => item !== null),
         },
         {
-            category: 'Pengaturan',
+            category: 'Master data',
             items: [
-                { title: 'Profil', href: '/settings/profile', icon: UserRound },
-                { title: 'Kata Sandi', href: '/settings/password', icon: KeyRound },
-                { title: 'Tampilan', href: '/settings/appearance', icon: Palette },
-            ],
+                can('jabatan.view') ? { title: 'Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
+                can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
+                can('shift.view') ? { title: 'Shift', href: '/absensi/admin-web/master-data/shift', icon: Timer } : null,
+            ].filter((item) => item !== null),
         },
+        // {
+        //     category: 'Pengaturan',
+        //     items: [
+        //         { title: 'Profil', href: '/settings/profile', icon: UserRound },
+        //         { title: 'Kata Sandi', href: '/settings/password', icon: KeyRound },
+        //         { title: 'Tampilan', href: '/settings/appearance', icon: Palette },
+        //     ],
+        // },
     ].filter((group) => group.items.length),
 );
 

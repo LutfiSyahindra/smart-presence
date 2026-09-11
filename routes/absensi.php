@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
+use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\User\UserController;
@@ -33,6 +34,11 @@ Route::middleware('auth')
             Route::post('pegawai/import', [PegawaiController::class, 'import'])->middleware('can:'.AccessPermission::PEGAWAI_CREATE)->name('pegawai.import');
             Route::put('pegawai/{pegawai}', [PegawaiController::class, 'update'])->middleware('can:'.AccessPermission::PEGAWAI_UPDATE)->name('pegawai.update');
             Route::delete('pegawai/{pegawai}', [PegawaiController::class, 'destroy'])->middleware('can:'.AccessPermission::PEGAWAI_DELETE)->name('pegawai.destroy');
+
+            Route::get('shift', [ShiftController::class, 'index'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.index');
+            Route::post('shift', [ShiftController::class, 'store'])->middleware('can:'.AccessPermission::SHIFT_CREATE)->name('shift.store');
+            Route::put('shift/{shift}', [ShiftController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.update');
+            Route::delete('shift/{shift}', [ShiftController::class, 'destroy'])->middleware('can:'.AccessPermission::SHIFT_DELETE)->name('shift.destroy');
         });
 
         Route::prefix('setting')->name('setting.')->group(function () {

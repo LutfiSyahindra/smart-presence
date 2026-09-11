@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
@@ -39,6 +40,11 @@ Route::middleware('auth')
             Route::post('shift', [ShiftController::class, 'store'])->middleware('can:'.AccessPermission::SHIFT_CREATE)->name('shift.store');
             Route::put('shift/{shift}', [ShiftController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.update');
             Route::delete('shift/{shift}', [ShiftController::class, 'destroy'])->middleware('can:'.AccessPermission::SHIFT_DELETE)->name('shift.destroy');
+
+            Route::get('geolocation', [OfficeLocationController::class, 'index'])->middleware('can:'.AccessPermission::GEOLOCATION_VIEW)->name('geolocation.index');
+            Route::post('geolocation', [OfficeLocationController::class, 'store'])->middleware('can:'.AccessPermission::GEOLOCATION_CREATE)->name('geolocation.store');
+            Route::put('geolocation/{officeLocation}', [OfficeLocationController::class, 'update'])->middleware('can:'.AccessPermission::GEOLOCATION_UPDATE)->name('geolocation.update');
+            Route::delete('geolocation/{officeLocation}', [OfficeLocationController::class, 'destroy'])->middleware('can:'.AccessPermission::GEOLOCATION_DELETE)->name('geolocation.destroy');
         });
 
         Route::prefix('setting')->name('setting.')->group(function () {
@@ -62,5 +68,6 @@ Route::middleware('auth')
             Route::get('permissions/{permission}/edit', [PermissionController::class, 'edit'])->middleware('can:'.AccessPermission::PERMISSIONS_UPDATE)->name('permissions.edit');
             Route::put('permissions/{permission}', [PermissionController::class, 'update'])->middleware('can:'.AccessPermission::PERMISSIONS_UPDATE)->name('permissions.update');
             Route::delete('permissions/{permission}', [PermissionController::class, 'destroy'])->middleware('can:'.AccessPermission::PERMISSIONS_DELETE)->name('permissions.destroy');
+
         });
     });

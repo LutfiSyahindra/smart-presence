@@ -6,13 +6,11 @@ import {
     BriefcaseBusiness,
     ContactRound,
     HeartPulse,
-    KeyRound,
     LayoutDashboard,
-    Palette,
+    MapPinned,
     ShieldCheck,
     Timer,
     UserCog,
-    UserRound,
     UsersRound,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -57,6 +55,7 @@ const navigation = computed(() =>
                 can('jabatan.view') ? { title: 'Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
                 can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
                 can('shift.view') ? { title: 'Shift', href: '/absensi/admin-web/master-data/shift', icon: Timer } : null,
+                can('geolocation.view') ? { title: 'Geolokasi', href: '/absensi/admin-web/master-data/geolocation', icon: MapPinned } : null,
             ].filter((item) => item !== null),
         },
         // {

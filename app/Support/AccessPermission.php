@@ -52,6 +52,14 @@ final class AccessPermission
 
     public const PERMISSIONS_DELETE = 'permissions.delete';
 
+    public const GEOLOCATION_VIEW = 'geolocation.view';
+
+    public const GEOLOCATION_CREATE = 'geolocation.create';
+
+    public const GEOLOCATION_UPDATE = 'geolocation.update';
+
+    public const GEOLOCATION_DELETE = 'geolocation.delete';
+
     /**
      * @return list<string>
      */
@@ -82,6 +90,10 @@ final class AccessPermission
             self::PERMISSIONS_CREATE,
             self::PERMISSIONS_UPDATE,
             self::PERMISSIONS_DELETE,
+            self::GEOLOCATION_VIEW,
+            self::GEOLOCATION_CREATE,
+            self::GEOLOCATION_UPDATE,
+            self::GEOLOCATION_DELETE,
         ];
     }
 

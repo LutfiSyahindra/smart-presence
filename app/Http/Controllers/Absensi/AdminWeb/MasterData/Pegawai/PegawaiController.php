@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\ImportPegawaiRequest;
+use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\StorePegawaiRequest;
+use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\UpdatePegawaiRequest;
+use App\Models\Pegawai;
+use App\Services\Absensi\AdminWeb\MasterData\Pegawai\PegawaiService;
+use App\Support\AccessPermission;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class PegawaiController extends Controller
+{
+    public function __construct(private readonly PegawaiService $service) {}
+
+    public function index(Request $request): Response
+    {
+        return Inertia::render('absensi/admin-web/master-data/pegawai/Index', [
+            'pegawais' => $this->service->paginate($request->only('search', 'birthday')),
+            'overview' => $this->service->overview(),
+            'filters' => $request->only('search', 'birthday'),
+            'can' => [
+                'create' => $request->user()->can(AccessPermission::PEGAWAI_CREATE),
+                'update' => $request->user()->can(AccessPermission::PEGAWAI_UPDATE),
+                'delete' => $request->user()->can(AccessPermission::PEGAWAI_DELETE),
+            ],
+        ]);
+    }
+
+    public function template(): StreamedResponse
+    {
+        return response()->streamDownload(function (): void {
+            $spreadsheet = $this->service->template();
+
+            try {
+                (new Xlsx($spreadsheet))->save('php://output');
+            } finally {
+                $spreadsheet->disconnectWorksheets();
+            }
+        }, 'template-import-pegawai.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ]);
+    }
+
+    public function store(StorePegawaiRequest $request): RedirectResponse
+    {
+        $this->service->create($request->validated());
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', 'Data pegawai berhasil ditambahkan.');
+    }
+
+    public function import(ImportPegawaiRequest $request): RedirectResponse
+    {
+        $count = $this->service->import($request->file('file'));
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')
+            ->with('success', "{$count} data pegawai berhasil diimpor.");
+    }
+
+    public function update(UpdatePegawaiRequest $request, Pegawai $pegawai): RedirectResponse
+    {
+        $this->service->update($pegawai, $request->validated());
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', 'Data pegawai berhasil diperbarui.');
+    }
+
+    public function destroy(Pegawai $pegawai): RedirectResponse
+    {
+        $this->service->delete($pegawai);
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', 'Data pegawai berhasil dihapus.');
+    }
+}

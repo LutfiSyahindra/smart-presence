@@ -23,9 +23,10 @@ class PegawaiController extends Controller
     public function index(Request $request): Response
     {
         return Inertia::render('absensi/admin-web/master-data/pegawai/Index', [
-            'pegawais' => $this->service->paginate($request->only('search', 'birthday')),
+            'pegawais' => $this->service->paginate($request->only('search', 'status', 'unit_kerja')),
             'overview' => $this->service->overview(),
-            'filters' => $request->only('search', 'birthday'),
+            'unitOptions' => $this->service->formOptions(),
+            'filters' => $request->only('search', 'status', 'unit_kerja'),
             'can' => [
                 'create' => $request->user()->can(AccessPermission::PEGAWAI_CREATE),
                 'update' => $request->user()->can(AccessPermission::PEGAWAI_UPDATE),

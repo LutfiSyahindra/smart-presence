@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Models\User;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepository;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepositoryInterface;
+use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\UnitKerjaRepository;
+use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\UnitKerjaRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepository;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\MasterData\Shift\ShiftRepository;
@@ -26,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(JabatanRepositoryInterface::class, JabatanRepository::class);
+        $this->app->bind(UnitKerjaRepositoryInterface::class, UnitKerjaRepository::class);
         $this->app->bind(PegawaiRepositoryInterface::class, PegawaiRepository::class);
         $this->app->bind(ShiftRepositoryInterface::class, ShiftRepository::class);
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);

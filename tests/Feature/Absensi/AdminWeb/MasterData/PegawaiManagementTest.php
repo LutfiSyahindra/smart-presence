@@ -3,10 +3,12 @@
 namespace Tests\Feature\Absensi\AdminWeb\MasterData;
 
 use App\Models\Pegawai;
+use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AdminWeb\MasterData\Pegawai\PegawaiSpreadsheetService;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
+use Database\Seeders\UnitJabatanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -30,7 +32,7 @@ class PegawaiManagementTest extends TestCase
         parent::setUp();
 
         $this->withoutVite();
-        $this->seed(AuthorizationSeeder::class);
+        $this->seed([AuthorizationSeeder::class, UnitJabatanSeeder::class]);
         $this->admin = User::factory()->create();
         $this->admin->assignRole('super-admin');
     }
@@ -82,8 +84,20 @@ class PegawaiManagementTest extends TestCase
         $sheet = $spreadsheet->getSheetByName('Data Pegawai');
 
         $this->assertNotNull($sheet);
-        $this->assertSame(['Nama Pegawai', 'Tanggal Lahir', 'Nomor Telfon'], $sheet->rangeToArray('A1:C1')[0]);
-        $this->assertSame('@', $sheet->getStyle('C2')->getNumberFormat()->getFormatCode());
+        $this->assertSame([
+            'NIK',
+            'Nama Pegawai',
+            'Profesi',
+            'Unit Kerja',
+            'Jabatan',
+            'Jenis Kelamin',
+            'Status Pegawai',
+            'Tanggal Mulai Bekerja',
+            'Tanggal Lahir',
+            'Nomor Telepon',
+        ], $sheet->rangeToArray('A1:J1')[0]);
+        $this->assertSame('@', $sheet->getStyle('A2')->getNumberFormat()->getFormatCode());
+        $this->assertSame('@', $sheet->getStyle('J2')->getNumberFormat()->getFormatCode());
         $this->assertSame('0F766E', $sheet->getStyle('A1')->getFill()->getStartColor()->getRGB());
         $this->assertSame(Fill::FILL_SOLID, $sheet->getStyle('A1')->getFill()->getFillType());
         $this->assertNotNull($spreadsheet->getSheetByName('Petunjuk'));
@@ -113,13 +127,43 @@ class PegawaiManagementTest extends TestCase
             'tanggal_lahir' => '1988-02-03 00:00:00',
             'nomor_telepon' => '081398765432',
         ]);
+        $this->assertTrue(Pegawai::query()->where('nama', 'Siti Aminah')->firstOrFail()->hasRole('pegawai'));
+    }
+
+    public function test_super_admin_can_import_the_workforce_layout_with_organization_and_employment_data(): void
+    {
+        $file = $this->excelUpload([
+            [1, '157.101.019', 'dr. Arif Banar Rizali, Sp. B', 'Dokter Spesialis Bedah Umum', 'Direksi', 'Direktur', 'Laki-laki', 'Tetap', '07/10/2019'],
+            [2, '168.201.020', 'Siti Nur Jannah, S.Kep.,Ns', 'Ners', 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Perempuan', 'Tidak Tetap', '01/05/2020'],
+        ], ['No.', 'NIK', 'Nama', 'Profesi', 'Unit Kerja', 'Jabatan', 'Jenis Kelamin', 'Status Karyawan', 'Tanggal Mulai Bekerja']);
+
+        $this->actingAs($this->admin)
+            ->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertRedirect('/absensi/admin-web/master-data/pegawai')
+            ->assertSessionHas('success', '2 data pegawai berhasil diimpor.');
+
+        $pegawai = Pegawai::query()->where('nik', '168.201.020')->firstOrFail();
+        $this->assertSame('Unit Rawat Jalan', $pegawai->unitKerja->nama);
+        $this->assertSame('Staff Unit Rawat Jalan', $pegawai->jabatan->nama);
+        $this->assertSame('Perempuan', $pegawai->jenis_kelamin);
+        $this->assertSame('Tidak Tetap', $pegawai->status_pegawai);
+        $this->assertSame('2020-05-01', $pegawai->tanggal_mulai_bekerja->format('Y-m-d'));
+        $this->assertTrue($pegawai->hasRole('pegawai'));
     }
 
     public function test_super_admin_can_create_pegawai_manually(): void
     {
+        $organization = $this->organization();
+
         $this->actingAs($this->admin)
             ->post('/absensi/admin-web/master-data/pegawai', [
+                ...$organization,
+                'nik' => '101.201.026',
                 'nama' => '  Siti   Rahmawati ',
+                'profesi' => 'Ners',
+                'jenis_kelamin' => 'Perempuan',
+                'status_pegawai' => 'Tetap',
+                'tanggal_mulai_bekerja' => '2026-01-15',
                 'tanggal_lahir' => '1994-06-15',
                 'nomor_telepon' => '+62 812-3456-7890',
             ])
@@ -127,14 +171,19 @@ class PegawaiManagementTest extends TestCase
             ->assertSessionHas('success', 'Data pegawai berhasil ditambahkan.');
 
         $this->assertDatabaseHas('pegawais', [
+            'nik' => '101.201.026',
             'nama' => 'Siti Rahmawati',
+            'jenis_kelamin' => 'Perempuan',
+            'status_pegawai' => 'Tetap',
             'tanggal_lahir' => '1994-06-15 00:00:00',
             'nomor_telepon' => '081234567890',
         ]);
+        $this->assertTrue(Pegawai::query()->where('nik', '101.201.026')->firstOrFail()->hasRole('pegawai'));
     }
 
     public function test_manual_create_validates_required_fields_and_duplicate_phone_number(): void
     {
+        $organization = $this->organization();
         Pegawai::query()->create([
             'nama' => 'Pegawai Lama',
             'tanggal_lahir' => '1990-01-01',
@@ -143,11 +192,16 @@ class PegawaiManagementTest extends TestCase
 
         $this->actingAs($this->admin)
             ->post('/absensi/admin-web/master-data/pegawai', [
+                ...$organization,
+                'nik' => '',
                 'nama' => '',
+                'jenis_kelamin' => 'Perempuan',
+                'status_pegawai' => 'Tetap',
+                'tanggal_mulai_bekerja' => '2026-01-01',
                 'tanggal_lahir' => now()->addDay()->format('Y-m-d'),
                 'nomor_telepon' => '0812-3456-7890',
             ])
-            ->assertSessionHasErrors(['nama', 'tanggal_lahir', 'nomor_telepon']);
+            ->assertSessionHasErrors(['nik', 'nama', 'tanggal_lahir', 'nomor_telepon']);
 
         $this->assertDatabaseCount('pegawais', 1);
     }
@@ -209,14 +263,23 @@ class PegawaiManagementTest extends TestCase
 
     public function test_super_admin_can_update_and_delete_pegawai(): void
     {
+        $organization = $this->organization();
         $pegawai = Pegawai::query()->create([
+            ...$organization,
+            'nik' => '100.201.020',
             'nama' => 'Nama Awal',
             'tanggal_lahir' => '1990-01-01',
             'nomor_telepon' => '081234567890',
         ]);
 
         $this->actingAs($this->admin)->put("/absensi/admin-web/master-data/pegawai/{$pegawai->id}", [
+            ...$organization,
+            'nik' => '100.201.020',
             'nama' => '  Nama   Baru ',
+            'profesi' => 'Ners',
+            'jenis_kelamin' => 'Laki-laki',
+            'status_pegawai' => 'Tidak Tetap',
+            'tanggal_mulai_bekerja' => '2020-01-01',
             'tanggal_lahir' => '1992-03-04',
             'nomor_telepon' => '+62 812-9999-0000',
         ])->assertRedirect('/absensi/admin-web/master-data/pegawai');
@@ -224,6 +287,7 @@ class PegawaiManagementTest extends TestCase
         $this->assertDatabaseHas('pegawais', [
             'id' => $pegawai->id,
             'nama' => 'Nama Baru',
+            'status_pegawai' => 'Tidak Tetap',
             'tanggal_lahir' => '1992-03-04 00:00:00',
             'nomor_telepon' => '081299990000',
         ]);
@@ -233,30 +297,44 @@ class PegawaiManagementTest extends TestCase
         $this->assertDatabaseMissing('pegawais', ['id' => $pegawai->id]);
     }
 
-    public function test_index_exposes_overview_and_applies_search_and_birthday_filters(): void
+    public function test_index_exposes_employment_overview_and_applies_search_and_status_filters(): void
     {
+        $organization = $this->organization();
         Pegawai::query()->create([
+            ...$organization,
+            'nik' => '001.201.026',
             'nama' => 'Siti Aminah',
+            'jenis_kelamin' => 'Perempuan',
+            'status_pegawai' => 'Tetap',
+            'tanggal_mulai_bekerja' => now()->startOfYear()->format('Y-m-d'),
             'tanggal_lahir' => now()->subYears(30)->startOfMonth()->addDays(3)->format('Y-m-d'),
             'nomor_telepon' => '081211111111',
         ]);
         Pegawai::query()->create([
+            ...$organization,
+            'nik' => '002.201.026',
             'nama' => 'Budi Santoso',
+            'jenis_kelamin' => 'Laki-laki',
+            'status_pegawai' => 'Tidak Tetap',
+            'tanggal_mulai_bekerja' => '2020-01-01',
             'tanggal_lahir' => now()->subYears(40)->addMonth()->format('Y-m-d'),
             'nomor_telepon' => '081222222222',
         ]);
 
         $this->actingAs($this->admin)
-            ->get('/absensi/admin-web/master-data/pegawai?search=siti&birthday=this_month')
+            ->get('/absensi/admin-web/master-data/pegawai?search=siti&status=Tetap')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('absensi/admin-web/master-data/pegawai/Index')
                 ->where('overview.total', 2)
-                ->where('overview.birthdays_this_month', 1)
+                ->where('overview.tetap', 1)
+                ->where('overview.tidak_tetap', 1)
+                ->where('overview.joined_this_year', 1)
                 ->where('pegawais.total', 1)
                 ->where('pegawais.data.0.nama', 'Siti Aminah')
+                ->where('pegawais.data.0.status_pegawai', 'Tetap')
                 ->where('filters.search', 'siti')
-                ->where('filters.birthday', 'this_month'));
+                ->where('filters.status', 'Tetap'));
     }
 
     public function test_action_routes_require_the_corresponding_permissions(): void
@@ -274,6 +352,22 @@ class PegawaiManagementTest extends TestCase
         $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $this->excelUpload([])])->assertForbidden();
         $this->put("/absensi/admin-web/master-data/pegawai/{$pegawai->id}", [])->assertForbidden();
         $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}")->assertForbidden();
+    }
+
+    /**
+     * @return array{unit_kerja_id: int, jabatan_id: int}
+     */
+    private function organization(): array
+    {
+        $unit = UnitKerja::query()
+            ->where('nama', 'Unit Rawat Jalan')
+            ->with('jabatans')
+            ->firstOrFail();
+
+        return [
+            'unit_kerja_id' => (int) $unit->id,
+            'jabatan_id' => (int) $unit->jabatans->firstWhere('nama', 'Staff Unit Rawat Jalan')->id,
+        ];
     }
 
     /**

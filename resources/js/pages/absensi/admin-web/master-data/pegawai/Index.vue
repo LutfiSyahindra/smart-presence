@@ -4,10 +4,11 @@ import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     ArrowRight,
-    Cake,
+    BadgeCheck,
+    BriefcaseBusiness,
+    Building2,
     CalendarDays,
     CheckCircle2,
-    Clock3,
     ContactRound,
     Download,
     FileSpreadsheet,
@@ -19,7 +20,6 @@ import {
     Trash2,
     UploadCloud,
     UserPlus,
-    UserRoundCheck,
     UsersRound,
     X,
 } from 'lucide-vue-next';
@@ -32,26 +32,44 @@ import type { Paginated } from '../../setting/types';
 
 interface PegawaiRow {
     id: number;
+    nik: string | null;
     nama: string;
-    tanggal_lahir: string;
-    tanggal_lahir_label: string;
-    usia: number;
-    nomor_telepon: string;
+    profesi: string | null;
+    unit_kerja_id: number | null;
+    unit_kerja: string | null;
+    jabatan_id: number | null;
+    jabatan: string | null;
+    jenis_kelamin: 'Laki-laki' | 'Perempuan' | null;
+    status_pegawai: 'Tetap' | 'Tidak Tetap' | null;
+    tanggal_mulai_bekerja: string | null;
+    tanggal_mulai_bekerja_label: string | null;
+    tanggal_lahir: string | null;
+    tanggal_lahir_label: string | null;
+    usia: number | null;
+    nomor_telepon: string | null;
+    roles: string[];
     created_at: string | null;
     updated_at: string | null;
 }
 
 interface PegawaiOverview {
     total: number;
-    birthdays_this_month: number;
-    added_this_month: number;
-    average_age: number;
+    tetap: number;
+    tidak_tetap: number;
+    joined_this_year: number;
+}
+
+interface UnitOption {
+    id: number;
+    nama: string;
+    jabatans: { id: number; nama: string }[];
 }
 
 const props = defineProps<{
     pegawais: Paginated<PegawaiRow>;
     overview: PegawaiOverview;
-    filters: { search?: string; birthday?: string };
+    unitOptions: UnitOption[];
+    filters: { search?: string; status?: string; unit_kerja?: number | string };
     can: { create: boolean; update: boolean; delete: boolean };
 }>();
 
@@ -63,7 +81,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const search = ref(props.filters.search ?? '');
-const birthday = ref(props.filters.birthday ?? 'all');
+const status = ref(props.filters.status ?? 'all');
+const unitKerja = ref(Number(props.filters.unit_kerja) || 0);
 const createOpen = ref(false);
 const importOpen = ref(false);
 const dragActive = ref(false);
@@ -75,10 +94,22 @@ const deleting = ref(false);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const importForm = useForm<{ file: File | null }>({ file: null });
-const createForm = useForm({ nama: '', tanggal_lahir: '', nomor_telepon: '' });
-const editForm = useForm({ nama: '', tanggal_lahir: '', nomor_telepon: '' });
+const emptyForm = () => ({
+    nik: '',
+    nama: '',
+    profesi: '',
+    unit_kerja_id: 0,
+    jabatan_id: 0,
+    jenis_kelamin: '',
+    status_pegawai: '',
+    tanggal_mulai_bekerja: '',
+    tanggal_lahir: '',
+    nomor_telepon: '',
+});
+const createForm = useForm(emptyForm());
+const editForm = useForm(emptyForm());
 
-const hasActiveFilters = computed(() => Boolean(search.value.trim()) || birthday.value !== 'all');
+const hasActiveFilters = computed(() => Boolean(search.value.trim()) || status.value !== 'all' || unitKerja.value !== 0);
 const resultSummary = computed(() => {
     if (!props.pegawais.total) return 'Belum ada hasil';
     return `${props.pegawais.from}-${props.pegawais.to} dari ${props.pegawais.total} pegawai`;
@@ -86,7 +117,10 @@ const resultSummary = computed(() => {
 const previewPegawai = computed(() => props.pegawais.data.slice(0, 4));
 const remainingPegawai = computed(() => Math.max(0, props.overview.total - previewPegawai.value.length));
 const today = new Date();
-const maxBirthDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const maxDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const positionsFor = (unitId: number) => props.unitOptions.find((unit) => unit.id === Number(unitId))?.jabatans ?? [];
+const createPositions = computed(() => positionsFor(createForm.unit_kerja_id));
+const editPositions = computed(() => positionsFor(editForm.unit_kerja_id));
 
 const summaryCards = computed(() => [
     {
@@ -97,24 +131,24 @@ const summaryCards = computed(() => [
         tone: 'teal',
     },
     {
-        label: 'Ulang tahun bulan ini',
-        value: props.overview.birthdays_this_month.toLocaleString('id-ID'),
-        note: props.overview.birthdays_this_month ? 'Momen spesial bulan ini' : 'Belum ada agenda ulang tahun',
-        icon: Cake,
+        label: 'Pegawai tetap',
+        value: props.overview.tetap.toLocaleString('id-ID'),
+        note: 'Status hubungan kerja tetap',
+        icon: BadgeCheck,
         tone: 'coral',
     },
     {
-        label: 'Baru bulan ini',
-        value: props.overview.added_this_month.toLocaleString('id-ID'),
-        note: 'Data hasil penambahan terbaru',
-        icon: UserRoundCheck,
+        label: 'Pegawai tidak tetap',
+        value: props.overview.tidak_tetap.toLocaleString('id-ID'),
+        note: 'Status hubungan kerja tidak tetap',
+        icon: BriefcaseBusiness,
         tone: 'sky',
     },
     {
-        label: 'Rata-rata usia',
-        value: `${props.overview.average_age} th`,
-        note: 'Komposisi usia pegawai',
-        icon: Clock3,
+        label: `Mulai kerja ${today.getFullYear()}`,
+        value: props.overview.joined_this_year.toLocaleString('id-ID'),
+        note: 'Bergabung pada tahun berjalan',
+        icon: CalendarDays,
         tone: 'violet',
     },
 ]);
@@ -129,7 +163,8 @@ const initials = (name: string) =>
 
 const avatarTone = (id: number) => `tone-${(id % 5) + 1}`;
 
-const formatPhone = (phone: string) => {
+const formatPhone = (phone: string | null) => {
+    if (!phone) return '-';
     if (phone.length <= 8) return phone;
     const first = phone.slice(0, 4);
     const middle = phone.slice(4, 8);
@@ -143,7 +178,8 @@ const applyFilters = () => {
         baseUrl,
         {
             search: search.value.trim() || undefined,
-            birthday: birthday.value === 'all' ? undefined : birthday.value,
+            status: status.value === 'all' ? undefined : status.value,
+            unit_kerja: unitKerja.value || undefined,
         },
         { preserveState: true, preserveScroll: true, replace: true },
     );
@@ -151,12 +187,13 @@ const applyFilters = () => {
 
 const clearFilters = () => {
     search.value = '';
-    birthday.value = 'all';
+    status.value = 'all';
+    unitKerja.value = 0;
     applyFilters();
 };
 
-const setBirthdayFilter = (value: string) => {
-    birthday.value = value;
+const setStatusFilter = (value: string) => {
+    status.value = value;
     applyFilters();
 };
 
@@ -169,6 +206,20 @@ watch(search, (value, previousValue) => {
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer);
 });
+
+watch(
+    () => createForm.unit_kerja_id,
+    () => {
+        if (!createPositions.value.some((jabatan) => jabatan.id === Number(createForm.jabatan_id))) createForm.jabatan_id = 0;
+    },
+);
+
+watch(
+    () => editForm.unit_kerja_id,
+    () => {
+        if (!editPositions.value.some((jabatan) => jabatan.id === Number(editForm.jabatan_id))) editForm.jabatan_id = 0;
+    },
+);
 
 const openCreate = () => {
     createForm.reset();
@@ -252,9 +303,16 @@ const openEdit = (pegawai: PegawaiRow) => {
     editing.value = pegawai;
     editForm.clearErrors();
     editForm.defaults({
+        nik: pegawai.nik ?? '',
         nama: pegawai.nama,
-        tanggal_lahir: pegawai.tanggal_lahir,
-        nomor_telepon: pegawai.nomor_telepon,
+        profesi: pegawai.profesi ?? '',
+        unit_kerja_id: pegawai.unit_kerja_id ?? 0,
+        jabatan_id: pegawai.jabatan_id ?? 0,
+        jenis_kelamin: pegawai.jenis_kelamin ?? '',
+        status_pegawai: pegawai.status_pegawai ?? '',
+        tanggal_mulai_bekerja: pegawai.tanggal_mulai_bekerja ?? '',
+        tanggal_lahir: pegawai.tanggal_lahir ?? '',
+        nomor_telepon: pegawai.nomor_telepon ?? '',
     });
     editForm.reset();
 };
@@ -300,10 +358,10 @@ const destroy = () => {
                 <div class="employee-hero-copy">
                     <span class="employee-eyebrow"><Sparkles /> People directory</span>
                     <h1 id="employee-hero-title">Kenali setiap insan.<br /><span>Rawat koneksi tim.</span></h1>
-                    <p>Kelola identitas dasar pegawai dalam satu direktori yang rapi, hangat, dan siap mendukung layanan rumah sakit.</p>
+                    <p>Kelola identitas, penempatan unit dan jabatan, status kepegawaian, serta masa kerja dalam satu direktori.</p>
                     <div class="employee-hero-trust">
                         <span><CheckCircle2 /> Impor tervalidasi</span>
-                        <span><CheckCircle2 /> Nomor tetap aman</span>
+                        <span><CheckCircle2 /> Role pegawai otomatis</span>
                     </div>
                 </div>
 
@@ -336,7 +394,7 @@ const destroy = () => {
                             <i></i>
                             <span><UploadCloud /></span>
                         </div>
-                        <p>Unduh template, lengkapi tiga kolom, lalu impor.</p>
+                        <p>Unduh template, lengkapi profil dan penempatan, lalu impor.</p>
                     </div>
 
                     <button v-if="can.create" type="button" class="employee-hero-action" @click="openCreate">
@@ -363,7 +421,7 @@ const destroy = () => {
                     <div>
                         <span class="employee-section-kicker">Direktori pegawai</span>
                         <h2 id="employee-directory-title">Master pegawai</h2>
-                        <p>Temukan profil, perbarui kontak, dan pantau ulang tahun tim.</p>
+                        <p>Temukan profil, unit, jabatan, status, dan masa kerja setiap pegawai.</p>
                     </div>
                     <div class="employee-directory-count">
                         <span><i></i> Data tersinkron</span>
@@ -375,15 +433,23 @@ const destroy = () => {
                     <label class="employee-search" :class="{ filled: search }">
                         <span class="visually-hidden">Cari pegawai</span>
                         <Search />
-                        <input v-model="search" type="search" placeholder="Cari nama atau nomor telepon..." />
+                        <input v-model="search" type="search" placeholder="Cari nama, NIK, profesi, unit, atau jabatan..." />
                         <button v-if="search" type="button" aria-label="Hapus pencarian" @click="search = ''"><X /></button>
                     </label>
                     <div class="employee-filter-pills" aria-label="Filter pegawai">
-                        <button type="button" :class="{ active: birthday === 'all' }" @click="setBirthdayFilter('all')">Semua</button>
-                        <button type="button" :class="{ active: birthday === 'this_month' }" @click="setBirthdayFilter('this_month')">
-                            <Cake /> Ulang tahun bulan ini
+                        <button type="button" :class="{ active: status === 'all' }" @click="setStatusFilter('all')">Semua</button>
+                        <button type="button" :class="{ active: status === 'Tetap' }" @click="setStatusFilter('Tetap')">Tetap</button>
+                        <button type="button" :class="{ active: status === 'Tidak Tetap' }" @click="setStatusFilter('Tidak Tetap')">
+                            Tidak tetap
                         </button>
                     </div>
+                    <label class="employee-unit-filter">
+                        <Building2 />
+                        <select v-model.number="unitKerja" aria-label="Filter unit kerja" @change="applyFilters">
+                            <option :value="0">Semua unit</option>
+                            <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
+                        </select>
+                    </label>
                     <div v-if="can.create" class="employee-toolbar-actions">
                         <button type="button" class="employee-create-button" @click="openCreate"><UserPlus /> Tambah manual</button>
                         <button type="button" class="employee-import-button" @click="openImport"><UploadCloud /> Import Excel</button>
@@ -396,10 +462,11 @@ const destroy = () => {
                             <thead>
                                 <tr>
                                     <th>Identitas pegawai</th>
-                                    <th>Tanggal lahir</th>
-                                    <th>Usia</th>
-                                    <th>Nomor telepon</th>
-                                    <th>Diperbarui</th>
+                                    <th>Unit & jabatan</th>
+                                    <th>Jenis kelamin</th>
+                                    <th>Status</th>
+                                    <th>Mulai bekerja</th>
+                                    <th>Kontak</th>
                                     <th v-if="can.update || can.delete" class="employee-actions-heading">Aksi</th>
                                 </tr>
                             </thead>
@@ -410,23 +477,33 @@ const destroy = () => {
                                             <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
                                             <span
                                                 ><strong>{{ pegawai.nama }}</strong
-                                                ><small>ID #{{ String(pegawai.id).padStart(4, '0') }}</small></span
+                                                ><small>NIK {{ pegawai.nik ?? '-' }} · {{ pegawai.profesi ?? 'Profesi belum diisi' }}</small
+                                                ><em class="employee-role-badge">{{ pegawai.roles[0] ?? 'pegawai' }}</em></span
                                             >
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="employee-date"><CalendarDays /> {{ pegawai.tanggal_lahir_label }}</span>
-                                    </td>
-                                    <td>
-                                        <span class="employee-age">{{ pegawai.usia }} tahun</span>
-                                    </td>
-                                    <td>
-                                        <a class="employee-phone" :href="`tel:${pegawai.nomor_telepon}`"
-                                            ><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a
+                                        <span class="employee-org"
+                                            ><strong>{{ pegawai.unit_kerja ?? '-' }}</strong
+                                            ><small>{{ pegawai.jabatan ?? '-' }}</small></span
                                         >
                                     </td>
                                     <td>
-                                        <span class="employee-updated">{{ pegawai.updated_at ?? '-' }}</span>
+                                        <span class="employee-gender">{{ pegawai.jenis_kelamin ?? '-' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="employee-status" :class="pegawai.status_pegawai === 'Tetap' ? 'permanent' : 'temporary'">
+                                            {{ pegawai.status_pegawai ?? '-' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="employee-date"><CalendarDays /> {{ pegawai.tanggal_mulai_bekerja_label ?? '-' }}</span>
+                                    </td>
+                                    <td>
+                                        <a v-if="pegawai.nomor_telepon" class="employee-phone" :href="`tel:${pegawai.nomor_telepon}`"
+                                            ><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a
+                                        >
+                                        <span v-else class="employee-updated">Belum diisi</span>
                                     </td>
                                     <td v-if="can.update || can.delete">
                                         <div class="employee-row-actions">
@@ -463,7 +540,7 @@ const destroy = () => {
                                     <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
                                     <span
                                         ><strong>{{ pegawai.nama }}</strong
-                                        ><small>{{ pegawai.usia }} tahun</small></span
+                                        ><small>NIK {{ pegawai.nik ?? '-' }} · {{ pegawai.status_pegawai ?? '-' }}</small></span
                                     >
                                 </div>
                                 <div v-if="can.update || can.delete" class="employee-row-actions">
@@ -474,8 +551,12 @@ const destroy = () => {
                                 </div>
                             </header>
                             <div class="employee-mobile-details">
-                                <span><CalendarDays /> {{ pegawai.tanggal_lahir_label }}</span>
-                                <a :href="`tel:${pegawai.nomor_telepon}`"><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a>
+                                <span><Building2 /> {{ pegawai.unit_kerja ?? '-' }}</span>
+                                <span><BriefcaseBusiness /> {{ pegawai.jabatan ?? '-' }}</span>
+                                <span><CalendarDays /> {{ pegawai.tanggal_mulai_bekerja_label ?? '-' }}</span>
+                                <a v-if="pegawai.nomor_telepon" :href="`tel:${pegawai.nomor_telepon}`"
+                                    ><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a
+                                >
                             </div>
                         </article>
                     </div>
@@ -502,7 +583,7 @@ const destroy = () => {
         <CrudModal
             :open="createOpen"
             title="Tambah pegawai baru"
-            description="Isi identitas dasar pegawai untuk menambahkannya langsung ke direktori."
+            description="Isi identitas, penempatan, dan status kerja. Role pegawai diberikan otomatis."
             @close="closeCreate"
         >
             <form class="employee-create-form" @submit.prevent="submitCreate">
@@ -511,7 +592,7 @@ const destroy = () => {
                         <span>{{ initials(createForm.nama || 'Pegawai') }}</span>
                         <div>
                             <small>Profil baru</small><strong>{{ createForm.nama || 'Nama pegawai' }}</strong
-                            ><em>{{ formatPhone(createForm.nomor_telepon || '08xxxxxxxxxx') }}</em>
+                            ><em>{{ createForm.nik || 'NIK belum diisi' }} · role pegawai</em>
                         </div>
                     </div>
 
@@ -529,12 +610,63 @@ const destroy = () => {
                             <small v-if="createForm.errors.nama" class="employee-field-error">{{ createForm.errors.nama }}</small>
                         </label>
                         <label class="employee-form-field">
-                            <span>Tanggal lahir <b>*</b></span>
-                            <input v-model="createForm.tanggal_lahir" type="date" min="1900-01-01" :max="maxBirthDate" />
-                            <small v-if="createForm.errors.tanggal_lahir" class="employee-field-error">{{ createForm.errors.tanggal_lahir }}</small>
+                            <span>NIK <b>*</b></span>
+                            <input v-model="createForm.nik" type="text" maxlength="50" placeholder="157.101.019" />
+                            <small v-if="createForm.errors.nik" class="employee-field-error">{{ createForm.errors.nik }}</small>
                         </label>
                         <label class="employee-form-field">
-                            <span>Nomor telepon <b>*</b></span>
+                            <span>Profesi</span>
+                            <input v-model="createForm.profesi" type="text" maxlength="150" placeholder="Contoh: Ners" />
+                            <small v-if="createForm.errors.profesi" class="employee-field-error">{{ createForm.errors.profesi }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Unit kerja <b>*</b></span>
+                            <select v-model.number="createForm.unit_kerja_id">
+                                <option :value="0" disabled>Pilih unit kerja</option>
+                                <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
+                            </select>
+                            <small v-if="createForm.errors.unit_kerja_id" class="employee-field-error">{{ createForm.errors.unit_kerja_id }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Jabatan <b>*</b></span>
+                            <select v-model.number="createForm.jabatan_id" :disabled="!createForm.unit_kerja_id">
+                                <option :value="0" disabled>Pilih jabatan</option>
+                                <option v-for="jabatan in createPositions" :key="jabatan.id" :value="jabatan.id">{{ jabatan.nama }}</option>
+                            </select>
+                            <small v-if="createForm.errors.jabatan_id" class="employee-field-error">{{ createForm.errors.jabatan_id }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Jenis kelamin <b>*</b></span>
+                            <select v-model="createForm.jenis_kelamin">
+                                <option value="" disabled>Pilih jenis kelamin</option>
+                                <option value="Laki-laki">Laki-laki</option>
+                                <option value="Perempuan">Perempuan</option>
+                            </select>
+                            <small v-if="createForm.errors.jenis_kelamin" class="employee-field-error">{{ createForm.errors.jenis_kelamin }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Status pegawai <b>*</b></span>
+                            <select v-model="createForm.status_pegawai">
+                                <option value="" disabled>Pilih status</option>
+                                <option value="Tetap">Tetap</option>
+                                <option value="Tidak Tetap">Tidak Tetap</option>
+                            </select>
+                            <small v-if="createForm.errors.status_pegawai" class="employee-field-error">{{ createForm.errors.status_pegawai }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Tanggal mulai bekerja <b>*</b></span>
+                            <input v-model="createForm.tanggal_mulai_bekerja" type="date" min="1900-01-01" :max="maxDate" />
+                            <small v-if="createForm.errors.tanggal_mulai_bekerja" class="employee-field-error">{{
+                                createForm.errors.tanggal_mulai_bekerja
+                            }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Tanggal lahir</span>
+                            <input v-model="createForm.tanggal_lahir" type="date" min="1900-01-01" :max="maxDate" />
+                            <small v-if="createForm.errors.tanggal_lahir" class="employee-field-error">{{ createForm.errors.tanggal_lahir }}</small>
+                        </label>
+                        <label class="employee-form-field full">
+                            <span>Nomor telepon</span>
                             <input v-model="createForm.nomor_telepon" type="tel" maxlength="20" autocomplete="tel" placeholder="081234567890" />
                             <small v-if="createForm.errors.nomor_telepon" class="employee-field-error">{{ createForm.errors.nomor_telepon }}</small>
                         </label>
@@ -563,7 +695,7 @@ const destroy = () => {
                         <span>
                             <small>Langkah 1</small>
                             <strong>Unduh template Excel</strong>
-                            <em>Nama Pegawai · Tanggal Lahir · Nomor Telfon</em>
+                            <em>NIK · Nama · Unit · Jabatan · Gender · Status · Mulai bekerja</em>
                         </span>
                         <Download />
                     </a>
@@ -600,7 +732,7 @@ const destroy = () => {
 
                     <div class="employee-import-notes">
                         <span><strong>1.000</strong><small>Maks. baris</small></span>
-                        <span><strong>DD/MM/YYYY</strong><small>Format tanggal</small></span>
+                        <span><strong>10 kolom</strong><small>Profil lengkap</small></span>
                         <span><strong>Transaksi aman</strong><small>Tanpa data separuh</small></span>
                     </div>
                 </div>
@@ -618,7 +750,7 @@ const destroy = () => {
         <CrudModal
             :open="Boolean(editing)"
             :title="`Edit pegawai: ${editing?.nama ?? ''}`"
-            description="Perbarui identitas dasar pegawai tanpa mengubah data lainnya."
+            description="Perbarui identitas, penempatan, dan status kerja pegawai."
             @close="closeEdit"
         >
             <form class="employee-edit-form" @submit.prevent="submitEdit">
@@ -627,7 +759,7 @@ const destroy = () => {
                         <span>{{ initials(editForm.nama || 'Pegawai') }}</span>
                         <div>
                             <small>Profil pegawai</small><strong>{{ editForm.nama || 'Nama pegawai' }}</strong
-                            ><em>{{ formatPhone(editForm.nomor_telepon || '08xxxxxxxxxx') }}</em>
+                            ><em>{{ editForm.nik || 'NIK belum diisi' }} · role pegawai</em>
                         </div>
                     </div>
 
@@ -638,12 +770,63 @@ const destroy = () => {
                             <small v-if="editForm.errors.nama" class="employee-field-error">{{ editForm.errors.nama }}</small>
                         </label>
                         <label class="employee-form-field">
-                            <span>Tanggal lahir <b>*</b></span>
-                            <input v-model="editForm.tanggal_lahir" type="date" min="1900-01-01" :max="maxBirthDate" />
-                            <small v-if="editForm.errors.tanggal_lahir" class="employee-field-error">{{ editForm.errors.tanggal_lahir }}</small>
+                            <span>NIK <b>*</b></span>
+                            <input v-model="editForm.nik" type="text" maxlength="50" placeholder="157.101.019" />
+                            <small v-if="editForm.errors.nik" class="employee-field-error">{{ editForm.errors.nik }}</small>
                         </label>
                         <label class="employee-form-field">
-                            <span>Nomor telepon <b>*</b></span>
+                            <span>Profesi</span>
+                            <input v-model="editForm.profesi" type="text" maxlength="150" placeholder="Contoh: Ners" />
+                            <small v-if="editForm.errors.profesi" class="employee-field-error">{{ editForm.errors.profesi }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Unit kerja <b>*</b></span>
+                            <select v-model.number="editForm.unit_kerja_id">
+                                <option :value="0" disabled>Pilih unit kerja</option>
+                                <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
+                            </select>
+                            <small v-if="editForm.errors.unit_kerja_id" class="employee-field-error">{{ editForm.errors.unit_kerja_id }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Jabatan <b>*</b></span>
+                            <select v-model.number="editForm.jabatan_id" :disabled="!editForm.unit_kerja_id">
+                                <option :value="0" disabled>Pilih jabatan</option>
+                                <option v-for="jabatan in editPositions" :key="jabatan.id" :value="jabatan.id">{{ jabatan.nama }}</option>
+                            </select>
+                            <small v-if="editForm.errors.jabatan_id" class="employee-field-error">{{ editForm.errors.jabatan_id }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Jenis kelamin <b>*</b></span>
+                            <select v-model="editForm.jenis_kelamin">
+                                <option value="" disabled>Pilih jenis kelamin</option>
+                                <option value="Laki-laki">Laki-laki</option>
+                                <option value="Perempuan">Perempuan</option>
+                            </select>
+                            <small v-if="editForm.errors.jenis_kelamin" class="employee-field-error">{{ editForm.errors.jenis_kelamin }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Status pegawai <b>*</b></span>
+                            <select v-model="editForm.status_pegawai">
+                                <option value="" disabled>Pilih status</option>
+                                <option value="Tetap">Tetap</option>
+                                <option value="Tidak Tetap">Tidak Tetap</option>
+                            </select>
+                            <small v-if="editForm.errors.status_pegawai" class="employee-field-error">{{ editForm.errors.status_pegawai }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Tanggal mulai bekerja <b>*</b></span>
+                            <input v-model="editForm.tanggal_mulai_bekerja" type="date" min="1900-01-01" :max="maxDate" />
+                            <small v-if="editForm.errors.tanggal_mulai_bekerja" class="employee-field-error">{{
+                                editForm.errors.tanggal_mulai_bekerja
+                            }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Tanggal lahir</span>
+                            <input v-model="editForm.tanggal_lahir" type="date" min="1900-01-01" :max="maxDate" />
+                            <small v-if="editForm.errors.tanggal_lahir" class="employee-field-error">{{ editForm.errors.tanggal_lahir }}</small>
+                        </label>
+                        <label class="employee-form-field full">
+                            <span>Nomor telepon</span>
                             <input v-model="editForm.nomor_telepon" type="tel" maxlength="20" autocomplete="tel" placeholder="081234567890" />
                             <small v-if="editForm.errors.nomor_telepon" class="employee-field-error">{{ editForm.errors.nomor_telepon }}</small>
                         </label>
@@ -662,7 +845,7 @@ const destroy = () => {
         <ConfirmDelete
             :open="Boolean(selected)"
             title="Hapus data pegawai?"
-            :description="`Data ${selected?.nama ?? ''} dengan nomor ${selected?.nomor_telepon ?? ''} akan dihapus permanen dari master data.`"
+            :description="`Data ${selected?.nama ?? ''} dengan NIK ${selected?.nik ?? '-'} akan dihapus permanen dari master data.`"
             :processing="deleting"
             @close="selected = null"
             @confirm="destroy"
@@ -1231,6 +1414,31 @@ const destroy = () => {
     width: 0.9rem;
 }
 
+.employee-unit-filter {
+    display: flex;
+    height: 2.75rem;
+    min-width: 11rem;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0 0.7rem;
+    border: 1px solid #d8e6e3;
+    border-radius: 0.85rem;
+    color: #66807d;
+    background: #f8fbfa;
+}
+.employee-unit-filter svg {
+    width: 0.95rem;
+    flex: 0 0 auto;
+}
+.employee-unit-filter select {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    color: var(--employee-ink);
+    background: transparent;
+    font-size: 0.72rem;
+}
+
 .employee-create-button,
 .employee-import-button,
 .employee-empty-state button,
@@ -1277,6 +1485,7 @@ const destroy = () => {
 }
 .employee-table {
     width: 100%;
+    min-width: 76rem;
     border-collapse: collapse;
 }
 .employee-table th {
@@ -1330,6 +1539,53 @@ const destroy = () => {
 .employee-identity strong,
 .employee-identity small {
     display: block;
+}
+.employee-role-badge {
+    display: inline-flex;
+    width: fit-content;
+    margin-top: 0.3rem;
+    padding: 0.18rem 0.42rem;
+    border-radius: 999px;
+    color: #0f766e;
+    background: #ccfbf1;
+    font-size: 0.56rem;
+    font-style: normal;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+.employee-org {
+    display: grid;
+    min-width: 11rem;
+    gap: 0.18rem;
+}
+.employee-org strong {
+    color: var(--employee-ink);
+    font-size: 0.72rem;
+}
+.employee-org small {
+    max-width: 15rem;
+    color: #829692;
+    font-size: 0.62rem;
+    line-height: 1.35;
+}
+.employee-gender {
+    white-space: nowrap;
+}
+.employee-status {
+    display: inline-flex;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.66rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.employee-status.permanent {
+    color: #047857;
+    background: #d1fae5;
+}
+.employee-status.temporary {
+    color: #9f1239;
+    background: #ffe4e6;
 }
 .employee-identity strong {
     max-width: 15rem;
@@ -1741,7 +1997,8 @@ const destroy = () => {
 .employee-form-field b {
     color: #fb7185;
 }
-.employee-form-field input {
+.employee-form-field input,
+.employee-form-field select {
     width: 100%;
     height: 2.8rem;
     padding: 0 0.8rem;
@@ -1755,7 +2012,12 @@ const destroy = () => {
         border-color 0.18s,
         box-shadow 0.18s;
 }
-.employee-form-field input:focus {
+.employee-form-field select:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+.employee-form-field input:focus,
+.employee-form-field select:focus {
     border-color: var(--employee-mint);
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
 }
@@ -1806,6 +2068,8 @@ const destroy = () => {
 :global(.dark) .employee-import-notes,
 :global(.dark) .employee-profile-preview,
 :global(.dark) .employee-form-field input,
+:global(.dark) .employee-form-field select,
+:global(.dark) .employee-unit-filter,
 :global(.dark) .employee-create-button,
 :global(.dark) .employee-button.ghost {
     border-color: #31514c;
@@ -1822,6 +2086,10 @@ const destroy = () => {
 :global(.dark) .employee-import-notes strong,
 :global(.dark) .employee-profile-preview strong,
 :global(.dark) .employee-form-field input {
+    color: #e5f4f1;
+}
+:global(.dark) .employee-form-field select,
+:global(.dark) .employee-unit-filter select {
     color: #e5f4f1;
 }
 :global(.dark) .employee-dropzone:hover,

@@ -15,8 +15,11 @@ class StoreJabatanRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $unitKerjaId = $this->integer('unit_kerja_id');
+
         if ($this->has('jabatans')) {
             return [
+                'unit_kerja_id' => ['required', 'integer', Rule::exists('unit_kerjas', 'id')],
                 'jabatans' => ['required', 'array', 'min:1', 'max:25'],
                 'jabatans.*' => ['required', 'array'],
                 'jabatans.*.kode' => [
@@ -25,14 +28,14 @@ class StoreJabatanRequest extends FormRequest
                     'max:30',
                     'regex:/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/',
                     'distinct:ignore_case',
-                    Rule::unique('jabatans', 'kode'),
+                    Rule::unique('jabatans', 'kode')->where('unit_kerja_id', $unitKerjaId),
                 ],
                 'jabatans.*.nama' => [
                     'required',
                     'string',
                     'max:150',
                     'distinct:ignore_case',
-                    Rule::unique('jabatans', 'nama'),
+                    Rule::unique('jabatans', 'nama')->where('unit_kerja_id', $unitKerjaId),
                 ],
                 'jabatans.*.deskripsi' => ['nullable', 'string', 'max:500'],
                 'jabatans.*.aktif' => ['required', 'boolean'],
@@ -40,8 +43,15 @@ class StoreJabatanRequest extends FormRequest
         }
 
         return [
-            'kode' => ['required', 'string', 'max:30', 'regex:/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/', Rule::unique('jabatans', 'kode')],
-            'nama' => ['required', 'string', 'max:150', Rule::unique('jabatans', 'nama')],
+            'unit_kerja_id' => ['required', 'integer', Rule::exists('unit_kerjas', 'id')],
+            'kode' => [
+                'required',
+                'string',
+                'max:30',
+                'regex:/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/',
+                Rule::unique('jabatans', 'kode')->where('unit_kerja_id', $unitKerjaId),
+            ],
+            'nama' => ['required', 'string', 'max:150', Rule::unique('jabatans', 'nama')->where('unit_kerja_id', $unitKerjaId)],
             'deskripsi' => ['nullable', 'string', 'max:500'],
             'aktif' => ['required', 'boolean'],
         ];
@@ -53,6 +63,8 @@ class StoreJabatanRequest extends FormRequest
             'kode.regex' => 'Kode hanya boleh berisi huruf, angka, dan tanda hubung.',
             'kode.unique' => 'Kode jabatan sudah digunakan.',
             'nama.unique' => 'Nama jabatan sudah digunakan.',
+            'unit_kerja_id.required' => 'Unit kerja wajib dipilih.',
+            'unit_kerja_id.exists' => 'Unit kerja yang dipilih tidak ditemukan.',
             'jabatans.required' => 'Minimal satu input jabatan harus tersedia.',
             'jabatans.min' => 'Minimal satu input jabatan harus tersedia.',
             'jabatans.max' => 'Maksimal 25 jabatan dapat ditambahkan sekaligus.',
@@ -87,6 +99,7 @@ class StoreJabatanRequest extends FormRequest
         }
 
         $this->merge([
+            'unit_kerja_id' => $this->integer('unit_kerja_id'),
             'kode' => str($this->input('kode'))->trim()->upper()->toString(),
             'nama' => str($this->input('nama'))->squish()->toString(),
             'deskripsi' => str($this->input('deskripsi'))->squish()->toString() ?: null,

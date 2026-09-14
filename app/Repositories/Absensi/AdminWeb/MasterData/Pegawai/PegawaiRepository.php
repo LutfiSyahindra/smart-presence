@@ -10,43 +10,62 @@ class PegawaiRepository implements PegawaiRepositoryInterface
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
     {
         return Pegawai::query()
+            ->with(['unitKerja:id,nama', 'jabatan:id,nama', 'roles:id,name'])
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('nama', 'like', "%{$search}%")
-                        ->orWhere('nomor_telepon', 'like', "%{$search}%");
+                        ->orWhere('nik', 'like', "%{$search}%")
+                        ->orWhere('profesi', 'like', "%{$search}%")
+                        ->orWhere('nomor_telepon', 'like', "%{$search}%")
+                        ->orWhereHas('unitKerja', fn ($query) => $query->where('nama', 'like', "%{$search}%"))
+                        ->orWhereHas('jabatan', fn ($query) => $query->where('nama', 'like', "%{$search}%"));
                 });
             })
             ->when(
-                ($filters['birthday'] ?? null) === 'this_month',
-                fn ($query) => $query->whereMonth('tanggal_lahir', now()->month),
+                $filters['status'] ?? null,
+                fn ($query, string $status) => $query->where('status_pegawai', $status),
+            )
+            ->when(
+                $filters['unit_kerja'] ?? null,
+                fn ($query, int $unitKerja) => $query->where('unit_kerja_id', $unitKerja),
             )
             ->orderBy('nama')
-            ->orderBy('tanggal_lahir')
+            ->orderBy('nik')
             ->paginate($perPage)
             ->withQueryString();
     }
 
     public function overview(): array
     {
-        $base = Pegawai::query();
-        $birthDates = (clone $base)->pluck('tanggal_lahir');
-        $averageAge = $birthDates->isEmpty()
-            ? 0
-            : (int) round($birthDates->average(fn ($date) => now()->diffInYears($date, true)));
-
         return [
-            'total' => (clone $base)->count(),
-            'birthdays_this_month' => (clone $base)->whereMonth('tanggal_lahir', now()->month)->count(),
-            'added_this_month' => (clone $base)->where('created_at', '>=', now()->startOfMonth())->count(),
-            'average_age' => $averageAge,
+            'total' => Pegawai::query()->count(),
+            'tetap' => Pegawai::query()->where('status_pegawai', 'Tetap')->count(),
+            'tidak_tetap' => Pegawai::query()->where('status_pegawai', 'Tidak Tetap')->count(),
+            'joined_this_year' => Pegawai::query()->whereYear('tanggal_mulai_bekerja', now()->year)->count(),
         ];
     }
 
     public function existingPhoneNumbers(array $phoneNumbers): array
     {
+        if ($phoneNumbers === []) {
+            return [];
+        }
+
         return Pegawai::query()
             ->whereIn('nomor_telepon', $phoneNumbers)
             ->pluck('nomor_telepon')
+            ->all();
+    }
+
+    public function existingNiks(array $niks): array
+    {
+        if ($niks === []) {
+            return [];
+        }
+
+        return Pegawai::query()
+            ->whereIn('nik', $niks)
+            ->pluck('nik')
             ->all();
     }
 

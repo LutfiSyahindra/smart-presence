@@ -48,12 +48,15 @@ class PegawaiManagementTest extends TestCase
 
     public function test_access_is_protected_by_authentication_and_permission(): void
     {
-        $this->get('/absensi/admin-web/master-data/pegawai')->assertRedirect('/login');
+        $this->get('/absensi/admin-web/master-data/pegawai')->assertRedirect('/absensi/admin-web/login');
 
         $user = User::factory()->create();
         $this->actingAs($user)->get('/absensi/admin-web/master-data/pegawai')->assertForbidden();
 
-        $user->givePermissionTo(AccessPermission::PEGAWAI_VIEW);
+        $user->givePermissionTo([
+            AccessPermission::ADMIN_ACCESS,
+            AccessPermission::PEGAWAI_VIEW,
+        ]);
 
         $this->get('/absensi/admin-web/master-data/pegawai')
             ->assertOk()

@@ -28,6 +28,15 @@ class AuthorizationSeeder extends Seeder
 
         $superAdmin->syncPermissions($permissions);
 
+        $pegawai = Role::query()->firstOrCreate([
+            'name' => 'pegawai',
+            'guard_name' => 'web',
+        ]);
+
+        $pegawai->syncPermissions(
+            $permissions->where('name', AccessPermission::ATTENDANCE_ACCESS),
+        );
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

@@ -42,7 +42,7 @@ const props = defineProps<{
     recentUsers: RecentUser[];
 }>();
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/absensi/admin-web/dashboard' }];
 const page = usePage<SharedData>();
 const now = ref(new Date());
 let clockTimer: ReturnType<typeof setInterval> | undefined;

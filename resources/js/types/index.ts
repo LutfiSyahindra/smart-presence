@@ -22,6 +22,10 @@ export interface SharedData extends Record<string, unknown> {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
+    portal: {
+        active: 'presensi' | 'admin';
+        can_access_admin: boolean;
+    };
     flash: {
         success?: string;
         error?: string;

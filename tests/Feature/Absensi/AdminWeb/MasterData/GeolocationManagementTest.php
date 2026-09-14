@@ -28,12 +28,15 @@ class GeolocationManagementTest extends TestCase
 
     public function test_access_is_protected_by_authentication_and_permission(): void
     {
-        $this->get('/absensi/admin-web/master-data/geolocation')->assertRedirect('/login');
+        $this->get('/absensi/admin-web/master-data/geolocation')->assertRedirect('/absensi/admin-web/login');
 
         $user = User::factory()->create();
         $this->actingAs($user)->get('/absensi/admin-web/master-data/geolocation')->assertForbidden();
 
-        $user->givePermissionTo(AccessPermission::GEOLOCATION_VIEW);
+        $user->givePermissionTo([
+            AccessPermission::ADMIN_ACCESS,
+            AccessPermission::GEOLOCATION_VIEW,
+        ]);
 
         $this->get('/absensi/admin-web/master-data/geolocation')
             ->assertOk()

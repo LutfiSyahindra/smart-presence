@@ -39,7 +39,7 @@ const navigation = computed(() =>
     [
         {
             category: 'Utama',
-            items: [{ title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }],
+            items: [{ title: 'Dashboard', href: '/absensi/admin-web/dashboard', icon: LayoutDashboard }],
         },
         {
             category: 'Settings',
@@ -75,7 +75,7 @@ const isActive = (href: string) => currentPath.value === href || currentPath.val
 <template>
     <nav class="sidebar" aria-label="Navigasi utama">
         <div class="sidebar-header">
-            <Link href="/dashboard" class="sidebar-brand premium-sidebar-brand" @click="emit('navigate')">
+            <Link href="/absensi/admin-web/dashboard" class="sidebar-brand premium-sidebar-brand" @click="emit('navigate')">
                 <span class="sidebar-brand-mark"><HeartPulse /></span>
                 <span class="sidebar-brand-copy">
                     <strong>RSARSY</strong>

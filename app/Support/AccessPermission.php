@@ -4,6 +4,10 @@ namespace App\Support;
 
 final class AccessPermission
 {
+    public const ADMIN_ACCESS = 'admin.access';
+
+    public const ATTENDANCE_ACCESS = 'attendance.access';
+
     public const JABATAN_VIEW = 'jabatan.view';
 
     public const JABATAN_CREATE = 'jabatan.create';
@@ -66,6 +70,8 @@ final class AccessPermission
     public static function all(): array
     {
         return [
+            self::ADMIN_ACCESS,
+            self::ATTENDANCE_ACCESS,
             self::JABATAN_VIEW,
             self::JABATAN_CREATE,
             self::JABATAN_UPDATE,

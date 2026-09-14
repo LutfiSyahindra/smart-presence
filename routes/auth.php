@@ -8,18 +8,30 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Support\Portal;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
+        ->defaults('portal', Portal::PRESENSI)
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [RegisteredUserController::class, 'store'])
+        ->defaults('portal', Portal::PRESENSI);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
+        ->defaults('portal', Portal::PRESENSI)
         ->name('login');
 
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])
+        ->defaults('portal', Portal::PRESENSI);
+
+    Route::get('absensi/admin-web/login', [AuthenticatedSessionController::class, 'create'])
+        ->defaults('portal', Portal::ADMIN)
+        ->name('absensi.admin-web.login');
+
+    Route::post('absensi/admin-web/login', [AuthenticatedSessionController::class, 'store'])
+        ->defaults('portal', Portal::ADMIN);
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');

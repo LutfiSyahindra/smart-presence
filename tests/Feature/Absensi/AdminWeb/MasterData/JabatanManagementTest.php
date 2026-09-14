@@ -29,12 +29,15 @@ class JabatanManagementTest extends TestCase
 
     public function test_access_is_protected_by_authentication_and_permission(): void
     {
-        $this->get('/absensi/admin-web/master-data/jabatan')->assertRedirect('/login');
+        $this->get('/absensi/admin-web/master-data/jabatan')->assertRedirect('/absensi/admin-web/login');
 
         $user = User::factory()->create();
         $this->actingAs($user)->get('/absensi/admin-web/master-data/jabatan')->assertForbidden();
 
         $user->givePermissionTo(AccessPermission::JABATAN_VIEW);
+        $this->get('/absensi/admin-web/master-data/jabatan')->assertForbidden();
+
+        $user->givePermissionTo(AccessPermission::ADMIN_ACCESS);
 
         $this->get('/absensi/admin-web/master-data/jabatan')
             ->assertOk()

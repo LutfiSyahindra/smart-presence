@@ -36,7 +36,7 @@ const props = defineProps<{
 
 const baseUrl = '/absensi/admin-web/master-data/shift';
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Dashboard', href: '/absensi/admin-web/dashboard' },
     { title: 'Master Data', href: baseUrl },
     { title: 'Shift', href: baseUrl },
 ];

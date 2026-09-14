@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
@@ -7,6 +8,7 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\User\UserController;
+use App\Http\Controllers\DashboardController;
 use App\Support\AccessPermission;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Permission as PermissionModel;
@@ -19,10 +21,19 @@ Route::bind('permission', fn (string $value) => PermissionModel::query()
     ->where('guard_name', 'web')
     ->findOrFail($value));
 
-Route::middleware('auth')
+Route::middleware(['auth', 'verified'])
+    ->prefix('absensi/mobile')
+    ->name('absensi.mobile.')
+    ->group(function () {
+        Route::get('/', MobileHomeController::class)->name('home');
+    });
+
+Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
     ->prefix('absensi/admin-web')
     ->name('absensi.admin-web.')
     ->group(function () {
+        Route::get('dashboard', DashboardController::class)->name('dashboard');
+
         Route::prefix('master-data')->name('master-data.')->group(function () {
             Route::get('jabatan', [JabatanController::class, 'index'])->middleware('can:'.AccessPermission::JABATAN_VIEW)->name('jabatan.index');
             Route::post('jabatan', [JabatanController::class, 'store'])->middleware('can:'.AccessPermission::JABATAN_CREATE)->name('jabatan.store');

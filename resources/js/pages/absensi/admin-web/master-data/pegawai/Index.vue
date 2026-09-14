@@ -57,7 +57,7 @@ const props = defineProps<{
 
 const baseUrl = '/absensi/admin-web/master-data/pegawai';
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Dashboard', href: '/absensi/admin-web/dashboard' },
     { title: 'Master Data', href: baseUrl },
     { title: 'Pegawai', href: baseUrl },
 ];

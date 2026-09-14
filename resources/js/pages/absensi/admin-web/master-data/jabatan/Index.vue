@@ -61,7 +61,7 @@ const props = defineProps<{
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Dashboard', href: '/absensi/admin-web/dashboard' },
     { title: 'Master Data', href: '/absensi/admin-web/master-data/jabatan' },
     { title: 'Jabatan', href: '/absensi/admin-web/master-data/jabatan' },
 ];

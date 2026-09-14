@@ -41,7 +41,7 @@ const props = defineProps<{
 
 const baseUrl = '/absensi/admin-web/master-data/geolocation';
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Dashboard', href: '/absensi/admin-web/dashboard' },
     { title: 'Pengaturan', href: baseUrl },
     { title: 'Geolokasi', href: baseUrl },
 ];

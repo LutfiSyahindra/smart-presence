@@ -9,9 +9,11 @@ import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { LoaderCircle } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
     status?: string;
     canResetPassword: boolean;
+    loginUrl: string;
+    portal: 'presensi' | 'admin';
 }>();
 
 const form = useForm({
@@ -21,15 +23,20 @@ const form = useForm({
 });
 
 const submit = () => {
-    form.post(route('login'), {
+    form.post(props.loginUrl, {
         onFinish: () => form.reset('password'),
     });
 };
 </script>
 
 <template>
-    <AuthBase title="Masuk ke workspace" description="Gunakan akun RSARSY Anda untuk melanjutkan dengan aman.">
-        <Head title="Masuk" />
+    <AuthBase
+        :title="portal === 'admin' ? 'Masuk ke portal admin' : 'Masuk ke aplikasi presensi'"
+        :description="
+            portal === 'admin' ? 'Gunakan akun dengan akses administrator untuk melanjutkan.' : 'Gunakan akun pegawai RSARSY untuk melanjutkan.'
+        "
+    >
+        <Head :title="portal === 'admin' ? 'Login Admin' : 'Login Presensi'" />
 
         <div v-if="status" class="mb-4 text-center text-sm font-medium text-green-600">
             {{ status }}
@@ -78,11 +85,16 @@ const submit = () => {
 
                 <Button type="submit" class="mt-4 w-full" tabindex="4" :disabled="form.processing">
                     <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
-                    Masuk ke sistem
+                    {{ portal === 'admin' ? 'Masuk ke portal admin' : 'Masuk ke presensi' }}
                 </Button>
             </div>
 
-            <div class="text-center text-sm text-muted-foreground">
+            <div v-if="portal === 'admin'" class="text-center text-sm text-muted-foreground">
+                Ingin melakukan presensi?
+                <TextLink :href="route('login')">Buka aplikasi presensi</TextLink>
+            </div>
+
+            <div v-if="portal !== 'admin'" class="text-center text-sm text-muted-foreground">
                 Belum memiliki akun?
                 <TextLink :href="route('register')" :tabindex="5">Daftar sekarang</TextLink>
             </div>

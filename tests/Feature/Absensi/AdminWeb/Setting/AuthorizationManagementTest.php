@@ -29,7 +29,7 @@ class AuthorizationManagementTest extends TestCase
 
     public function test_guests_and_unauthorized_users_cannot_access_the_module(): void
     {
-        $this->get('/absensi/admin-web/setting/users')->assertRedirect('/login');
+        $this->get('/absensi/admin-web/setting/users')->assertRedirect('/absensi/admin-web/login');
 
         $user = User::factory()->create();
         $this->actingAs($user)->get('/absensi/admin-web/setting/users')->assertForbidden();

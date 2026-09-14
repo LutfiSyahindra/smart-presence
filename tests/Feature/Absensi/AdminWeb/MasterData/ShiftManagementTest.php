@@ -28,12 +28,15 @@ class ShiftManagementTest extends TestCase
 
     public function test_access_is_protected_by_authentication_and_permission(): void
     {
-        $this->get('/absensi/admin-web/master-data/shift')->assertRedirect('/login');
+        $this->get('/absensi/admin-web/master-data/shift')->assertRedirect('/absensi/admin-web/login');
 
         $user = User::factory()->create();
         $this->actingAs($user)->get('/absensi/admin-web/master-data/shift')->assertForbidden();
 
-        $user->givePermissionTo(AccessPermission::SHIFT_VIEW);
+        $user->givePermissionTo([
+            AccessPermission::ADMIN_ACCESS,
+            AccessPermission::SHIFT_VIEW,
+        ]);
 
         $this->get('/absensi/admin-web/master-data/shift')
             ->assertOk()

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Portal;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -46,6 +47,10 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'roles' => fn () => $request->user()?->getRoleNames()->values()->all() ?? [],
                 'permissions' => fn () => $request->user()?->getAllPermissions()->pluck('name')->values()->all() ?? [],
+            ],
+            'portal' => [
+                'active' => fn () => Portal::current($request),
+                'can_access_admin' => fn () => Portal::canAccessAdmin($request),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

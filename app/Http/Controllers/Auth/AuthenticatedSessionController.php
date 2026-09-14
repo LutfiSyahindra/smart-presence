@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Support\Portal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,8 +19,12 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(Request $request): Response
     {
+        $portal = Portal::rememberEntry($request);
+
         return Inertia::render('auth/Login', [
             'canResetPassword' => Route::has('password.request'),
+            'loginUrl' => Portal::loginUrl($portal),
+            'portal' => $portal,
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -32,8 +37,9 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
+        Portal::rememberEntry($request);
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return to_route(Portal::homeRouteName($request));
     }
 
     /**
@@ -41,11 +47,13 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $portal = Portal::current($request);
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect(Portal::loginUrl($portal));
     }
 }

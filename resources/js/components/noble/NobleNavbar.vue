@@ -2,7 +2,7 @@
 import { getInitials } from '@/composables/useInitials';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { CalendarDays, ChevronDown, HeartPulse, LogOut, Menu, Settings, ShieldCheck, UserRound } from 'lucide-vue-next';
+import { CalendarDays, ChevronDown, HeartPulse, LogOut, Menu, Settings, ShieldCheck, Smartphone, UserRound } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const emit = defineEmits<{
@@ -43,7 +43,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeWhenClickingOut
         </button>
 
         <div class="navbar-content">
-            <Link href="/dashboard" class="noble-mobile-brand" aria-label="RSARSY Dashboard">
+            <Link href="/absensi/admin-web/dashboard" class="noble-mobile-brand" aria-label="RSARSY Dashboard">
                 <HeartPulse />
                 <span>RSARSY</span>
             </Link>
@@ -99,6 +99,18 @@ onBeforeUnmount(() => document.removeEventListener('click', closeWhenClickingOut
                         </div>
 
                         <ul class="list-unstyled mb-0 p-1">
+                            <li class="dropdown-item py-2">
+                                <Link
+                                    :href="route('portal.switch', { portal: 'presensi' })"
+                                    method="post"
+                                    as="button"
+                                    class="text-body d-flex align-items-center ms-0"
+                                    @click="profileOpen = false"
+                                >
+                                    <Smartphone class="icon-md me-2" />
+                                    <span>Aplikasi presensi</span>
+                                </Link>
+                            </li>
                             <li class="dropdown-item py-2">
                                 <Link :href="route('profile.edit')" class="text-body d-flex align-items-center ms-0" @click="profileOpen = false">
                                     <UserRound class="icon-md me-2" />

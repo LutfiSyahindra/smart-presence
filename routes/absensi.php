@@ -5,6 +5,7 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationC
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
+use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\User\UserController;
@@ -33,6 +34,14 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
     ->name('absensi.admin-web.')
     ->group(function () {
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+        Route::prefix('presensi')->name('presensi.')->group(function () {
+            Route::get('pegawai', [PresensiController::class, 'index'])->middleware('can:'.AccessPermission::PRESENSI_VIEW)->name('index');
+            Route::get('set-pegawai', [PresensiController::class, 'manage'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('manage');
+            Route::post('set-pegawai', [PresensiController::class, 'store'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('store');
+            Route::put('set-pegawai/{presensi}', [PresensiController::class, 'update'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('update');
+            Route::get('foto/{presensi}/{type}', [PresensiController::class, 'photo'])->name('photo');
+        });
 
         Route::prefix('master-data')->name('master-data.')->group(function () {
             Route::get('jabatan', [JabatanController::class, 'index'])->middleware('can:'.AccessPermission::JABATAN_VIEW)->name('jabatan.index');

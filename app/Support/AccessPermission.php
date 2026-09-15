@@ -64,6 +64,10 @@ final class AccessPermission
 
     public const GEOLOCATION_DELETE = 'geolocation.delete';
 
+    public const PRESENSI_VIEW = 'presensi.view';
+
+    public const PRESENSI_MANAGE = 'presensi.manage';
+
     /**
      * @return list<string>
      */
@@ -100,6 +104,8 @@ final class AccessPermission
             self::GEOLOCATION_CREATE,
             self::GEOLOCATION_UPDATE,
             self::GEOLOCATION_DELETE,
+            self::PRESENSI_VIEW,
+            self::PRESENSI_MANAGE,
         ];
     }
 

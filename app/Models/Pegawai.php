@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Pegawai extends Model
 {
@@ -47,5 +48,11 @@ class Pegawai extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return HasMany<Presensi, $this> */
+    public function presensis(): HasMany
+    {
+        return $this->hasMany(Presensi::class);
     }
 }

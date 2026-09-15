@@ -4,6 +4,7 @@ use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeContr
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
+use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
@@ -63,6 +64,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
 
             Route::get('shift', [ShiftController::class, 'index'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.index');
             Route::post('shift', [ShiftController::class, 'store'])->middleware('can:'.AccessPermission::SHIFT_CREATE)->name('shift.store');
+            Route::get('shift/assign', [ShiftAssignmentController::class, 'index'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.assign.index');
+            Route::put('shift/assign', [ShiftAssignmentController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.assign.update');
             Route::put('shift/{shift}', [ShiftController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.update');
             Route::delete('shift/{shift}', [ShiftController::class, 'destroy'])->middleware('can:'.AccessPermission::SHIFT_DELETE)->name('shift.destroy');
 

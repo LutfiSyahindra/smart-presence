@@ -75,6 +75,7 @@ interface PegawaiOption {
     nama: string;
     unit: string | null;
     jabatan: string | null;
+    shift_id: number | null;
 }
 
 interface ShiftOption {
@@ -250,16 +251,26 @@ onBeforeUnmount(() => {
 });
 
 const openCreate = (pegawaiId = 0, date = props.filters.date_from) => {
+    const assignedShiftId = props.options?.pegawai.find((pegawai) => pegawai.id === pegawaiId)?.shift_id ?? 0;
     editing.value = null;
     form.defaults({
         ...emptyForm(),
         pegawai_id: pegawaiId,
         tanggal_presensi: date,
+        shift_id: assignedShiftId,
     });
     form.reset();
     form.clearErrors();
     formOpen.value = true;
 };
+
+watch(
+    () => form.pegawai_id,
+    (pegawaiId, previousPegawaiId) => {
+        if (editing.value || Number(pegawaiId) === Number(previousPegawaiId)) return;
+        form.shift_id = props.options?.pegawai.find((pegawai) => pegawai.id === Number(pegawaiId))?.shift_id ?? 0;
+    },
+);
 
 const openEdit = (record: PresensiRow) => {
     if (!record.id) return;

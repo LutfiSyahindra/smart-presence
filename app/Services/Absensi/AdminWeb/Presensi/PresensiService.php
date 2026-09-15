@@ -76,13 +76,14 @@ class PresensiService
                 ->with(['unitKerja:id,nama', 'jabatan:id,nama'])
                 ->whereHas('user')
                 ->orderBy('nama')
-                ->get(['id', 'user_id', 'nik', 'nama', 'unit_kerja_id', 'jabatan_id'])
+                ->get(['id', 'user_id', 'shift_id', 'nik', 'nama', 'unit_kerja_id', 'jabatan_id'])
                 ->map(fn (Pegawai $pegawai) => [
                     'id' => $pegawai->id,
                     'nik' => $pegawai->nik,
                     'nama' => $pegawai->nama,
                     'unit' => $pegawai->unitKerja?->nama,
                     'jabatan' => $pegawai->jabatan?->nama,
+                    'shift_id' => $pegawai->shift_id,
                 ])->all(),
             'shifts' => Shift::query()
                 ->orderBy('jam_masuk')

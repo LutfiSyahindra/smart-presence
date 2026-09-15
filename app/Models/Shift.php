@@ -19,4 +19,10 @@ class Shift extends Model
     {
         return $this->hasMany(Presensi::class);
     }
+
+    /** @return HasMany<Pegawai, $this> */
+    public function pegawais(): HasMany
+    {
+        return $this->hasMany(Pegawai::class);
+    }
 }

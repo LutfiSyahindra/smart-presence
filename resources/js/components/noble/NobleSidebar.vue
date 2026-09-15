@@ -14,6 +14,7 @@ import {
     SlidersHorizontal,
     Timer,
     UserCog,
+    UserRoundCheck,
     UsersRound,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
@@ -24,6 +25,7 @@ interface NavigationItem {
     icon: Component;
     href?: string;
     children?: NavigationItem[];
+    exact?: boolean;
 }
 
 interface NavigationGroup {
@@ -65,6 +67,14 @@ const navigation = computed<NavigationGroup[]>(() => {
         mainItems.push({ title: 'Presensi', icon: CalendarDays, children: presensiChildren });
     }
 
+    const shiftChildren: NavigationItem[] = [];
+    if (can('shift.view')) {
+        shiftChildren.push(
+            { title: 'Shift', href: '/absensi/admin-web/master-data/shift', icon: Timer, exact: true },
+            { title: 'Assign Shift', href: '/absensi/admin-web/master-data/shift/assign', icon: UserRoundCheck },
+        );
+    }
+
     return [
         {
             category: 'Utama',
@@ -83,7 +93,7 @@ const navigation = computed<NavigationGroup[]>(() => {
             items: [
                 can('jabatan.view') ? { title: 'Unit dan Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
                 can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
-                can('shift.view') ? { title: 'Shift', href: '/absensi/admin-web/master-data/shift', icon: Timer } : null,
+                shiftChildren.length ? { title: 'Shift', icon: Timer, children: shiftChildren } : null,
                 can('geolocation.view') ? { title: 'Geolokasi', href: '/absensi/admin-web/master-data/geolocation', icon: MapPinned } : null,
             ].filter((item): item is NavigationItem => item !== null),
         },
@@ -98,9 +108,13 @@ const navigation = computed<NavigationGroup[]>(() => {
     ].filter((group) => group.items.length);
 });
 
-const isActive = (href: string) => currentPath.value === href || currentPath.value.startsWith(`${href}/`);
-const isParentActive = (item: NavigationItem) => item.children?.some((child) => child.href && isActive(child.href)) ?? false;
-const expandedMenus = ref<string[]>(currentPath.value.startsWith('/absensi/admin-web/presensi') ? ['Presensi'] : []);
+const isActive = (href: string, exact = false) => currentPath.value === href || (!exact && currentPath.value.startsWith(`${href}/`));
+const isItemActive = (item: NavigationItem) => Boolean(item.href && isActive(item.href, item.exact));
+const isParentActive = (item: NavigationItem) => item.children?.some((child) => isItemActive(child)) ?? false;
+const expandedMenus = ref<string[]>([
+    ...(currentPath.value.startsWith('/absensi/admin-web/presensi') ? ['Presensi'] : []),
+    ...(currentPath.value.startsWith('/absensi/admin-web/master-data/shift') ? ['Shift'] : []),
+]);
 const isExpanded = (title: string) => expandedMenus.value.includes(title);
 const toggleMenu = (title: string) => {
     expandedMenus.value = isExpanded(title) ? expandedMenus.value.filter((item) => item !== title) : [...expandedMenus.value, title];
@@ -148,7 +162,7 @@ watch(currentPath, () => {
                         v-for="item in group.items"
                         :key="item.href ?? item.title"
                         class="nav-item"
-                        :class="{ active: item.href && isActive(item.href), 'parent-active': isParentActive(item), expanded: isExpanded(item.title) }"
+                        :class="{ active: isItemActive(item), 'parent-active': isParentActive(item), expanded: isExpanded(item.title) }"
                     >
                         <button
                             v-if="item.children"
@@ -167,20 +181,20 @@ watch(currentPath, () => {
                             :href="item.href"
                             class="nav-link"
                             :title="folded ? item.title : undefined"
-                            :aria-current="isActive(item.href) ? 'page' : undefined"
+                            :aria-current="isItemActive(item) ? 'page' : undefined"
                             @click="emit('navigate')"
                         >
                             <span class="sidebar-link-icon"><component :is="item.icon" class="link-icon" /></span>
                             <span class="link-title">{{ item.title }}</span>
-                            <span v-if="isActive(item.href)" class="sidebar-active-dot" aria-hidden="true"></span>
+                            <span v-if="isItemActive(item)" class="sidebar-active-dot" aria-hidden="true"></span>
                         </Link>
 
                         <ul v-if="item.children && isExpanded(item.title)" class="sidebar-submenu">
-                            <li v-for="child in item.children" :key="child.href" :class="{ active: child.href && isActive(child.href) }">
+                            <li v-for="child in item.children" :key="child.href" :class="{ active: isItemActive(child) }">
                                 <Link
                                     v-if="child.href"
                                     :href="child.href"
-                                    :aria-current="isActive(child.href) ? 'page' : undefined"
+                                    :aria-current="isItemActive(child) ? 'page' : undefined"
                                     @click="emit('navigate')"
                                 >
                                     <span class="sidebar-submenu-dot" aria-hidden="true"></span>

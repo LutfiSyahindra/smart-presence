@@ -12,6 +12,7 @@ class Pegawai extends Model
     protected $fillable = [
         'unit_kerja_id',
         'jabatan_id',
+        'shift_id',
         'nik',
         'nama',
         'profesi',
@@ -29,6 +30,7 @@ class Pegawai extends Model
         return [
             'tanggal_mulai_bekerja' => 'date',
             'tanggal_lahir' => 'date',
+            'shift_assigned_at' => 'datetime',
         ];
     }
 
@@ -48,6 +50,18 @@ class Pegawai extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<Shift, $this> */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(Shift::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function shiftAssignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shift_assigned_by');
     }
 
     /** @return HasMany<Presensi, $this> */

@@ -4,14 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Spatie\Permission\Traits\HasRoles;
 
 class Pegawai extends Model
 {
-    use HasRoles;
-
-    protected string $guard_name = 'web';
-
     /** @var list<string> */
     protected $fillable = [
         'unit_kerja_id',
@@ -24,6 +19,7 @@ class Pegawai extends Model
         'tanggal_mulai_bekerja',
         'tanggal_lahir',
         'nomor_telepon',
+        'email',
     ];
 
     /** @return array<string, string> */
@@ -45,5 +41,11 @@ class Pegawai extends Model
     public function jabatan(): BelongsTo
     {
         return $this->belongsTo(Jabatan::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

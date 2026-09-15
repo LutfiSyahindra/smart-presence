@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Settings;
 
+use App\Models\Pegawai;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -59,6 +60,31 @@ class ProfileUpdateTest extends TestCase
             ->assertRedirect('/settings/profile');
 
         $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_employee_profile_update_keeps_the_linked_employee_data_in_sync()
+    {
+        $user = User::factory()->create();
+        $pegawai = Pegawai::query()->create([
+            'nama' => $user->name,
+            'email' => $user->email,
+        ]);
+        $pegawai->forceFill(['user_id' => $user->id])->save();
+
+        $this->actingAs($user)
+            ->patch('/settings/profile', [
+                'name' => 'Nama Pegawai Baru',
+                'email' => 'pegawai.baru@example.com',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/settings/profile');
+
+        $this->assertDatabaseHas('pegawais', [
+            'id' => $pegawai->id,
+            'nama' => 'Nama Pegawai Baru',
+            'email' => 'pegawai.baru@example.com',
+        ]);
+        $this->assertNull($user->refresh()->email_verified_at);
     }
 
     public function test_user_can_delete_their_account()

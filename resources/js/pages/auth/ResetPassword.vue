@@ -10,6 +10,7 @@ import { LoaderCircle } from 'lucide-vue-next';
 interface Props {
     token: string;
     email: string;
+    invitation?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -31,8 +32,15 @@ const submit = () => {
 </script>
 
 <template>
-    <AuthLayout title="Atur ulang kata sandi" description="Buat kata sandi baru yang kuat untuk melindungi akun Anda.">
-        <Head title="Atur ulang kata sandi" />
+    <AuthLayout
+        :title="invitation ? 'Aktifkan akun pegawai' : 'Atur ulang kata sandi'"
+        :description="
+            invitation
+                ? 'Buat password untuk mengaktifkan akun. Email Anda akan langsung terverifikasi.'
+                : 'Buat kata sandi baru yang kuat untuk melindungi akun Anda.'
+        "
+    >
+        <Head :title="invitation ? 'Aktivasi Akun Pegawai' : 'Atur ulang kata sandi'" />
 
         <form @submit.prevent="submit">
             <div class="grid gap-6">
@@ -73,7 +81,7 @@ const submit = () => {
 
                 <Button type="submit" class="mt-4 w-full" :disabled="form.processing">
                     <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
-                    Simpan kata sandi baru
+                    {{ form.processing ? 'Menyimpan...' : invitation ? 'Aktifkan akun' : 'Simpan kata sandi baru' }}
                 </Button>
             </div>
         </form>

@@ -9,13 +9,17 @@ import {
     Building2,
     CalendarDays,
     CheckCircle2,
+    Clock3,
     ContactRound,
     Download,
     FileSpreadsheet,
     LoaderCircle,
+    Mail,
     Pencil,
     Phone,
+    RefreshCw,
     Search,
+    ShieldCheck,
     Sparkles,
     Trash2,
     UploadCloud,
@@ -47,7 +51,9 @@ interface PegawaiRow {
     tanggal_lahir_label: string | null;
     usia: number | null;
     nomor_telepon: string | null;
-    roles: string[];
+    email: string | null;
+    user_id: number | null;
+    account_status: 'none' | 'pending' | 'active';
     created_at: string | null;
     updated_at: string | null;
 }
@@ -70,7 +76,7 @@ const props = defineProps<{
     overview: PegawaiOverview;
     unitOptions: UnitOption[];
     filters: { search?: string; status?: string; unit_kerja?: number | string };
-    can: { create: boolean; update: boolean; delete: boolean };
+    can: { create: boolean; update: boolean; delete: boolean; create_user: boolean };
 }>();
 
 const baseUrl = '/absensi/admin-web/master-data/pegawai';
@@ -90,6 +96,9 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const fileInputKey = ref(0);
 const editing = ref<PegawaiRow | null>(null);
 const selected = ref<PegawaiRow | null>(null);
+const inviting = ref<PegawaiRow | null>(null);
+const selectedInvitationIds = ref<number[]>([]);
+const batchInvitationOpen = ref(false);
 const deleting = ref(false);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -105,9 +114,12 @@ const emptyForm = () => ({
     tanggal_mulai_bekerja: '',
     tanggal_lahir: '',
     nomor_telepon: '',
+    email: '',
 });
 const createForm = useForm(emptyForm());
 const editForm = useForm(emptyForm());
+const inviteForm = useForm({});
+const batchInviteForm = useForm<{ pegawai_ids: number[] }>({ pegawai_ids: [] });
 
 const hasActiveFilters = computed(() => Boolean(search.value.trim()) || status.value !== 'all' || unitKerja.value !== 0);
 const resultSummary = computed(() => {
@@ -121,6 +133,12 @@ const maxDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
 const positionsFor = (unitId: number) => props.unitOptions.find((unit) => unit.id === Number(unitId))?.jabatans ?? [];
 const createPositions = computed(() => positionsFor(createForm.unit_kerja_id));
 const editPositions = computed(() => positionsFor(editForm.unit_kerja_id));
+const eligibleInvitationRows = computed(() => props.pegawais.data.filter((pegawai) => Boolean(pegawai.email) && pegawai.account_status !== 'active'));
+const selectedInvitationRows = computed(() => eligibleInvitationRows.value.filter((pegawai) => selectedInvitationIds.value.includes(pegawai.id)));
+const allEligibleInvitationsSelected = computed(
+    () => eligibleInvitationRows.value.length > 0 && selectedInvitationRows.value.length === eligibleInvitationRows.value.length,
+);
+const someEligibleInvitationsSelected = computed(() => selectedInvitationRows.value.length > 0 && !allEligibleInvitationsSelected.value);
 
 const summaryCards = computed(() => [
     {
@@ -221,6 +239,14 @@ watch(
     },
 );
 
+watch(
+    () => props.pegawais.data.map((pegawai) => `${pegawai.id}:${pegawai.account_status}:${pegawai.email ?? ''}`).join('|'),
+    () => {
+        const eligibleIds = new Set(eligibleInvitationRows.value.map((pegawai) => pegawai.id));
+        selectedInvitationIds.value = selectedInvitationIds.value.filter((id) => eligibleIds.has(id));
+    },
+);
+
 const openCreate = () => {
     createForm.reset();
     createForm.clearErrors();
@@ -313,6 +339,7 @@ const openEdit = (pegawai: PegawaiRow) => {
         tanggal_mulai_bekerja: pegawai.tanggal_mulai_bekerja ?? '',
         tanggal_lahir: pegawai.tanggal_lahir ?? '',
         nomor_telepon: pegawai.nomor_telepon ?? '',
+        email: pegawai.email ?? '',
     });
     editForm.reset();
 };
@@ -329,6 +356,56 @@ const submitEdit = () => {
     editForm.put(`${baseUrl}/${editing.value.id}`, {
         preserveScroll: true,
         onSuccess: () => closeEdit(),
+    });
+};
+
+const openInvitation = (pegawai: PegawaiRow) => {
+    inviteForm.clearErrors();
+    inviting.value = pegawai;
+};
+
+const closeInvitation = () => {
+    if (inviteForm.processing) return;
+    inviting.value = null;
+    inviteForm.clearErrors();
+};
+
+const submitInvitation = () => {
+    if (!inviting.value) return;
+    inviteForm.post(`${baseUrl}/${inviting.value.id}/user-invitation`, {
+        preserveScroll: true,
+        onSuccess: () => closeInvitation(),
+    });
+};
+
+const toggleAllInvitations = (event: Event) => {
+    selectedInvitationIds.value = (event.target as HTMLInputElement).checked ? eligibleInvitationRows.value.map((pegawai) => pegawai.id) : [];
+};
+
+const openBatchInvitation = () => {
+    if (!selectedInvitationRows.value.length) return;
+    batchInviteForm.clearErrors();
+    batchInviteForm.pegawai_ids = selectedInvitationRows.value.map((pegawai) => pegawai.id);
+    batchInvitationOpen.value = true;
+};
+
+const closeBatchInvitation = () => {
+    if (batchInviteForm.processing) return;
+    batchInvitationOpen.value = false;
+    batchInviteForm.clearErrors();
+};
+
+const submitBatchInvitation = () => {
+    batchInviteForm.pegawai_ids = selectedInvitationRows.value.map((pegawai) => pegawai.id);
+    if (!batchInviteForm.pegawai_ids.length) return;
+
+    batchInviteForm.post(`${baseUrl}/user-invitations/batch`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            batchInvitationOpen.value = false;
+            selectedInvitationIds.value = [];
+            batchInviteForm.reset();
+        },
     });
 };
 
@@ -358,10 +435,10 @@ const destroy = () => {
                 <div class="employee-hero-copy">
                     <span class="employee-eyebrow"><Sparkles /> People directory</span>
                     <h1 id="employee-hero-title">Kenali setiap insan.<br /><span>Rawat koneksi tim.</span></h1>
-                    <p>Kelola identitas, penempatan unit dan jabatan, status kepegawaian, serta masa kerja dalam satu direktori.</p>
+                    <p>Kelola identitas, kontak, penempatan unit dan jabatan, status kepegawaian, serta masa kerja dalam satu direktori.</p>
                     <div class="employee-hero-trust">
                         <span><CheckCircle2 /> Impor tervalidasi</span>
-                        <span><CheckCircle2 /> Role pegawai otomatis</span>
+                        <span><CheckCircle2 /> Aktivasi akun via email</span>
                     </div>
                 </div>
 
@@ -433,7 +510,7 @@ const destroy = () => {
                     <label class="employee-search" :class="{ filled: search }">
                         <span class="visually-hidden">Cari pegawai</span>
                         <Search />
-                        <input v-model="search" type="search" placeholder="Cari nama, NIK, profesi, unit, atau jabatan..." />
+                        <input v-model="search" type="search" placeholder="Cari nama, NIK, telepon, email, unit, atau jabatan..." />
                         <button v-if="search" type="button" aria-label="Hapus pencarian" @click="search = ''"><X /></button>
                     </label>
                     <div class="employee-filter-pills" aria-label="Filter pegawai">
@@ -450,9 +527,21 @@ const destroy = () => {
                             <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
                         </select>
                     </label>
-                    <div v-if="can.create" class="employee-toolbar-actions">
-                        <button type="button" class="employee-create-button" @click="openCreate"><UserPlus /> Tambah manual</button>
-                        <button type="button" class="employee-import-button" @click="openImport"><UploadCloud /> Import Excel</button>
+                    <div v-if="can.create || can.create_user" class="employee-toolbar-actions">
+                        <button
+                            v-if="can.create_user"
+                            type="button"
+                            class="employee-batch-button"
+                            :disabled="!selectedInvitationRows.length"
+                            @click="openBatchInvitation"
+                        >
+                            <Mail /> Kirim aktivasi
+                            <span v-if="selectedInvitationRows.length">{{ selectedInvitationRows.length }}</span>
+                        </button>
+                        <button v-if="can.create" type="button" class="employee-create-button" @click="openCreate"><UserPlus /> Tambah manual</button>
+                        <button v-if="can.create" type="button" class="employee-import-button" @click="openImport">
+                            <UploadCloud /> Import Excel
+                        </button>
                     </div>
                 </div>
 
@@ -461,24 +550,61 @@ const destroy = () => {
                         <table class="employee-table">
                             <thead>
                                 <tr>
+                                    <th v-if="can.create_user" class="employee-selection-cell">
+                                        <input
+                                            type="checkbox"
+                                            :checked="allEligibleInvitationsSelected"
+                                            :indeterminate.prop="someEligibleInvitationsSelected"
+                                            :disabled="!eligibleInvitationRows.length"
+                                            aria-label="Pilih semua pegawai yang dapat dikirimi aktivasi pada halaman ini"
+                                            @change="toggleAllInvitations"
+                                        />
+                                    </th>
                                     <th>Identitas pegawai</th>
                                     <th>Unit & jabatan</th>
                                     <th>Jenis kelamin</th>
                                     <th>Status</th>
                                     <th>Mulai bekerja</th>
                                     <th>Kontak</th>
-                                    <th v-if="can.update || can.delete" class="employee-actions-heading">Aksi</th>
+                                    <th v-if="can.create_user || can.update || can.delete" class="employee-actions-heading">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="pegawai in pegawais.data" :key="pegawai.id">
+                                    <td v-if="can.create_user" class="employee-selection-cell">
+                                        <input
+                                            v-model="selectedInvitationIds"
+                                            type="checkbox"
+                                            :value="pegawai.id"
+                                            :disabled="!pegawai.email || pegawai.account_status === 'active'"
+                                            :aria-label="`Pilih ${pegawai.nama} untuk pengiriman aktivasi`"
+                                            :title="
+                                                !pegawai.email
+                                                    ? 'Email pegawai belum diisi'
+                                                    : pegawai.account_status === 'active'
+                                                      ? 'Akun pegawai sudah aktif'
+                                                      : 'Pilih pegawai'
+                                            "
+                                        />
+                                    </td>
                                     <td>
                                         <div class="employee-identity">
                                             <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
                                             <span
                                                 ><strong>{{ pegawai.nama }}</strong
                                                 ><small>NIK {{ pegawai.nik ?? '-' }} · {{ pegawai.profesi ?? 'Profesi belum diisi' }}</small
-                                                ><em class="employee-role-badge">{{ pegawai.roles[0] ?? 'pegawai' }}</em></span
+                                                ><em class="employee-account-badge" :class="pegawai.account_status">
+                                                    <ShieldCheck v-if="pegawai.account_status === 'active'" />
+                                                    <Clock3 v-else-if="pegawai.account_status === 'pending'" />
+                                                    <UserPlus v-else />
+                                                    {{
+                                                        pegawai.account_status === 'active'
+                                                            ? 'Akun aktif'
+                                                            : pegawai.account_status === 'pending'
+                                                              ? 'Menunggu aktivasi'
+                                                              : 'Belum punya akun'
+                                                    }}
+                                                </em></span
                                             >
                                         </div>
                                     </td>
@@ -500,13 +626,36 @@ const destroy = () => {
                                         <span class="employee-date"><CalendarDays /> {{ pegawai.tanggal_mulai_bekerja_label ?? '-' }}</span>
                                     </td>
                                     <td>
-                                        <a v-if="pegawai.nomor_telepon" class="employee-phone" :href="`tel:${pegawai.nomor_telepon}`"
-                                            ><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a
-                                        >
-                                        <span v-else class="employee-updated">Belum diisi</span>
+                                        <span class="employee-contact">
+                                            <a v-if="pegawai.nomor_telepon" class="employee-phone" :href="`tel:${pegawai.nomor_telepon}`"
+                                                ><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a
+                                            >
+                                            <a v-if="pegawai.email" class="employee-email" :href="`mailto:${pegawai.email}`"
+                                                ><Mail /> {{ pegawai.email }}</a
+                                            >
+                                            <small v-if="!pegawai.nomor_telepon && !pegawai.email" class="employee-updated">Belum diisi</small>
+                                        </span>
                                     </td>
-                                    <td v-if="can.update || can.delete">
+                                    <td v-if="can.create_user || can.update || can.delete">
                                         <div class="employee-row-actions">
+                                            <button
+                                                v-if="can.create_user && pegawai.account_status !== 'active'"
+                                                type="button"
+                                                class="account"
+                                                :disabled="!pegawai.email"
+                                                :aria-label="pegawai.account_status === 'pending' ? 'Kirim ulang undangan' : 'Jadikan user'"
+                                                :title="
+                                                    !pegawai.email
+                                                        ? 'Isi email pegawai terlebih dahulu'
+                                                        : pegawai.account_status === 'pending'
+                                                          ? 'Kirim ulang undangan aktivasi'
+                                                          : 'Jadikan user'
+                                                "
+                                                @click="openInvitation(pegawai)"
+                                            >
+                                                <RefreshCw v-if="pegawai.account_status === 'pending'" />
+                                                <UserPlus v-else />
+                                            </button>
                                             <button
                                                 v-if="can.update"
                                                 type="button"
@@ -520,8 +669,9 @@ const destroy = () => {
                                                 v-if="can.delete"
                                                 type="button"
                                                 class="danger"
+                                                :disabled="pegawai.account_status !== 'none'"
                                                 aria-label="Hapus pegawai"
-                                                title="Hapus pegawai"
+                                                :title="pegawai.account_status !== 'none' ? 'Hapus akun terkait terlebih dahulu' : 'Hapus pegawai'"
                                                 @click="selected = pegawai"
                                             >
                                                 <Trash2 />
@@ -536,6 +686,15 @@ const destroy = () => {
                     <div class="employee-mobile-list">
                         <article v-for="pegawai in pegawais.data" :key="pegawai.id" class="employee-mobile-card">
                             <header>
+                                <input
+                                    v-if="can.create_user"
+                                    v-model="selectedInvitationIds"
+                                    class="employee-mobile-selection"
+                                    type="checkbox"
+                                    :value="pegawai.id"
+                                    :disabled="!pegawai.email || pegawai.account_status === 'active'"
+                                    :aria-label="`Pilih ${pegawai.nama} untuk pengiriman aktivasi`"
+                                />
                                 <div class="employee-identity">
                                     <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
                                     <span
@@ -543,9 +702,27 @@ const destroy = () => {
                                         ><small>NIK {{ pegawai.nik ?? '-' }} · {{ pegawai.status_pegawai ?? '-' }}</small></span
                                     >
                                 </div>
-                                <div v-if="can.update || can.delete" class="employee-row-actions">
+                                <div v-if="can.create_user || can.update || can.delete" class="employee-row-actions">
+                                    <button
+                                        v-if="can.create_user && pegawai.account_status !== 'active'"
+                                        type="button"
+                                        class="account"
+                                        :disabled="!pegawai.email"
+                                        :aria-label="pegawai.account_status === 'pending' ? 'Kirim ulang undangan' : 'Jadikan user'"
+                                        @click="openInvitation(pegawai)"
+                                    >
+                                        <RefreshCw v-if="pegawai.account_status === 'pending'" />
+                                        <UserPlus v-else />
+                                    </button>
                                     <button v-if="can.update" type="button" aria-label="Edit pegawai" @click="openEdit(pegawai)"><Pencil /></button>
-                                    <button v-if="can.delete" type="button" class="danger" aria-label="Hapus pegawai" @click="selected = pegawai">
+                                    <button
+                                        v-if="can.delete"
+                                        type="button"
+                                        class="danger"
+                                        :disabled="pegawai.account_status !== 'none'"
+                                        aria-label="Hapus pegawai"
+                                        @click="selected = pegawai"
+                                    >
                                         <Trash2 />
                                     </button>
                                 </div>
@@ -557,6 +734,19 @@ const destroy = () => {
                                 <a v-if="pegawai.nomor_telepon" :href="`tel:${pegawai.nomor_telepon}`"
                                     ><Phone /> {{ formatPhone(pegawai.nomor_telepon) }}</a
                                 >
+                                <a v-if="pegawai.email" :href="`mailto:${pegawai.email}`"><Mail /> {{ pegawai.email }}</a>
+                                <span class="employee-mobile-account" :class="pegawai.account_status">
+                                    <ShieldCheck v-if="pegawai.account_status === 'active'" />
+                                    <Clock3 v-else-if="pegawai.account_status === 'pending'" />
+                                    <UserPlus v-else />
+                                    {{
+                                        pegawai.account_status === 'active'
+                                            ? 'Akun aktif'
+                                            : pegawai.account_status === 'pending'
+                                              ? 'Menunggu aktivasi'
+                                              : 'Belum punya akun'
+                                    }}
+                                </span>
                             </div>
                         </article>
                     </div>
@@ -583,7 +773,7 @@ const destroy = () => {
         <CrudModal
             :open="createOpen"
             title="Tambah pegawai baru"
-            description="Isi identitas, penempatan, dan status kerja. Role pegawai diberikan otomatis."
+            description="Isi identitas, penempatan, status kerja, dan email aktif pegawai."
             @close="closeCreate"
         >
             <form class="employee-create-form" @submit.prevent="submitCreate">
@@ -592,7 +782,7 @@ const destroy = () => {
                         <span>{{ initials(createForm.nama || 'Pegawai') }}</span>
                         <div>
                             <small>Profil baru</small><strong>{{ createForm.nama || 'Nama pegawai' }}</strong
-                            ><em>{{ createForm.nik || 'NIK belum diisi' }} · role pegawai</em>
+                            ><em>{{ createForm.nik || 'NIK belum diisi' }} · profil pegawai</em>
                         </div>
                     </div>
 
@@ -665,10 +855,15 @@ const destroy = () => {
                             <input v-model="createForm.tanggal_lahir" type="date" min="1900-01-01" :max="maxDate" />
                             <small v-if="createForm.errors.tanggal_lahir" class="employee-field-error">{{ createForm.errors.tanggal_lahir }}</small>
                         </label>
-                        <label class="employee-form-field full">
+                        <label class="employee-form-field">
                             <span>Nomor telepon</span>
                             <input v-model="createForm.nomor_telepon" type="tel" maxlength="20" autocomplete="tel" placeholder="081234567890" />
                             <small v-if="createForm.errors.nomor_telepon" class="employee-field-error">{{ createForm.errors.nomor_telepon }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Email</span>
+                            <input v-model="createForm.email" type="email" maxlength="255" autocomplete="email" placeholder="nama@rsarsy.co.id" />
+                            <small v-if="createForm.errors.email" class="employee-field-error">{{ createForm.errors.email }}</small>
                         </label>
                     </div>
                 </div>
@@ -695,7 +890,7 @@ const destroy = () => {
                         <span>
                             <small>Langkah 1</small>
                             <strong>Unduh template Excel</strong>
-                            <em>NIK · Nama · Unit · Jabatan · Gender · Status · Mulai bekerja</em>
+                            <em>NIK · Nama · Unit · Jabatan · Status · Telepon · Email</em>
                         </span>
                         <Download />
                     </a>
@@ -732,7 +927,7 @@ const destroy = () => {
 
                     <div class="employee-import-notes">
                         <span><strong>1.000</strong><small>Maks. baris</small></span>
-                        <span><strong>10 kolom</strong><small>Profil lengkap</small></span>
+                        <span><strong>11 kolom</strong><small>Profil lengkap</small></span>
                         <span><strong>Transaksi aman</strong><small>Tanpa data separuh</small></span>
                     </div>
                 </div>
@@ -759,7 +954,10 @@ const destroy = () => {
                         <span>{{ initials(editForm.nama || 'Pegawai') }}</span>
                         <div>
                             <small>Profil pegawai</small><strong>{{ editForm.nama || 'Nama pegawai' }}</strong
-                            ><em>{{ editForm.nik || 'NIK belum diisi' }} · role pegawai</em>
+                            ><em
+                                >{{ editForm.nik || 'NIK belum diisi' }} ·
+                                {{ editing?.account_status === 'active' ? 'akun aktif' : 'profil pegawai' }}</em
+                            >
                         </div>
                     </div>
 
@@ -825,10 +1023,25 @@ const destroy = () => {
                             <input v-model="editForm.tanggal_lahir" type="date" min="1900-01-01" :max="maxDate" />
                             <small v-if="editForm.errors.tanggal_lahir" class="employee-field-error">{{ editForm.errors.tanggal_lahir }}</small>
                         </label>
-                        <label class="employee-form-field full">
+                        <label class="employee-form-field">
                             <span>Nomor telepon</span>
                             <input v-model="editForm.nomor_telepon" type="tel" maxlength="20" autocomplete="tel" placeholder="081234567890" />
                             <small v-if="editForm.errors.nomor_telepon" class="employee-field-error">{{ editForm.errors.nomor_telepon }}</small>
+                        </label>
+                        <label class="employee-form-field">
+                            <span>Email</span>
+                            <input
+                                v-model="editForm.email"
+                                type="email"
+                                maxlength="255"
+                                autocomplete="email"
+                                placeholder="nama@rsarsy.co.id"
+                                :readonly="editing?.account_status !== 'none'"
+                            />
+                            <small v-if="editing?.account_status !== 'none'" class="employee-field-hint">
+                                Email terkunci selama masih terhubung dengan akun pengguna.
+                            </small>
+                            <small v-if="editForm.errors.email" class="employee-field-error">{{ editForm.errors.email }}</small>
                         </label>
                     </div>
                 </div>
@@ -837,6 +1050,91 @@ const destroy = () => {
                     <button type="submit" class="employee-button primary" :disabled="editForm.processing">
                         <LoaderCircle v-if="editForm.processing" class="employee-spin" /><Pencil v-else />
                         {{ editForm.processing ? 'Menyimpan...' : 'Simpan perubahan' }}
+                    </button>
+                </div>
+            </form>
+        </CrudModal>
+
+        <CrudModal
+            :open="Boolean(inviting)"
+            :title="inviting?.account_status === 'pending' ? 'Kirim ulang undangan?' : 'Jadikan pegawai sebagai user?'"
+            :description="
+                inviting?.account_status === 'pending'
+                    ? 'Tautan sebelumnya akan diganti dengan tautan aktivasi terbaru.'
+                    : 'Sistem akan membuat akun dengan role pegawai dan mengirim tautan aktivasi.'
+            "
+            @close="closeInvitation"
+        >
+            <form class="employee-invite-form" @submit.prevent="submitInvitation">
+                <div class="admin-modal-body employee-modal-body">
+                    <div class="employee-profile-preview">
+                        <span>{{ initials(inviting?.nama || 'Pegawai') }}</span>
+                        <div>
+                            <small>Penerima undangan</small>
+                            <strong>{{ inviting?.nama }}</strong>
+                            <em>{{ inviting?.email || 'Email belum diisi' }}</em>
+                        </div>
+                    </div>
+                    <div class="employee-invite-summary">
+                        <span><ShieldCheck /></span>
+                        <div>
+                            <strong>Role pegawai diberikan otomatis</strong>
+                            <p>Pegawai membuat password melalui email. Setelah berhasil, email terverifikasi dan akun siap dipakai untuk presensi.</p>
+                        </div>
+                    </div>
+                    <small v-if="inviteForm.errors.pegawai" class="employee-field-error">{{ inviteForm.errors.pegawai }}</small>
+                </div>
+                <div class="admin-modal-footer employee-modal-footer">
+                    <button type="button" class="employee-button ghost" :disabled="inviteForm.processing" @click="closeInvitation">Batal</button>
+                    <button type="submit" class="employee-button primary" :disabled="inviteForm.processing || !inviting?.email">
+                        <LoaderCircle v-if="inviteForm.processing" class="employee-spin" />
+                        <RefreshCw v-else-if="inviting?.account_status === 'pending'" />
+                        <Mail v-else />
+                        {{ inviteForm.processing ? 'Mengirim...' : inviting?.account_status === 'pending' ? 'Kirim ulang' : 'Buat akun & kirim' }}
+                    </button>
+                </div>
+            </form>
+        </CrudModal>
+
+        <CrudModal
+            :open="batchInvitationOpen"
+            :title="`Kirim ${selectedInvitationRows.length} email aktivasi?`"
+            description="Akun yang belum tersedia akan dibuat otomatis. Pegawai yang masih menunggu aktivasi akan menerima tautan baru."
+            @close="closeBatchInvitation"
+        >
+            <form class="employee-invite-form" @submit.prevent="submitBatchInvitation">
+                <div class="admin-modal-body employee-modal-body">
+                    <div class="employee-batch-summary">
+                        <span><Mail /></span>
+                        <div>
+                            <strong>{{ selectedInvitationRows.length }} penerima dipilih</strong>
+                            <p>Setiap tautan bersifat pribadi, hanya dapat digunakan satu kali, dan dikirim ke email masing-masing pegawai.</p>
+                        </div>
+                    </div>
+                    <div class="employee-batch-recipients" aria-label="Daftar penerima email aktivasi">
+                        <div v-for="pegawai in selectedInvitationRows" :key="pegawai.id">
+                            <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
+                            <span>
+                                <strong>{{ pegawai.nama }}</strong>
+                                <small>{{ pegawai.email }}</small>
+                            </span>
+                            <em :class="pegawai.account_status">
+                                {{ pegawai.account_status === 'pending' ? 'Kirim ulang' : 'Akun baru' }}
+                            </em>
+                        </div>
+                    </div>
+                    <small v-if="batchInviteForm.errors.pegawai_ids" class="employee-field-error">
+                        {{ batchInviteForm.errors.pegawai_ids }}
+                    </small>
+                </div>
+                <div class="admin-modal-footer employee-modal-footer">
+                    <button type="button" class="employee-button ghost" :disabled="batchInviteForm.processing" @click="closeBatchInvitation">
+                        Batal
+                    </button>
+                    <button type="submit" class="employee-button primary" :disabled="batchInviteForm.processing || !selectedInvitationRows.length">
+                        <LoaderCircle v-if="batchInviteForm.processing" class="employee-spin" />
+                        <Mail v-else />
+                        {{ batchInviteForm.processing ? 'Mengirim...' : `Kirim ke ${selectedInvitationRows.length} pegawai` }}
                     </button>
                 </div>
             </form>
@@ -1441,6 +1739,7 @@ const destroy = () => {
 
 .employee-create-button,
 .employee-import-button,
+.employee-batch-button,
 .employee-empty-state button,
 .employee-button {
     display: inline-flex;
@@ -1457,7 +1756,8 @@ const destroy = () => {
 }
 
 .employee-create-button,
-.employee-import-button {
+.employee-import-button,
+.employee-batch-button {
     height: 2.75rem;
     padding: 0 1rem;
     border-radius: 0.85rem;
@@ -1476,8 +1776,34 @@ const destroy = () => {
     background: var(--employee-teal);
 }
 
+.employee-batch-button {
+    border: 1px solid #fbcfe8;
+    color: #be185d;
+    background: #fdf2f8;
+}
+
+.employee-batch-button > span {
+    display: grid;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    place-items: center;
+    color: #fff;
+    background: #db2777;
+    font-size: 0.62rem;
+}
+
+.employee-batch-button:disabled {
+    cursor: not-allowed;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+    background: #f8fafc;
+}
+
 .employee-create-button svg,
-.employee-import-button svg {
+.employee-import-button svg,
+.employee-batch-button svg {
     width: 1rem;
 }
 .employee-table-wrap {
@@ -1520,6 +1846,27 @@ const destroy = () => {
     background: #fbfdfc;
 }
 
+.employee-selection-cell {
+    width: 3rem;
+    text-align: center !important;
+}
+
+.employee-selection-cell input,
+.employee-mobile-selection {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    border: 1px solid #b9cfcb;
+    border-radius: 0.3rem;
+    accent-color: var(--employee-teal);
+}
+
+.employee-selection-cell input:disabled,
+.employee-mobile-selection:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+}
+
 .employee-identity {
     gap: 0.75rem;
 }
@@ -1540,18 +1887,34 @@ const destroy = () => {
 .employee-identity small {
     display: block;
 }
-.employee-role-badge {
+.employee-account-badge {
     display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     width: fit-content;
     margin-top: 0.3rem;
     padding: 0.18rem 0.42rem;
     border-radius: 999px;
-    color: #0f766e;
-    background: #ccfbf1;
+    color: #64748b;
+    background: #f1f5f9;
     font-size: 0.56rem;
     font-style: normal;
     font-weight: 800;
     text-transform: uppercase;
+}
+.employee-account-badge svg {
+    width: 0.68rem;
+    height: 0.68rem;
+}
+.employee-account-badge.pending,
+.employee-mobile-account.pending {
+    color: #a16207;
+    background: #fef9c3;
+}
+.employee-account-badge.active,
+.employee-mobile-account.active {
+    color: #0f766e;
+    background: #ccfbf1;
 }
 .employee-org {
     display: grid;
@@ -1601,24 +1964,38 @@ const destroy = () => {
     font-size: 0.62rem;
 }
 .employee-date,
-.employee-phone {
+.employee-phone,
+.employee-email {
     display: inline-flex;
     align-items: center;
     gap: 0.42rem;
     white-space: nowrap;
 }
 .employee-date svg,
-.employee-phone svg {
+.employee-phone svg,
+.employee-email svg {
     width: 0.95rem;
     color: #14b8a6;
 }
-.employee-phone {
+.employee-phone,
+.employee-email {
     color: #0f766e;
     text-decoration: none;
     font-weight: 700;
 }
-.employee-phone:hover {
+.employee-phone:hover,
+.employee-email:hover {
     text-decoration: underline;
+}
+.employee-contact {
+    display: grid;
+    min-width: 11rem;
+    gap: 0.35rem;
+}
+.employee-email {
+    max-width: 16rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .employee-age {
     display: inline-flex;
@@ -1658,16 +2035,36 @@ const destroy = () => {
     color: #0f766e;
     background: #f0fdfa;
 }
+.employee-row-actions button.account {
+    color: #0f766e;
+    background: #f0fdfa;
+}
+.employee-row-actions button.account:hover {
+    border-color: #5eead4;
+    color: #0d9488;
+}
 .employee-row-actions button.danger:hover {
     border-color: #fecdd3;
     color: #e11d48;
     background: #fff1f2;
+}
+.employee-row-actions button:disabled,
+.employee-row-actions button:disabled:hover {
+    cursor: not-allowed;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+    background: #f8fafc;
+    opacity: 0.65;
 }
 .employee-row-actions svg {
     width: 0.9rem;
 }
 .employee-mobile-list {
     display: none;
+}
+
+.employee-mobile-selection {
+    flex: 0 0 auto;
 }
 
 .employee-empty-state {
@@ -1977,6 +2374,112 @@ const destroy = () => {
     font-size: 0.66rem;
     font-style: normal;
 }
+.employee-invite-summary,
+.employee-batch-summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 1rem;
+    border: 1px solid #d8e8e5;
+    border-radius: 1rem;
+    background: #f8fbfa;
+}
+.employee-invite-summary > span,
+.employee-batch-summary > span {
+    display: grid;
+    width: 2.3rem;
+    height: 2.3rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 0.75rem;
+    color: #0f766e;
+    background: #ccfbf1;
+}
+.employee-invite-summary svg,
+.employee-batch-summary svg {
+    width: 1rem;
+}
+.employee-invite-summary strong,
+.employee-batch-summary strong {
+    color: var(--employee-ink);
+    font-size: 0.74rem;
+}
+.employee-invite-summary p,
+.employee-batch-summary p {
+    margin: 0.2rem 0 0;
+    color: var(--employee-muted);
+    font-size: 0.66rem;
+    line-height: 1.6;
+}
+
+.employee-batch-recipients {
+    display: grid;
+    max-height: 17rem;
+    overflow-y: auto;
+    border: 1px solid #d8e8e5;
+    border-radius: 1rem;
+}
+
+.employee-batch-recipients > div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+}
+
+.employee-batch-recipients > div + div {
+    border-top: 1px solid #e6efed;
+}
+
+.employee-batch-recipients .employee-identity-avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+}
+
+.employee-batch-recipients strong,
+.employee-batch-recipients small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.employee-batch-recipients strong {
+    color: var(--employee-ink);
+    font-size: 0.72rem;
+}
+
+.employee-batch-recipients small {
+    margin-top: 0.15rem;
+    color: var(--employee-muted);
+    font-size: 0.62rem;
+}
+
+.employee-batch-recipients em {
+    padding: 0.25rem 0.48rem;
+    border-radius: 999px;
+    color: #047857;
+    background: #d1fae5;
+    font-size: 0.58rem;
+    font-style: normal;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.employee-batch-recipients em.pending {
+    color: #a16207;
+    background: #fef9c3;
+}
+.employee-field-hint {
+    color: #a16207;
+    font-size: 0.6rem;
+}
+.employee-form-field input:read-only {
+    cursor: not-allowed;
+    color: #64748b;
+    background: #f8fafc;
+}
 .employee-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2066,6 +2569,9 @@ const destroy = () => {
 :global(.dark) .employee-template-card,
 :global(.dark) .employee-dropzone,
 :global(.dark) .employee-import-notes,
+:global(.dark) .employee-invite-summary,
+:global(.dark) .employee-batch-summary,
+:global(.dark) .employee-batch-recipients,
 :global(.dark) .employee-profile-preview,
 :global(.dark) .employee-form-field input,
 :global(.dark) .employee-form-field select,
@@ -2075,6 +2581,9 @@ const destroy = () => {
     border-color: #31514c;
     color: #d8ece8;
     background: #1a2c29;
+}
+:global(.dark) .employee-batch-recipients > div + div {
+    border-color: #31514c;
 }
 :global(.dark) .employee-import-divider::before,
 :global(.dark) .employee-import-divider::after,
@@ -2173,6 +2682,14 @@ const destroy = () => {
     .employee-mobile-details svg {
         width: 0.9rem;
         color: var(--employee-mint);
+    }
+    .employee-mobile-account {
+        width: fit-content;
+        padding: 0.25rem 0.45rem;
+        border-radius: 999px;
+        color: #64748b;
+        background: #f1f5f9;
+        font-weight: 800;
     }
     :global(.dark) .employee-mobile-card {
         background: #142320;

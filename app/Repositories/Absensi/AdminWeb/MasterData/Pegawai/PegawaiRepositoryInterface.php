@@ -16,6 +16,9 @@ interface PegawaiRepositoryInterface
     /** @param list<string> $phoneNumbers @return list<string> */
     public function existingPhoneNumbers(array $phoneNumbers): array;
 
+    /** @param list<string> $emails @return list<string> */
+    public function existingEmails(array $emails): array;
+
     /** @param list<string> $niks @return list<string> */
     public function existingNiks(array $niks): array;
 

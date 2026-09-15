@@ -10,13 +10,14 @@ class PegawaiRepository implements PegawaiRepositoryInterface
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
     {
         return Pegawai::query()
-            ->with(['unitKerja:id,nama', 'jabatan:id,nama', 'roles:id,name'])
+            ->with(['unitKerja:id,nama', 'jabatan:id,nama', 'user:id,name,email,email_verified_at'])
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('nama', 'like', "%{$search}%")
                         ->orWhere('nik', 'like', "%{$search}%")
                         ->orWhere('profesi', 'like', "%{$search}%")
                         ->orWhere('nomor_telepon', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
                         ->orWhereHas('unitKerja', fn ($query) => $query->where('nama', 'like', "%{$search}%"))
                         ->orWhereHas('jabatan', fn ($query) => $query->where('nama', 'like', "%{$search}%"));
                 });
@@ -54,6 +55,18 @@ class PegawaiRepository implements PegawaiRepositoryInterface
         return Pegawai::query()
             ->whereIn('nomor_telepon', $phoneNumbers)
             ->pluck('nomor_telepon')
+            ->all();
+    }
+
+    public function existingEmails(array $emails): array
+    {
+        if ($emails === []) {
+            return [];
+        }
+
+        return Pegawai::query()
+            ->whereIn('email', $emails)
+            ->pluck('email')
             ->all();
     }
 

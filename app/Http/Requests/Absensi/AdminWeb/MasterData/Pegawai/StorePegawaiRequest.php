@@ -36,6 +36,7 @@ class StorePegawaiRequest extends FormRequest
                 'regex:/^0[0-9]{8,14}$/',
                 Rule::unique('pegawais', 'nomor_telepon'),
             ],
+            'email' => ['nullable', 'string', 'lowercase', 'email:rfc', 'max:255', Rule::unique('pegawais', 'email')],
         ];
     }
 
@@ -64,6 +65,9 @@ class StorePegawaiRequest extends FormRequest
             'tanggal_lahir.before_or_equal' => 'Tanggal lahir tidak boleh melewati hari ini.',
             'nomor_telepon.regex' => 'Nomor telepon harus 9-15 digit dan diawali 0.',
             'nomor_telepon.unique' => 'Nomor telepon sudah digunakan pegawai lain.',
+            'email.email' => 'Format email tidak valid.',
+            'email.max' => 'Email maksimal 255 karakter.',
+            'email.unique' => 'Email sudah digunakan pegawai lain.',
         ];
     }
 
@@ -87,6 +91,7 @@ class StorePegawaiRequest extends FormRequest
             'tanggal_mulai_bekerja' => trim((string) $this->input('tanggal_mulai_bekerja')),
             'tanggal_lahir' => trim((string) $this->input('tanggal_lahir')) ?: null,
             'nomor_telepon' => $phone,
+            'email' => str($this->input('email'))->trim()->lower()->toString() ?: null,
         ]);
     }
 }

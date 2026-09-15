@@ -21,7 +21,7 @@ Route::bind('permission', fn (string $value) => PermissionModel::query()
     ->where('guard_name', 'web')
     ->findOrFail($value));
 
-Route::middleware(['auth', 'verified'])
+Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ATTENDANCE_ACCESS])
     ->prefix('absensi/mobile')
     ->name('absensi.mobile.')
     ->group(function () {
@@ -47,6 +47,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
             Route::post('pegawai', [PegawaiController::class, 'store'])->middleware('can:'.AccessPermission::PEGAWAI_CREATE)->name('pegawai.store');
             Route::get('pegawai/template', [PegawaiController::class, 'template'])->middleware('can:'.AccessPermission::PEGAWAI_CREATE)->name('pegawai.template');
             Route::post('pegawai/import', [PegawaiController::class, 'import'])->middleware('can:'.AccessPermission::PEGAWAI_CREATE)->name('pegawai.import');
+            Route::post('pegawai/user-invitations/batch', [PegawaiController::class, 'inviteManyToUsers'])->middleware('can:'.AccessPermission::USERS_CREATE)->name('pegawai.user-invitations.batch');
+            Route::post('pegawai/{pegawai}/user-invitation', [PegawaiController::class, 'inviteToUser'])->middleware('can:'.AccessPermission::USERS_CREATE)->name('pegawai.user-invitation.store');
             Route::put('pegawai/{pegawai}', [PegawaiController::class, 'update'])->middleware('can:'.AccessPermission::PEGAWAI_UPDATE)->name('pegawai.update');
             Route::delete('pegawai/{pegawai}', [PegawaiController::class, 'destroy'])->middleware('can:'.AccessPermission::PEGAWAI_DELETE)->name('pegawai.destroy');
 

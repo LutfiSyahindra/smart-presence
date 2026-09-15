@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\ImportPegawaiRequest;
+use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\SendBatchPegawaiInvitationsRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\StorePegawaiRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\UpdatePegawaiRequest;
 use App\Models\Pegawai;
@@ -31,6 +32,7 @@ class PegawaiController extends Controller
                 'create' => $request->user()->can(AccessPermission::PEGAWAI_CREATE),
                 'update' => $request->user()->can(AccessPermission::PEGAWAI_UPDATE),
                 'delete' => $request->user()->can(AccessPermission::PEGAWAI_DELETE),
+                'create_user' => $request->user()->can(AccessPermission::USERS_CREATE),
             ],
         ]);
     }
@@ -71,6 +73,29 @@ class PegawaiController extends Controller
         $this->service->update($pegawai, $request->validated());
 
         return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', 'Data pegawai berhasil diperbarui.');
+    }
+
+    public function inviteToUser(Pegawai $pegawai): RedirectResponse
+    {
+        $result = $this->service->inviteToUser($pegawai);
+        $message = $result['resent']
+            ? "Undangan aktivasi berhasil dikirim ulang ke {$result['user']->email}."
+            : "Akun pegawai berhasil dibuat dan undangan aktivasi dikirim ke {$result['user']->email}.";
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', $message);
+    }
+
+    public function inviteManyToUsers(SendBatchPegawaiInvitationsRequest $request): RedirectResponse
+    {
+        $result = $this->service->inviteManyToUsers($request->validated('pegawai_ids'));
+
+        $message = match (true) {
+            $result['created'] > 0 && $result['resent'] > 0 => "{$result['total']} email aktivasi berhasil dikirim ({$result['created']} akun baru dan {$result['resent']} undangan ulang).",
+            $result['created'] > 0 => "{$result['total']} akun pegawai berhasil dibuat dan email aktivasi dikirim.",
+            default => "{$result['total']} email aktivasi berhasil dikirim ulang.",
+        };
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', $message);
     }
 
     public function destroy(Pegawai $pegawai): RedirectResponse

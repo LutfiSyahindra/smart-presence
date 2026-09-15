@@ -33,6 +33,7 @@ class PegawaiSpreadsheetService
         'Tanggal Mulai Bekerja',
         'Tanggal Lahir',
         'Nomor Telepon',
+        'Email',
     ];
 
     public function template(): Spreadsheet
@@ -47,7 +48,7 @@ class PegawaiSpreadsheetService
         $sheet->setTitle('Data Pegawai');
         $sheet->fromArray([self::TEMPLATE_HEADERS]);
         $sheet->freezePane('A2');
-        $sheet->setAutoFilter('A1:J1');
+        $sheet->setAutoFilter('A1:K1');
 
         foreach ([
             'A' => 20,
@@ -60,12 +61,13 @@ class PegawaiSpreadsheetService
             'H' => 24,
             'I' => 20,
             'J' => 23,
+            'K' => 34,
         ] as $column => $width) {
             $sheet->getColumnDimension($column)->setWidth($width);
         }
 
         $sheet->getRowDimension(1)->setRowHeight(30);
-        $sheet->getStyle('A1:J1')->applyFromArray([
+        $sheet->getStyle('A1:K1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0F766E']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -84,6 +86,7 @@ class PegawaiSpreadsheetService
             'H1' => 'Wajib. Gunakan format tanggal DD/MM/YYYY.',
             'I1' => 'Opsional. Gunakan format tanggal DD/MM/YYYY.',
             'J1' => 'Opsional. Gunakan nomor Indonesia, contoh 081234567890.',
+            'K1' => 'Opsional. Gunakan alamat email aktif, contoh nama@rsarsy.co.id.',
         ] as $cell => $note) {
             $sheet->getComment($cell)->getText()->createTextRun($note);
         }
@@ -96,8 +99,8 @@ class PegawaiSpreadsheetService
         $guide->setCellValue('A5', '3. Unit kerja dan jabatan harus sesuai dengan master Unit dan Jabatan.');
         $guide->setCellValue('A6', '4. Status pegawai hanya boleh Tetap atau Tidak Tetap.');
         $guide->setCellValue('A7', '5. Tanggal mulai bekerja wajib diisi menggunakan format DD/MM/YYYY.');
-        $guide->setCellValue('A8', '6. Tanggal lahir dan nomor telepon boleh dikosongkan.');
-        $guide->setCellValue('A10', 'Contoh: 001.101.026 | Siti Aminah | Ners | Unit Rawat Jalan | Staff Unit Rawat Jalan | Perempuan | Tetap | 01/09/2026');
+        $guide->setCellValue('A8', '6. Tanggal lahir, nomor telepon, dan email boleh dikosongkan.');
+        $guide->setCellValue('A10', 'Contoh: 001.101.026 | Siti Aminah | Ners | Unit Rawat Jalan | Staff Unit Rawat Jalan | Perempuan | Tetap | 01/09/2026 | 17/08/1995 | 081234567890 | siti@rsarsy.co.id');
         $guide->getColumnDimension('A')->setWidth(120);
         $guide->getStyle('A1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 15, 'color' => ['rgb' => '0F766E']],
@@ -150,6 +153,7 @@ class PegawaiSpreadsheetService
             $items = [];
             $errors = [];
             $phoneRows = [];
+            $emailRows = [];
             $nikRows = [];
 
             for ($row = 2; $row <= $highestRow; $row++) {
@@ -181,6 +185,7 @@ class PegawaiSpreadsheetService
                     'tanggal_mulai_bekerja' => $this->normalizeDate($raw['tanggal_mulai_bekerja'] ?? null),
                     'tanggal_lahir' => $this->normalizeDate($raw['tanggal_lahir'] ?? null),
                     'nomor_telepon' => $this->normalizePhone($raw['nomor_telepon'] ?? null),
+                    'email' => $this->normalizeEmail($raw['email'] ?? null),
                     'source_row' => $row,
                 ];
 
@@ -188,6 +193,7 @@ class PegawaiSpreadsheetService
                     'nama' => ['required', 'string', 'max:150'],
                     'tanggal_lahir' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:today'],
                     'nomor_telepon' => ['nullable', 'regex:/^0[0-9]{8,14}$/'],
+                    'email' => ['nullable', 'string', 'email:rfc', 'max:255'],
                 ];
 
                 if ($legacy) {
@@ -225,6 +231,8 @@ class PegawaiSpreadsheetService
                     'tanggal_lahir.before_or_equal' => 'tanggal lahir tidak boleh melewati hari ini',
                     'nomor_telepon.required' => 'nomor telepon wajib diisi',
                     'nomor_telepon.regex' => 'nomor telepon harus 9-15 digit dan diawali 0 atau +62',
+                    'email.email' => 'format email tidak valid',
+                    'email.max' => 'email maksimal 255 karakter',
                 ]);
 
                 if ($validator->fails()) {
@@ -245,11 +253,20 @@ class PegawaiSpreadsheetService
                     continue;
                 }
 
+                if ($item['email'] !== null && isset($emailRows[$item['email']])) {
+                    $errors[] = "Baris {$row}: email sama dengan baris {$emailRows[$item['email']]}.";
+
+                    continue;
+                }
+
                 if ($item['nik'] !== null) {
                     $nikRows[$item['nik']] = $row;
                 }
                 if ($item['nomor_telepon'] !== null) {
                     $phoneRows[$item['nomor_telepon']] = $row;
+                }
+                if ($item['email'] !== null) {
+                    $emailRows[$item['email']] = $row;
                 }
 
                 $items[] = $item;
@@ -302,6 +319,7 @@ class PegawaiSpreadsheetService
             'tanggal mulai bekerja', 'join date' => 'tanggal_mulai_bekerja',
             'tanggal lahir' => 'tanggal_lahir',
             'nomor telfon', 'nomor telepon' => 'nomor_telepon',
+            'email', 'e mail', 'alamat email' => 'email',
             default => '',
         };
     }
@@ -364,6 +382,13 @@ class PegawaiSpreadsheetService
         }
 
         return $phone;
+    }
+
+    private function normalizeEmail(mixed $value): ?string
+    {
+        $email = str((string) $value)->trim()->lower()->toString();
+
+        return $email !== '' ? $email : null;
     }
 
     private function isBlank(mixed $value): bool

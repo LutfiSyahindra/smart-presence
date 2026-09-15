@@ -4,13 +4,18 @@ namespace App\Services\Absensi\AdminWeb\MasterData\Pegawai;
 
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
+use App\Models\User;
+use App\Notifications\EmployeeAccountInvitation;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Spatie\Permission\Models\Role;
+use Throwable;
 
 class PegawaiService
 {
@@ -45,7 +50,13 @@ class PegawaiService
             'tanggal_lahir_label' => $pegawai->tanggal_lahir?->translatedFormat('d M Y'),
             'usia' => $pegawai->tanggal_lahir?->age,
             'nomor_telepon' => $pegawai->nomor_telepon,
-            'roles' => $pegawai->roles->pluck('name')->values()->all(),
+            'email' => $pegawai->email,
+            'user_id' => $pegawai->user_id,
+            'account_status' => match (true) {
+                $pegawai->user?->email_verified_at !== null => 'active',
+                $pegawai->user !== null => 'pending',
+                default => 'none',
+            },
             'created_at' => $pegawai->created_at?->format('d M Y'),
             'updated_at' => $pegawai->updated_at?->format('d M Y, H:i'),
         ]);
@@ -110,15 +121,25 @@ class PegawaiService
             ]);
         }
 
+        $existingEmails = $this->pegawais->existingEmails(array_values(array_filter(array_column($items, 'email'))));
+
+        if ($existingEmails !== []) {
+            $rows = collect($items)
+                ->whereIn('email', $existingEmails)
+                ->map(fn (array $item) => $item['source_row'])
+                ->implode(', ');
+
+            throw ValidationException::withMessages([
+                'file' => "Email pada baris {$rows} sudah terdaftar. Perbarui file lalu coba kembali.",
+            ]);
+        }
+
         $items = $this->resolveOrganization($items);
 
         DB::transaction(function () use ($items): void {
-            Role::findOrCreate('pegawai', 'web');
-
             foreach ($items as $item) {
                 unset($item['source_row']);
-                $pegawai = $this->pegawais->create($item);
-                $pegawai->assignRole('pegawai');
+                $this->pegawais->create($item);
             }
         });
 
@@ -129,11 +150,9 @@ class PegawaiService
     public function create(array $data): Pegawai
     {
         return DB::transaction(function () use ($data): Pegawai {
-            Role::findOrCreate('pegawai', 'web');
             $pegawai = $this->pegawais->create($data);
-            $pegawai->assignRole('pegawai');
 
-            return $pegawai->load(['unitKerja', 'jabatan', 'roles']);
+            return $pegawai->load(['unitKerja', 'jabatan', 'user']);
         });
     }
 
@@ -141,17 +160,162 @@ class PegawaiService
     public function update(Pegawai $pegawai, array $data): Pegawai
     {
         return DB::transaction(function () use ($pegawai, $data): Pegawai {
-            $pegawai = $this->pegawais->update($pegawai, $data);
-            Role::findOrCreate('pegawai', 'web');
-            $pegawai->syncRoles(['pegawai']);
+            if ($pegawai->user_id !== null
+                && array_key_exists('email', $data)
+                && $data['email'] !== $pegawai->email) {
+                throw ValidationException::withMessages([
+                    'email' => 'Email tidak dapat diubah selama akun terkait masih ada. Hapus akun terkait terlebih dahulu jika email harus diganti.',
+                ]);
+            }
 
-            return $pegawai->load(['unitKerja', 'jabatan', 'roles']);
+            $pegawai = $this->pegawais->update($pegawai, $data);
+            $pegawai->user?->update(['name' => $pegawai->nama]);
+
+            return $pegawai->load(['unitKerja', 'jabatan', 'user']);
         });
     }
 
     public function delete(Pegawai $pegawai): void
     {
+        if ($pegawai->user_id !== null) {
+            throw ValidationException::withMessages([
+                'pegawai' => 'Pegawai yang masih memiliki akun tidak dapat dihapus. Hapus akun terkait dari menu Pengguna terlebih dahulu.',
+            ]);
+        }
+
         $this->pegawais->delete($pegawai);
+    }
+
+    /**
+     * Membuat akun baru atau mengirim ulang undangan untuk akun yang belum aktif.
+     *
+     * @return array{user: User, resent: bool}
+     */
+    public function inviteToUser(Pegawai $pegawai): array
+    {
+        $this->assertCanInvite($pegawai);
+        $resent = $pegawai->user_id !== null;
+
+        if ($resent) {
+            $user = $pegawai->user;
+            assert($user !== null);
+        } else {
+            $user = DB::transaction(function () use ($pegawai): User {
+                Role::findOrCreate('pegawai', 'web');
+
+                $user = User::query()->create([
+                    'name' => $pegawai->nama,
+                    'email' => $pegawai->email,
+                    'password' => Str::random(64),
+                ]);
+                $user->assignRole('pegawai');
+
+                $pegawai->forceFill(['user_id' => $user->id])->save();
+
+                return $user;
+            });
+        }
+
+        try {
+            $token = Password::broker()->createToken($user);
+            $user->notify(new EmployeeAccountInvitation($token));
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'pegawai' => $resent
+                    ? 'Email undangan gagal dikirim ulang. Periksa konfigurasi email lalu coba kembali.'
+                    : 'Akun berhasil dibuat, tetapi email undangan gagal dikirim. Periksa konfigurasi email lalu gunakan Kirim ulang.',
+            ]);
+        }
+
+        return ['user' => $user, 'resent' => $resent];
+    }
+
+    /**
+     * Membuat akun dan mengirim email aktivasi untuk beberapa pegawai sekaligus.
+     *
+     * Seluruh pilihan divalidasi sebelum akun pertama dibuat agar kesalahan data
+     * tidak menghasilkan batch yang hanya terproses sebagian.
+     *
+     * @param  list<int>  $pegawaiIds
+     * @return array{total: int, created: int, resent: int}
+     */
+    public function inviteManyToUsers(array $pegawaiIds): array
+    {
+        $pegawais = Pegawai::query()
+            ->with('user')
+            ->whereKey($pegawaiIds)
+            ->get()
+            ->keyBy('id');
+
+        if ($pegawais->count() !== count($pegawaiIds)) {
+            throw ValidationException::withMessages([
+                'pegawai_ids' => 'Salah satu pegawai yang dipilih tidak ditemukan. Muat ulang halaman lalu coba kembali.',
+            ]);
+        }
+
+        foreach ($pegawaiIds as $pegawaiId) {
+            $pegawai = $pegawais->get($pegawaiId);
+            assert($pegawai instanceof Pegawai);
+
+            try {
+                $this->assertCanInvite($pegawai);
+            } catch (ValidationException $exception) {
+                $reason = collect($exception->errors())->flatten()->first() ?? 'Data pegawai tidak dapat diproses.';
+
+                throw ValidationException::withMessages([
+                    'pegawai_ids' => "Undangan untuk {$pegawai->nama} tidak dapat diproses: {$reason}",
+                ]);
+            }
+        }
+
+        $created = 0;
+        $resent = 0;
+
+        foreach ($pegawaiIds as $pegawaiId) {
+            $result = $this->inviteToUser($pegawais->get($pegawaiId));
+            $result['resent'] ? $resent++ : $created++;
+        }
+
+        return [
+            'total' => $created + $resent,
+            'created' => $created,
+            'resent' => $resent,
+        ];
+    }
+
+    private function assertCanInvite(Pegawai $pegawai): void
+    {
+        if (blank($pegawai->email)) {
+            throw ValidationException::withMessages([
+                'pegawai' => 'Isi email pegawai terlebih dahulu sebelum membuat akun.',
+            ]);
+        }
+
+        if ($pegawai->user_id !== null) {
+            $user = $pegawai->relationLoaded('user') ? $pegawai->user : $pegawai->user()->first();
+
+            if ($user === null) {
+                throw ValidationException::withMessages([
+                    'pegawai' => 'Akun terkait tidak ditemukan. Muat ulang halaman lalu coba kembali.',
+                ]);
+            }
+
+            if ($user->hasVerifiedEmail()) {
+                throw ValidationException::withMessages([
+                    'pegawai' => 'Akun pegawai sudah aktif dan emailnya telah terverifikasi.',
+                ]);
+            }
+
+            return;
+        }
+
+        if (User::query()->where('email', $pegawai->email)->exists()) {
+            throw ValidationException::withMessages([
+                'pegawai' => 'Email pegawai sudah digunakan oleh akun lain.',
+            ]);
+        }
     }
 
     /**

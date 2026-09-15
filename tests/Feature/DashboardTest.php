@@ -32,7 +32,9 @@ class DashboardTest extends TestCase
     {
         $this->get('/absensi/mobile')->assertRedirect('/login');
 
+        $this->seed(AuthorizationSeeder::class);
         $user = User::factory()->create();
+        $user->assignRole('pegawai');
 
         $this->actingAs($user)
             ->get('/absensi/mobile')
@@ -40,6 +42,15 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('absensi/absensi-mobile/Home')
                 ->where('canAccessAdmin', false));
+    }
+
+    public function test_user_without_attendance_access_cannot_visit_the_mobile_portal()
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get('/absensi/mobile')
+            ->assertForbidden();
     }
 
     public function test_admin_dashboard_has_its_own_login_and_permission_boundary()

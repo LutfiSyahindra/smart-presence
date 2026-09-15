@@ -91,6 +91,14 @@ class UserService
     public function update(User $user, array $data): User
     {
         return DB::transaction(function () use ($user, $data) {
+            if ($user->pegawai()->exists()
+                && array_key_exists('email', $data)
+                && $data['email'] !== $user->email) {
+                throw ValidationException::withMessages([
+                    'email' => 'Email akun pegawai tidak dapat diubah selama masih terhubung ke master pegawai.',
+                ]);
+            }
+
             $roleNames = $this->roles->namesByIds($data['role_ids'] ?? []);
 
             if ($user->hasRole(self::SUPER_ADMIN)

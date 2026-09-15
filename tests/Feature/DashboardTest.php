@@ -41,16 +41,32 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('absensi/absensi-mobile/Home')
-                ->where('canAccessAdmin', false));
+                ->where('canAccessAdmin', false)
+                ->where('canAccessAccount', true));
     }
 
-    public function test_user_without_attendance_access_cannot_visit_the_mobile_portal()
+    public function test_user_without_mobile_access_cannot_visit_the_mobile_portal()
     {
         $user = User::factory()->create();
 
         $this->actingAs($user)
             ->get('/absensi/mobile')
             ->assertForbidden();
+    }
+
+    public function test_mobile_home_hides_account_feature_without_its_permission()
+    {
+        $this->seed(AuthorizationSeeder::class);
+        $user = User::factory()->create();
+        $user->givePermissionTo(AccessPermission::MOBILE_ACCESS);
+
+        $this->actingAs($user)
+            ->get('/absensi/mobile')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('absensi/absensi-mobile/Home')
+                ->where('canAccessAccount', false)
+                ->where('profilePhotoUrl', null));
     }
 
     public function test_admin_dashboard_has_its_own_login_and_permission_boundary()

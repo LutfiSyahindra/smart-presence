@@ -272,6 +272,7 @@ body.noble-layout-active {
 }
 
 .admin-modal-body {
+    contain: paint;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;

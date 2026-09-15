@@ -44,7 +44,11 @@ class AuthorizationManagementTest extends TestCase
 
         $this->get('/absensi/admin-web/setting/roles')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('absensi/admin-web/setting/role/Index'));
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('absensi/admin-web/setting/role/Index')
+                ->where('permissionGroups.3.group', 'Mobile')
+                ->where('permissionGroups.3.permissions.0.name', AccessPermission::MOBILE_ACCESS)
+                ->where('permissionGroups.3.permissions.1.name', AccessPermission::MOBILE_ACCOUNT));
 
         $this->get('/absensi/admin-web/setting/permissions')
             ->assertOk()

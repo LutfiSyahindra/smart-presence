@@ -24,6 +24,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps<{
     canAccessAdmin: boolean;
+    canAccessAccount: boolean;
+    profilePhotoUrl: string | null;
 }>();
 
 const page = usePage<SharedData>();
@@ -106,7 +108,7 @@ onUnmounted(() => {
             <header class="mobile-header">
                 <div class="profile-greeting">
                     <div class="profile-avatar" aria-hidden="true">
-                        <img v-if="user.avatar" :src="user.avatar" alt="" />
+                        <img v-if="profilePhotoUrl" :src="profilePhotoUrl" alt="" />
                         <span v-else>{{ initials }}</span>
                         <i></i>
                     </div>
@@ -223,7 +225,7 @@ onUnmounted(() => {
                 </section>
             </section>
 
-            <nav class="bottom-navigation" aria-label="Navigasi utama">
+            <nav class="bottom-navigation" :class="{ 'without-account': !canAccessAccount }" aria-label="Navigasi utama">
                 <button type="button" class="bottom-item active" aria-current="page">
                     <span><Home /></span>
                     <small>Beranda</small>
@@ -240,10 +242,10 @@ onUnmounted(() => {
                     <span><FileText /></span>
                     <small>Pengajuan</small>
                 </button>
-                <button type="button" class="bottom-item" @click="showFeedback('Halaman akun sedang disiapkan.')">
+                <Link v-if="canAccessAccount" :href="route('absensi.mobile.account.show')" class="bottom-item">
                     <span><CircleUserRound /></span>
                     <small>Akun</small>
-                </button>
+                </Link>
             </nav>
 
             <Transition name="toast">
@@ -304,6 +306,7 @@ onUnmounted(() => {
     width: 48px;
     height: 48px;
     padding: 3px;
+    box-sizing: border-box;
     display: grid;
     flex: 0 0 auto;
     place-items: center;
@@ -324,19 +327,28 @@ onUnmounted(() => {
     inset: 3px;
     border: 1px solid rgba(255, 255, 255, 0.21);
     border-radius: 13px;
+    z-index: 1;
+    pointer-events: none;
 }
 
 .profile-avatar img {
-    width: 100%;
-    height: 100%;
+    width: calc(100% - 6px);
+    max-width: none;
+    height: calc(100% - 6px);
+    display: block;
+    position: absolute;
+    inset: 3px;
     border-radius: 13px;
     object-fit: cover;
+    object-position: center;
+    clip-path: inset(0 round 13px);
 }
 
 .profile-avatar i {
     width: 11px;
     height: 11px;
     position: absolute;
+    z-index: 2;
     right: -2px;
     bottom: -1px;
     border: 2px solid #f7faf8;
@@ -921,6 +933,10 @@ onUnmounted(() => {
     background: rgba(255, 255, 255, 0.94);
     box-shadow: 0 -14px 35px rgba(28, 61, 59, 0.06);
     backdrop-filter: blur(18px);
+}
+
+.bottom-navigation.without-account {
+    grid-template-columns: repeat(4, 1fr);
 }
 
 .bottom-item {

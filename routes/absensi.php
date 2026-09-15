@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccountController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
@@ -23,11 +24,17 @@ Route::bind('permission', fn (string $value) => PermissionModel::query()
     ->where('guard_name', 'web')
     ->findOrFail($value));
 
-Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ATTENDANCE_ACCESS])
+Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->prefix('absensi/mobile')
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
+
+        Route::middleware('can:'.AccessPermission::MOBILE_ACCOUNT)->group(function () {
+            Route::get('akun', [MobileAccountController::class, 'show'])->name('account.show');
+            Route::post('akun/foto-profil', [MobileAccountController::class, 'updatePhoto'])->name('account.photo.update');
+            Route::get('akun/foto-profil', [MobileAccountController::class, 'photo'])->name('account.photo.show');
+        });
     });
 
 Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])

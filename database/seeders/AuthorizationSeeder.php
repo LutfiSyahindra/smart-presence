@@ -34,7 +34,10 @@ class AuthorizationSeeder extends Seeder
         ]);
 
         $pegawai->syncPermissions(
-            $permissions->where('name', AccessPermission::ATTENDANCE_ACCESS),
+            $permissions->whereIn('name', [
+                AccessPermission::MOBILE_ACCESS,
+                AccessPermission::MOBILE_ACCOUNT,
+            ]),
         );
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

@@ -6,7 +6,9 @@ final class AccessPermission
 {
     public const ADMIN_ACCESS = 'admin.access';
 
-    public const ATTENDANCE_ACCESS = 'attendance.access';
+    public const MOBILE_ACCESS = 'mobile.access';
+
+    public const MOBILE_ACCOUNT = 'mobile.account';
 
     public const JABATAN_VIEW = 'jabatan.view';
 
@@ -75,7 +77,8 @@ final class AccessPermission
     {
         return [
             self::ADMIN_ACCESS,
-            self::ATTENDANCE_ACCESS,
+            self::MOBILE_ACCESS,
+            self::MOBILE_ACCOUNT,
             self::JABATAN_VIEW,
             self::JABATAN_CREATE,
             self::JABATAN_UPDATE,

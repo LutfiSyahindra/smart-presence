@@ -34,6 +34,8 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        'profile_photo_path',
+        'profile_photo_updated_at',
     ];
 
     /**
@@ -45,6 +47,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'profile_photo_updated_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

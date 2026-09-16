@@ -130,7 +130,7 @@ const faceVerificationLabel = computed(() => {
 
             <footer class="success-actions">
                 <Link :href="route('absensi.mobile.home')" class="home-action"> <Home /> <span>Kembali ke beranda</span> <ArrowRight /> </Link>
-                <Link :href="route('absensi.mobile.home')" class="summary-action">Lihat ringkasan presensi</Link>
+                <Link :href="route('absensi.mobile.attendance')" class="summary-action">Lihat ringkasan presensi</Link>
             </footer>
         </div>
     </main>

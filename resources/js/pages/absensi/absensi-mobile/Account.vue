@@ -327,10 +327,10 @@ onUnmounted(() => {
                     <span><CalendarDays /></span>
                     <small>Jadwal</small>
                 </button>
-                <button type="button" class="bottom-item attendance-main" disabled>
+                <Link :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
                     <span><TimerReset /></span>
                     <small>Presensi</small>
-                </button>
+                </Link>
                 <button type="button" class="bottom-item" disabled>
                     <span><FileText /></span>
                     <small>Pengajuan</small>

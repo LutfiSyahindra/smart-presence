@@ -292,10 +292,10 @@ onUnmounted(() => {
                     <span><CalendarDays /></span>
                     <small>Jadwal</small>
                 </button>
-                <button type="button" class="bottom-item attendance-main" @click="showFeedback('Layanan presensi segera tersedia.')">
+                <Link :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
                     <span><TimerReset /></span>
                     <small>Presensi</small>
-                </button>
+                </Link>
                 <button type="button" class="bottom-item" @click="showFeedback('Halaman pengajuan sedang disiapkan.')">
                     <span><FileText /></span>
                     <small>Pengajuan</small>

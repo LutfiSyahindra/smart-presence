@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccountController;
+use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceController as MobileAttendanceController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClockOutController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
@@ -31,6 +32,7 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
+        Route::get('presensi', MobileAttendanceController::class)->name('attendance');
         Route::get('clock-in', [MobileClockInController::class, 'create'])->name('clock-in.create');
         Route::post('clock-in', [MobileClockInController::class, 'store'])->name('clock-in.store');
         Route::get('clock-in/berhasil', [MobileClockInController::class, 'success'])->name('clock-in.success');

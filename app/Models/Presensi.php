@@ -28,6 +28,9 @@ class Presensi extends Model
         'face_similarity',
         'face_verification_provider',
         'clock_out_photo_path',
+        'clock_out_face_verified_at',
+        'clock_out_face_similarity',
+        'clock_out_face_verification_provider',
         'is_day_off',
         'overtime_minutes',
         'notes',
@@ -43,6 +46,8 @@ class Presensi extends Model
             'face_verified_at' => 'datetime',
             'face_similarity' => 'float',
             'clock_out_at' => 'datetime',
+            'clock_out_face_verified_at' => 'datetime',
+            'clock_out_face_similarity' => 'float',
             'clock_in_latitude' => 'float',
             'clock_in_longitude' => 'float',
             'clock_out_latitude' => 'float',
@@ -89,12 +94,36 @@ class Presensi extends Model
         }
 
         $scheduledClockIn = Carbon::createFromFormat(
-            'Y-m-d H:i:s',
-            $this->tanggal_presensi->format('Y-m-d').' '.(string) $this->shift->jam_masuk,
+            'Y-m-d H:i',
+            $this->tanggal_presensi->format('Y-m-d').' '.substr((string) $this->shift->jam_masuk, 0, 5),
         );
 
         return $this->clock_in_at->gt($scheduledClockIn)
             ? (int) $scheduledClockIn->diffInMinutes($this->clock_in_at)
+            : 0;
+    }
+
+    public function earlyDepartureMinutes(): int
+    {
+        if ($this->is_day_off || ! $this->clock_out_at || ! $this->shift || ! $this->tanggal_presensi) {
+            return 0;
+        }
+
+        $scheduledClockIn = Carbon::createFromFormat(
+            'Y-m-d H:i',
+            $this->tanggal_presensi->format('Y-m-d').' '.substr((string) $this->shift->jam_masuk, 0, 5),
+        );
+        $scheduledClockOut = Carbon::createFromFormat(
+            'Y-m-d H:i',
+            $this->tanggal_presensi->format('Y-m-d').' '.substr((string) $this->shift->jam_keluar, 0, 5),
+        );
+
+        if ($scheduledClockOut->lte($scheduledClockIn)) {
+            $scheduledClockOut->addDay();
+        }
+
+        return $this->clock_out_at->lt($scheduledClockOut)
+            ? (int) $this->clock_out_at->diffInMinutes($scheduledClockOut)
             : 0;
     }
 }

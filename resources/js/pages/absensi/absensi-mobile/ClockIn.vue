@@ -32,6 +32,7 @@ interface CurrentLocation {
 }
 
 const props = defineProps<{
+    mode?: 'in' | 'out';
     schedule: {
         date: string;
         date_label: string;
@@ -49,6 +50,10 @@ const props = defineProps<{
     };
     profilePhotoUrl: string | null;
 }>();
+
+const isClockOut = computed(() => props.mode === 'out');
+const actionTitle = computed(() => (isClockOut.value ? 'Clock Out' : 'Clock In'));
+const actionSlug = computed(() => (isClockOut.value ? 'clock-out' : 'clock-in'));
 
 const page = usePage<SharedData>();
 const currentStep = ref<1 | 2>(1);
@@ -132,7 +137,7 @@ const accuracyState = computed(() => {
 const globalFormError = computed(() => (form.errors as Record<string, string>).attendance);
 const verificationButtonLabel = computed(() => {
     if (capturingPhoto.value) return 'Mengambil foto wajah...';
-    if (!form.processing) return 'Verifikasi & Clock In';
+    if (!form.processing) return `Verifikasi & ${actionTitle.value}`;
     if (verificationElapsedSeconds.value < 2) return 'Mengirim foto...';
     return `Memverifikasi wajah... ${verificationElapsedSeconds.value} dtk`;
 });
@@ -291,7 +296,7 @@ const capturePhoto = async (): Promise<File | null> => {
         if (!blob) throw new Error('Foto kamera tidak dapat diproses.');
 
         cameraError.value = '';
-        return new File([blob], `clock-in-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        return new File([blob], `${actionSlug.value}-${Date.now()}.jpg`, { type: 'image/jpeg' });
     } catch {
         photoError.value = 'Foto kamera gagal diambil. Silakan coba lagi.';
         return null;
@@ -370,7 +375,7 @@ const submitClockIn = async () => {
     form.outside_radius_confirmed = isInsideRadius.value === false;
     form.outside_radius_note = isInsideRadius.value === false ? outsideNote.value.trim() : '';
     form.photo = photo;
-    form.post(route('absensi.mobile.clock-in.store'), {
+    form.post(route(`absensi.mobile.${actionSlug.value}.store`), {
         forceFormData: true,
         preserveScroll: true,
         onStart: () => {
@@ -406,7 +411,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Clock In" />
+    <Head :title="actionTitle" />
 
     <main class="clock-workspace">
         <div class="clock-shell">
@@ -415,7 +420,7 @@ onUnmounted(() => {
                     <button type="button" class="round-button" aria-label="Kembali" @click="goBack"><ArrowLeft /></button>
                     <div class="clock-title">
                         <span>RSARSY PRESENCE</span>
-                        <h1>Clock In</h1>
+                        <h1>{{ actionTitle }}</h1>
                     </div>
                     <button
                         v-if="currentStep === 1"
@@ -431,7 +436,7 @@ onUnmounted(() => {
                     <span v-else class="round-button passive" aria-hidden="true"><ShieldCheck /></span>
                 </div>
 
-                <div class="stepper" aria-label="Tahapan clock-in">
+                <div class="stepper" :aria-label="`Tahapan ${actionSlug}`">
                     <div class="step" :class="{ active: currentStep >= 1 }">
                         <span><Check v-if="currentStep > 1" /><MapPin v-else /></span>
                         <div><small>Tahap 1</small><strong>Validasi lokasi</strong></div>
@@ -476,7 +481,7 @@ onUnmounted(() => {
                     </div>
 
                     <div class="map-card">
-                        <ClockInMap :office="office" :current-location="currentLocation" :is-inside="isInsideRadius" />
+                        <ClockInMap :office="office" :current-location="currentLocation" :is-inside="isInsideRadius" :action-label="actionSlug" />
                         <div v-if="locating && !currentLocation" class="map-locating">
                             <div class="radar-loader"><span></span><LocateFixed /></div>
                             <strong>Mencari posisi Anda</strong>
@@ -521,7 +526,7 @@ onUnmounted(() => {
                         <div>
                             <small>LANGKAH TERAKHIR</small>
                             <h2>Pastikan wajah terlihat jelas</h2>
-                            <p>Foto akan diambil otomatis saat Anda menekan tombol Verifikasi & Clock In.</p>
+                            <p>Foto akan diambil otomatis saat Anda menekan tombol Verifikasi & {{ actionTitle }}.</p>
                         </div>
                     </div>
 
@@ -569,7 +574,7 @@ onUnmounted(() => {
                         </div>
                         <div>
                             <ShieldCheck /><span
-                                ><strong>Dicocokkan dengan profil</strong><small>Clock-in berhasil hanya jika wajah cocok</small></span
+                                ><strong>Dicocokkan dengan profil</strong><small>{{ actionTitle }} berhasil hanya jika wajah cocok</small></span
                             >
                         </div>
                     </div>
@@ -616,7 +621,7 @@ onUnmounted(() => {
                         <span class="outside-eyebrow"><CircleAlert /> Perlu perhatian</span>
                         <h2 id="outside-title">Anda berada di luar radius</h2>
                         <p>
-                            Posisi terdeteksi <strong>{{ formattedDistance }}</strong> dari {{ office.name }}, sedangkan batas clock-in adalah
+                            Posisi terdeteksi <strong>{{ formattedDistance }}</strong> dari {{ office.name }}, sedangkan batas {{ actionSlug }} adalah
                             <strong>{{ office.radius_meters }} m</strong>.
                         </p>
 
@@ -626,7 +631,7 @@ onUnmounted(() => {
                         </div>
 
                         <label class="note-field" :class="{ invalid: outsideNoteError }">
-                            <span>Alasan clock-in di luar area <i>*</i></span>
+                            <span>Alasan {{ actionSlug }} di luar area <i>*</i></span>
                             <textarea
                                 v-model="outsideNote"
                                 rows="3"

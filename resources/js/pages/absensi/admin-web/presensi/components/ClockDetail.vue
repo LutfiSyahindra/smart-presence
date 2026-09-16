@@ -23,6 +23,7 @@ const props = defineProps<{
     employee: string;
     empty?: boolean;
     lateMinutes?: number;
+    earlyDepartureMinutes?: number;
 }>();
 
 const emit = defineEmits<{
@@ -62,6 +63,9 @@ const showPhoto = () => {
             <strong>{{ clock.time || '--:--' }}</strong>
             <small v-if="type === 'in' && lateMinutes && lateMinutes > 0" class="late-indicator">
                 <AlarmClock aria-hidden="true" />Terlambat {{ lateMinutes }} menit
+            </small>
+            <small v-if="type === 'out' && earlyDepartureMinutes && earlyDepartureMinutes > 0" class="late-indicator">
+                <AlarmClock aria-hidden="true" />Pulang lebih awal {{ earlyDepartureMinutes }} menit
             </small>
             <a
                 v-if="clock.location?.map_url"

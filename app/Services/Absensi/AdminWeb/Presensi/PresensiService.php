@@ -113,6 +113,7 @@ class PresensiService
     private function row(Pegawai $pegawai, ?Presensi $presensi, string $fallbackDate): array
     {
         $lateMinutes = $presensi ? $this->lateMinutes($presensi) : 0;
+        $earlyDepartureMinutes = $presensi?->earlyDepartureMinutes() ?? 0;
         $date = $presensi?->tanggal_presensi?->format('Y-m-d') ?? $fallbackDate;
 
         return [
@@ -149,6 +150,7 @@ class PresensiService
             'overtime_minutes' => $presensi?->overtime_minutes ?? 0,
             'notes' => $presensi?->notes,
             'late_minutes' => $lateMinutes,
+            'early_departure_minutes' => $earlyDepartureMinutes,
             'status' => $presensi ? $this->status($presensi, $lateMinutes) : null,
             'updated_by' => $presensi?->updatedBy?->name,
             'updated_at' => $presensi?->updated_at?->format('d/m/Y H:i'),

@@ -4,6 +4,7 @@ import { ArrowRight, Building2, CalendarDays, Check, Clock3, Home, MapPin, Shiel
 import { computed } from 'vue';
 
 const props = defineProps<{
+    mode?: 'in' | 'out';
     attendance: {
         date: string | null;
         date_label: string | null;
@@ -20,6 +21,9 @@ const props = defineProps<{
     };
 }>();
 
+const isClockOut = computed(() => props.mode === 'out');
+const actionTitle = computed(() => (isClockOut.value ? 'Clock Out' : 'Clock In'));
+
 const faceVerificationLabel = computed(() => {
     if (!props.attendance.face_verified) return 'Verifikasi tersimpan';
     if (props.attendance.face_similarity === null) return 'Wajah berhasil diverifikasi';
@@ -29,7 +33,7 @@ const faceVerificationLabel = computed(() => {
 </script>
 
 <template>
-    <Head title="Clock In Berhasil" />
+    <Head :title="`${actionTitle} Berhasil`" />
 
     <main class="success-workspace">
         <div class="success-shell">
@@ -55,8 +59,14 @@ const faceVerificationLabel = computed(() => {
                 </div>
 
                 <span class="success-eyebrow"><i></i> Presensi berhasil dikirim</span>
-                <h1 id="success-title">Jam masuk berhasil</h1>
-                <p class="success-lead">Selamat bekerja. Kehadiran Anda telah tercatat aman di sistem RSARSY.</p>
+                <h1 id="success-title">{{ isClockOut ? 'Jam pulang berhasil' : 'Jam masuk berhasil' }}</h1>
+                <p class="success-lead">
+                    {{
+                        isClockOut
+                            ? 'Terima kasih atas kerja keras Anda. Jam pulang telah tercatat aman di sistem RSARSY.'
+                            : 'Selamat bekerja. Kehadiran Anda telah tercatat aman di sistem RSARSY.'
+                    }}
+                </p>
 
                 <article class="attendance-card">
                     <span class="card-glow" aria-hidden="true"></span>
@@ -70,14 +80,17 @@ const faceVerificationLabel = computed(() => {
                     </div>
 
                     <div class="clock-in-time">
-                        <small>Waktu clock in</small>
+                        <small>Waktu {{ isClockOut ? 'clock out' : 'clock in' }}</small>
                         <time>{{ attendance.clock_in_time }}</time>
                         <span>WIB</span>
                     </div>
 
                     <div v-if="attendance.late_minutes > 0" class="late-status" role="status">
                         <Clock3 />
-                        <span>Anda telat <strong>{{ attendance.late_minutes }} menit</strong></span>
+                        <span>
+                            {{ isClockOut ? 'Anda pulang lebih awal' : 'Anda telat' }}
+                            <strong>{{ attendance.late_minutes }} menit</strong>
+                        </span>
                     </div>
 
                     <div class="shift-summary">

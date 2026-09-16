@@ -102,6 +102,7 @@ class PresensiManagementTest extends TestCase
                 ->where('records.data.0.clock_in.photo_url', "/absensi/admin-web/presensi/foto/{$presensi->id}/in")
                 ->where('records.data.0.status', 'late')
                 ->where('records.data.0.late_minutes', 17)
+                ->where('records.data.0.early_departure_minutes', 0)
                 ->where('records.data.0.overtime_minutes', 60)
                 ->where('overview.present', 1)
                 ->where('overview.late', 1)

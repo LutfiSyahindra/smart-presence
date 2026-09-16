@@ -64,6 +64,7 @@ interface PresensiRow {
     overtime_minutes: number;
     notes: string | null;
     late_minutes: number;
+    early_departure_minutes: number;
     status: 'day-off' | 'incomplete' | 'late' | 'on-time' | null;
     updated_by: string | null;
     updated_at: string | null;
@@ -452,6 +453,7 @@ watch(
                                         :clock="record.clock_out"
                                         :employee="record.pegawai.nama"
                                         :empty="!record.has_presensi"
+                                        :early-departure-minutes="record.early_departure_minutes"
                                         @preview="previewPhoto = $event"
                                     />
                                 </td>
@@ -521,6 +523,7 @@ watch(
                                 :clock="record.clock_out"
                                 :employee="record.pegawai.nama"
                                 :empty="!record.has_presensi"
+                                :early-departure-minutes="record.early_departure_minutes"
                                 @preview="previewPhoto = $event"
                             />
                         </div>

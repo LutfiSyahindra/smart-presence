@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OfficeLocation;
 use App\Support\AccessPermission;
 use App\Support\Portal;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -20,10 +21,35 @@ class HomeController extends Controller
         $pegawai = $user?->pegawai()
             ->with('shift:id,nama,jam_masuk,jam_keluar')
             ->first(['id', 'user_id', 'shift_id']);
-        $shift = $pegawai?->shift;
         $todayPresensi = $pegawai?->presensis()
+            ->with('shift:id,nama,jam_masuk,jam_keluar')
             ->whereDate('tanggal_presensi', now()->toDateString())
-            ->first(['id', 'pegawai_id', 'clock_in_at', 'clock_out_at', 'is_day_off']);
+            ->first(['id', 'pegawai_id', 'shift_id', 'tanggal_presensi', 'clock_in_at', 'clock_out_at', 'is_day_off']);
+
+        if (! $todayPresensi && $pegawai) {
+            $previousPresensi = $pegawai->presensis()
+                ->with('shift:id,nama,jam_masuk,jam_keluar')
+                ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
+                ->whereNotNull('clock_in_at')
+                ->latest('clock_in_at')
+                ->first(['id', 'pegawai_id', 'shift_id', 'tanggal_presensi', 'clock_in_at', 'clock_out_at', 'is_day_off']);
+
+            if (
+                $previousPresensi?->shift
+                && (string) $previousPresensi->shift->jam_keluar <= (string) $previousPresensi->shift->jam_masuk
+            ) {
+                $scheduledEnd = Carbon::createFromFormat(
+                    'Y-m-d H:i',
+                    $previousPresensi->tanggal_presensi->format('Y-m-d').' '.substr((string) $previousPresensi->shift->jam_keluar, 0, 5),
+                )->addDay();
+
+                if (! $previousPresensi->clock_out_at || now()->lte($scheduledEnd->addHours(4))) {
+                    $todayPresensi = $previousPresensi;
+                }
+            }
+        }
+
+        $shift = $todayPresensi?->shift ?? $pegawai?->shift;
         $workLocation = OfficeLocation::query()
             ->oldest('id')
             ->first(['id', 'name']);

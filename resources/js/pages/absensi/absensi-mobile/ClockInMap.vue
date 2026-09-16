@@ -18,6 +18,7 @@ const props = defineProps<{
     };
     currentLocation: Coordinates | null;
     isInside: boolean | null;
+    actionLabel?: string;
 }>();
 
 const mapElement = ref<HTMLElement | null>(null);
@@ -149,8 +150,8 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="clock-map-wrap">
-        <div ref="mapElement" class="clock-map" aria-label="Peta lokasi clock-in dan radius kantor"></div>
-        <div class="radius-legend"><i></i> Area clock-in {{ office.radius_meters }} m</div>
+        <div ref="mapElement" class="clock-map" :aria-label="`Peta lokasi ${actionLabel || 'clock-in'} dan radius kantor`"></div>
+        <div class="radius-legend"><i></i> Area {{ actionLabel || 'clock-in' }} {{ office.radius_meters }} m</div>
     </div>
 </template>
 

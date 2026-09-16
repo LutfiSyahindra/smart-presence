@@ -187,9 +187,29 @@ onUnmounted(() => {
                             </span>
                         </button>
                         <span class="attendance-divider" aria-hidden="true"></span>
-                        <button type="button" class="attendance-action check-out" @click="showFeedback('Modul Clock Out sedang disiapkan.')">
+                        <Link
+                            v-if="todayAttendance.clocked_in_at && !todayAttendance.clocked_out_at && !todayAttendance.is_day_off"
+                            :href="route('absensi.mobile.clock-out.create')"
+                            as="button"
+                            class="attendance-action check-out"
+                        >
                             <span><LogOut /></span>
                             <span><small>Selesai kerja</small><strong>Clock Out</strong></span>
+                        </Link>
+                        <button v-else type="button" class="attendance-action check-out completed" disabled>
+                            <span><LogOut /></span>
+                            <span>
+                                <small>{{
+                                    todayAttendance.is_day_off
+                                        ? 'Tidak perlu presensi'
+                                        : todayAttendance.clocked_out_at
+                                          ? `Tercatat ${todayAttendance.clocked_out_at}`
+                                          : 'Clock in terlebih dahulu'
+                                }}</small>
+                                <strong>{{
+                                    todayAttendance.is_day_off ? 'Hari Libur' : todayAttendance.clocked_out_at ? 'Sudah Clock Out' : 'Clock Out'
+                                }}</strong>
+                            </span>
                         </button>
                     </div>
 
@@ -199,9 +219,11 @@ onUnmounted(() => {
                             {{
                                 todayAttendance.is_day_off
                                     ? 'Hari ini tercatat sebagai hari libur'
-                                    : todayAttendance.clocked_in_at
-                                      ? `Clock-in tercatat ${todayAttendance.clocked_in_at} WIB`
-                                      : 'Siap untuk presensi'
+                                    : todayAttendance.clocked_out_at
+                                      ? `Clock-out tercatat ${todayAttendance.clocked_out_at} WIB`
+                                      : todayAttendance.clocked_in_at
+                                        ? `Clock-in tercatat ${todayAttendance.clocked_in_at} WIB`
+                                        : 'Siap untuk presensi'
                             }}
                         </span>
                         <span><Clock3 /> {{ liveTime }} WIB</span>

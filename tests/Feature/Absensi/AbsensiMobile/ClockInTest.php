@@ -2,16 +2,20 @@
 
 namespace Tests\Feature\Absensi\AbsensiMobile;
 
+use App\Contracts\FaceVerifier;
+use App\Exceptions\FaceVerificationException;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
+use App\ValueObjects\FaceVerificationResult;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 class ClockInTest extends TestCase
@@ -44,6 +48,22 @@ class ClockInTest extends TestCase
             'nama' => 'Perawat Satu',
         ]);
         $this->pegawai->forceFill(['user_id' => $this->user->id])->save();
+        $profilePhotoPath = "profile-photos/{$this->user->id}/wajah.jpg";
+        Storage::disk('local')->put(
+            $profilePhotoPath,
+            UploadedFile::fake()->image('wajah.jpg', 800, 800)->getContent(),
+        );
+        $this->user->forceFill([
+            'profile_photo_path' => $profilePhotoPath,
+            'profile_photo_updated_at' => now(),
+        ])->save();
+
+        $this->mock(FaceVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('compare')
+                ->zeroOrMoreTimes()
+                ->andReturn(new FaceVerificationResult(true, 96.42, 'test-verifier'));
+        });
+
         $this->office = OfficeLocation::query()->create([
             'name' => 'Gedung Utama RSARSY',
             'address' => 'Jl. Rumah Sakit No. 1',
@@ -74,7 +94,7 @@ class ClockInTest extends TestCase
     {
         $this->actingAs($this->user)
             ->post('/absensi/mobile/clock-in', $this->payload())
-            ->assertRedirect('/absensi/mobile')
+            ->assertRedirect('/absensi/mobile/clock-in/berhasil')
             ->assertSessionHas('success', 'Clock-in berhasil. Selamat bekerja!');
 
         $presensi = Presensi::query()->sole();
@@ -86,7 +106,97 @@ class ClockInTest extends TestCase
         $this->assertSame(106.8166667, $presensi->clock_in_longitude);
         $this->assertSame('Jl. Rumah Sakit No. 1', $presensi->clock_in_address);
         $this->assertNull($presensi->notes);
+        $this->assertNotNull($presensi->face_verified_at);
+        $this->assertSame(96.42, $presensi->face_similarity);
+        $this->assertSame('test-verifier', $presensi->face_verification_provider);
         Storage::disk('local')->assertExists($presensi->clock_in_photo_path);
+
+        $this->get('/absensi/mobile/clock-in/berhasil')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('absensi/absensi-mobile/ClockInSuccess')
+                ->where('attendance.clock_in_time', $presensi->clock_in_at->format('H:i'))
+                ->where('attendance.shift_name', 'Shift Pagi')
+                ->where('attendance.start_time', '07:00')
+                ->where('attendance.end_time', '15:00')
+                ->where('attendance.location_name', 'Gedung Utama RSARSY')
+                ->where('attendance.outside_radius', false)
+                ->where('attendance.face_verified', true)
+                ->where('attendance.face_similarity', 96.42));
+    }
+
+    public function test_clock_in_is_rejected_when_face_does_not_match_profile(): void
+    {
+        $this->mock(FaceVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('compare')
+                ->once()
+                ->andReturn(new FaceVerificationResult(false, null, 'test-verifier'));
+        });
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasErrors([
+                'photo' => 'Wajah tidak cocok dengan foto profil. Pastikan Anda menggunakan akun sendiri lalu coba verifikasi kembali.',
+            ]);
+
+        $this->assertDatabaseCount('presensis', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles("presensi-photos/{$this->pegawai->id}"));
+    }
+
+    public function test_clock_in_is_rejected_when_face_cannot_be_detected(): void
+    {
+        $this->mock(FaceVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('compare')
+                ->once()
+                ->andThrow(new FaceVerificationException(
+                    FaceVerificationException::FACE_NOT_FOUND,
+                    'Wajah tidak ditemukan.',
+                ));
+        });
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_fails_closed_when_face_service_is_unavailable(): void
+    {
+        $this->mock(FaceVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('compare')
+                ->once()
+                ->andThrow(new FaceVerificationException(
+                    FaceVerificationException::SERVICE_UNAVAILABLE,
+                    'Provider unavailable.',
+                ));
+        });
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasErrors('attendance');
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_requires_a_private_profile_photo(): void
+    {
+        Storage::disk('local')->delete($this->user->profile_photo_path);
+        $this->user->forceFill([
+            'profile_photo_path' => null,
+            'profile_photo_updated_at' => null,
+        ])->save();
+
+        $this->actingAs($this->user)
+            ->get('/absensi/mobile/clock-in')
+            ->assertRedirect('/absensi/mobile/akun')
+            ->assertSessionHas('error');
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasErrors('photo');
+
+        $this->assertDatabaseCount('presensis', 0);
     }
 
     public function test_outside_radius_requires_confirmation_and_a_note(): void
@@ -121,7 +231,7 @@ class ClockInTest extends TestCase
                 'outside_radius_confirmed' => true,
                 'outside_radius_note' => 'Mendampingi pasien di gedung sebelah.',
             ]))
-            ->assertRedirect('/absensi/mobile')
+            ->assertRedirect('/absensi/mobile/clock-in/berhasil')
             ->assertSessionHas('success', 'Clock-in berhasil dikirim dengan catatan lokasi di luar radius.');
 
         $presensi = Presensi::query()->sole();
@@ -155,7 +265,7 @@ class ClockInTest extends TestCase
 
         $this->actingAs($this->user)
             ->post('/absensi/mobile/clock-in', $this->payload())
-            ->assertRedirect('/absensi/mobile');
+            ->assertRedirect('/absensi/mobile/clock-in/berhasil');
 
         $this->assertDatabaseCount('presensis', 1);
         $this->assertNotNull($presensi->fresh()->clock_in_at);

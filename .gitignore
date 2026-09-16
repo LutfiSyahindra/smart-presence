@@ -21,3 +21,9 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/services/face-verification/.deepface
+/services/face-verification/.env
+/services/face-verification/.pytest_cache
+/services/face-verification/.venv
+/services/face-verification/**/__pycache__
+/services/face-verification/**/*.pyc

@@ -44,7 +44,7 @@ class StoreClockInRequest extends FormRequest
             'accuracy.required' => 'Informasi akurasi GPS belum tersedia.',
             'accuracy.max' => 'Akurasi GPS terlalu rendah. Perbarui lokasi lalu coba kembali.',
             'outside_radius_confirmed.required' => 'Konfirmasi lokasi presensi wajib diisi.',
-            'photo.required' => 'Ambil foto wajah terlebih dahulu.',
+            'photo.required' => 'Foto wajah belum berhasil diambil otomatis. Pastikan kamera aktif lalu coba verifikasi kembali.',
             'photo.image' => 'File foto wajah tidak valid.',
             'photo.mimes' => 'Gunakan foto berformat JPG, JPEG, PNG, atau WebP.',
             'photo.extensions' => 'Gunakan foto berformat JPG, JPEG, PNG, atau WebP.',

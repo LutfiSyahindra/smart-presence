@@ -18,10 +18,8 @@ import {
     MapPin,
     Navigation,
     RefreshCw,
-    RotateCcw,
     ShieldCheck,
     Sparkles,
-    Upload,
     X,
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
@@ -60,8 +58,6 @@ const locationError = ref('');
 const outsideDialogOpen = ref(false);
 const outsideNote = ref('');
 const outsideNoteError = ref('');
-const photoFile = ref<File | null>(null);
-const photoPreview = ref('');
 const photoError = ref('');
 const cameraVideo = ref<HTMLVideoElement | null>(null);
 const cameraStream = ref<MediaStream | null>(null);
@@ -69,8 +65,10 @@ const cameraStarting = ref(false);
 const cameraActive = ref(false);
 const capturingPhoto = ref(false);
 const cameraError = ref('');
+const verificationElapsedSeconds = ref(0);
 let cameraRequestId = 0;
 let locationRequestId = 0;
+let verificationTimer: ReturnType<typeof window.setInterval> | null = null;
 
 const form = useForm<{
     latitude: number | null;
@@ -132,6 +130,12 @@ const accuracyState = computed(() => {
 });
 
 const globalFormError = computed(() => (form.errors as Record<string, string>).attendance);
+const verificationButtonLabel = computed(() => {
+    if (capturingPhoto.value) return 'Mengambil foto wajah...';
+    if (!form.processing) return 'Verifikasi & Clock In';
+    if (verificationElapsedSeconds.value < 2) return 'Mengirim foto...';
+    return `Memverifikasi wajah... ${verificationElapsedSeconds.value} dtk`;
+});
 const locationSubmissionError = computed(
     () => form.errors.latitude || form.errors.longitude || form.errors.accuracy || form.errors.outside_radius_confirmed,
 );
@@ -261,26 +265,19 @@ const startCamera = async () => {
     }
 };
 
-const setPhoto = (photo: File) => {
-    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
-    photoFile.value = photo;
-    photoPreview.value = URL.createObjectURL(photo);
-    form.photo = photo;
-    photoError.value = '';
-    cameraError.value = '';
-};
-
-const capturePhoto = async () => {
+const capturePhoto = async (): Promise<File | null> => {
     const video = cameraVideo.value;
     if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
         cameraError.value = 'Kamera belum siap. Tunggu sebentar lalu coba lagi.';
-        return;
+        return null;
     }
 
     capturingPhoto.value = true;
+    photoError.value = '';
+    form.clearErrors();
 
     try {
-        const maximumSide = 1600;
+        const maximumSide = 1024;
         const scale = Math.min(1, maximumSide / Math.max(video.videoWidth, video.videoHeight));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(video.videoWidth * scale);
@@ -290,30 +287,22 @@ const capturePhoto = async () => {
         if (!context) throw new Error('Foto kamera tidak dapat diproses.');
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
         if (!blob) throw new Error('Foto kamera tidak dapat diproses.');
 
-        stopCamera();
-        setPhoto(new File([blob], `clock-in-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+        cameraError.value = '';
+        return new File([blob], `clock-in-${Date.now()}.jpg`, { type: 'image/jpeg' });
     } catch {
         photoError.value = 'Foto kamera gagal diambil. Silakan coba lagi.';
+        return null;
     } finally {
         capturingPhoto.value = false;
     }
 };
 
-const retakePhoto = () => {
-    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
-    photoFile.value = null;
-    photoPreview.value = '';
-    form.photo = null;
-    void startCamera();
-};
-
 const openFaceVerification = () => {
     currentStep.value = 2;
-
-    if (!photoFile.value) void startCamera();
+    void startCamera();
 };
 
 const continueFromLocation = () => {
@@ -357,57 +346,53 @@ const goBack = () => {
     router.visit(route('absensi.mobile.home'));
 };
 
-const selectPhoto = (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    const selected = input.files?.[0] ?? null;
-    photoError.value = '';
-    form.clearErrors('photo');
-
-    if (!selected) return;
-    if (!selected.type.startsWith('image/')) {
-        photoError.value = 'File yang dipilih harus berupa foto.';
-        input.value = '';
-        return;
-    }
-    if (selected.size > 5 * 1024 * 1024) {
-        photoError.value = 'Ukuran foto maksimal 5 MB.';
-        input.value = '';
-        return;
-    }
-
-    stopCamera();
-    setPhoto(selected);
-};
-
 const returnToLocation = () => {
     if (form.processing) return;
     stopCamera();
     currentStep.value = 1;
 };
 
-const submitClockIn = () => {
-    if (!currentLocation.value || !photoFile.value) {
-        if (!photoFile.value) photoError.value = 'Ambil foto wajah sebelum menyelesaikan clock-in.';
+const submitClockIn = async () => {
+    if (!currentLocation.value || form.processing || capturingPhoto.value) return;
+
+    if (!cameraActive.value) {
+        cameraError.value = 'Kamera perlu aktif untuk mengambil foto saat verifikasi.';
+        void startCamera();
         return;
     }
+
+    const photo = await capturePhoto();
+    if (!photo) return;
 
     form.latitude = currentLocation.value.latitude;
     form.longitude = currentLocation.value.longitude;
     form.accuracy = currentLocation.value.accuracy;
     form.outside_radius_confirmed = isInsideRadius.value === false;
     form.outside_radius_note = isInsideRadius.value === false ? outsideNote.value.trim() : '';
-    form.photo = photoFile.value;
+    form.photo = photo;
     form.post(route('absensi.mobile.clock-in.store'), {
         forceFormData: true,
         preserveScroll: true,
+        onStart: () => {
+            verificationElapsedSeconds.value = 0;
+            verificationTimer = window.setInterval(() => {
+                verificationElapsedSeconds.value += 1;
+            }, 1000);
+        },
         onError: () => {
             if (form.errors.outside_radius_confirmed || form.errors.outside_radius_note) {
+                stopCamera();
                 currentStep.value = 1;
                 outsideNoteError.value = form.errors.outside_radius_note || form.errors.outside_radius_confirmed || '';
                 outsideDialogOpen.value = true;
             } else if (form.errors.latitude || form.errors.longitude || form.errors.accuracy) {
+                stopCamera();
                 currentStep.value = 1;
             }
+        },
+        onFinish: () => {
+            if (verificationTimer !== null) window.clearInterval(verificationTimer);
+            verificationTimer = null;
         },
     });
 };
@@ -416,7 +401,7 @@ onMounted(requestLocation);
 onUnmounted(() => {
     locationRequestId += 1;
     stopCamera();
-    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+    if (verificationTimer !== null) window.clearInterval(verificationTimer);
 });
 </script>
 
@@ -536,21 +521,13 @@ onUnmounted(() => {
                         <div>
                             <small>LANGKAH TERAKHIR</small>
                             <h2>Pastikan wajah terlihat jelas</h2>
-                            <p>Ambil foto terbaru tanpa masker, filter, atau pencahayaan dari belakang.</p>
+                            <p>Foto akan diambil otomatis saat Anda menekan tombol Verifikasi & Clock In.</p>
                         </div>
                     </div>
 
-                    <div class="camera-card" :class="{ captured: photoPreview }">
+                    <div class="camera-card" :class="{ verifying: form.processing || capturingPhoto }">
                         <div class="camera-grid" aria-hidden="true"></div>
-                        <img v-if="photoPreview" :src="photoPreview" alt="Pratinjau foto wajah untuk clock-in" />
-                        <video
-                            v-else-if="cameraActive"
-                            ref="cameraVideo"
-                            autoplay
-                            muted
-                            playsinline
-                            aria-label="Pratinjau langsung kamera depan"
-                        ></video>
+                        <video v-if="cameraActive" ref="cameraVideo" autoplay muted playsinline aria-label="Pratinjau langsung kamera depan"></video>
                         <template v-else>
                             <span class="camera-orbit orbit-one"></span>
                             <span class="camera-orbit orbit-two"></span>
@@ -567,33 +544,21 @@ onUnmounted(() => {
                                 cameraStarting ? 'Izinkan akses kamera jika diminta oleh browser' : 'Kamera akan tampil langsung di area ini'
                             }}</small>
                         </template>
-                        <div v-if="cameraActive && !photoPreview" class="face-guide live-guide" aria-hidden="true">
+                        <div v-if="cameraActive" class="face-guide live-guide" aria-hidden="true">
                             <i class="corner top-left"></i><i class="corner top-right"></i> <i class="corner bottom-left"></i
                             ><i class="corner bottom-right"></i>
                         </div>
-                        <span v-if="cameraActive && !photoPreview" class="camera-live-status"><i></i> Kamera aktif</span>
-                        <span v-if="photoPreview" class="photo-ready"><Check /> Foto siap digunakan</span>
+                        <span v-if="cameraActive" class="camera-live-status"><i></i> Siap mengambil foto</span>
+                        <div v-if="form.processing || capturingPhoto" class="verification-overlay" aria-live="polite">
+                            <span><LoaderCircle class="spin" /></span>
+                            <strong>{{ verificationButtonLabel }}</strong>
+                            <small>Jangan tutup halaman ini</small>
+                        </div>
                     </div>
 
-                    <input
-                        id="clock-in-photo-upload"
-                        class="visually-hidden"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        @change="selectPhoto"
-                    />
-                    <button v-if="photoPreview" type="button" class="camera-action secondary" @click="retakePhoto">
-                        <RotateCcw /> Ambil ulang foto
+                    <button v-if="cameraError && !cameraStarting" type="button" class="camera-retry" @click="startCamera">
+                        <RefreshCw /> Aktifkan ulang kamera
                     </button>
-                    <button v-else-if="cameraActive" type="button" class="camera-action" :disabled="capturingPhoto" @click="capturePhoto">
-                        <LoaderCircle v-if="capturingPhoto" class="spin" /><Camera v-else />
-                        {{ capturingPhoto ? 'Mengambil foto...' : 'Ambil foto wajah' }}
-                    </button>
-                    <button v-else type="button" class="camera-action" :disabled="cameraStarting" @click="startCamera">
-                        <LoaderCircle v-if="cameraStarting" class="spin" /><Camera v-else />
-                        {{ cameraStarting ? 'Membuka kamera...' : 'Coba buka kamera' }}
-                    </button>
-                    <label v-if="!photoPreview" for="clock-in-photo-upload" class="upload-hint"><Upload /> Atau pilih foto dari perangkat</label>
                     <p v-if="cameraError || photoError || form.errors.photo" class="field-error">
                         <CircleAlert /> {{ cameraError || photoError || form.errors.photo }}
                     </p>
@@ -603,7 +568,9 @@ onUnmounted(() => {
                             <Focus /><span><strong>Wajah terlihat utuh</strong><small>Pastikan tidak buram atau terpotong</small></span>
                         </div>
                         <div>
-                            <ShieldCheck /><span><strong>Data tersimpan aman</strong><small>Foto hanya untuk bukti presensi</small></span>
+                            <ShieldCheck /><span
+                                ><strong>Dicocokkan dengan profil</strong><small>Clock-in berhasil hanya jika wajah cocok</small></span
+                            >
                         </div>
                     </div>
 
@@ -620,11 +587,17 @@ onUnmounted(() => {
 
                     <div class="photo-actions">
                         <button type="button" class="text-action" :disabled="form.processing" @click="returnToLocation">Kembali ke lokasi</button>
-                        <button type="button" class="primary-action" :disabled="form.processing || !photoFile" @click="submitClockIn">
-                            <LoaderCircle v-if="form.processing" class="spin" />
-                            <span>{{ form.processing ? 'Menyimpan clock-in...' : 'Konfirmasi Clock In' }}</span>
-                            <Check v-if="!form.processing" />
+                        <button
+                            type="button"
+                            class="primary-action"
+                            :disabled="form.processing || capturingPhoto || cameraStarting || !cameraActive"
+                            @click="submitClockIn"
+                        >
+                            <LoaderCircle v-if="form.processing || capturingPhoto" class="spin" />
+                            <span>{{ verificationButtonLabel }}</span>
+                            <Check v-if="!form.processing && !capturingPhoto" />
                         </button>
+                        <p class="auto-capture-note"><Camera /> Kamera mengambil satu foto hanya saat tombol di atas ditekan.</p>
                     </div>
                 </section>
             </Transition>
@@ -1370,18 +1343,6 @@ onUnmounted(() => {
     box-shadow: 0 19px 39px rgba(10, 55, 54, 0.18);
 }
 
-.camera-card.captured {
-    background: #123b3f;
-}
-
-.camera-card > img {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    inset: 0;
-    object-fit: cover;
-}
-
 .camera-card > video {
     width: 100%;
     height: 100%;
@@ -1538,90 +1499,67 @@ onUnmounted(() => {
     box-shadow: 0 0 0 4px rgba(114, 230, 187, 0.14);
 }
 
-.photo-ready {
-    padding: 7px 10px;
-    display: inline-flex;
+.verification-overlay {
+    display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
     position: absolute;
-    z-index: 2;
-    bottom: 14px;
-    left: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.27);
-    border-radius: 999px;
+    z-index: 4;
+    inset: 0;
+    flex-direction: column;
     color: #f6fffc;
-    background: rgba(7, 69, 64, 0.79);
-    box-shadow: 0 8px 20px rgba(2, 31, 32, 0.18);
-    font-size: 8px;
-    font-weight: 800;
-    white-space: nowrap;
-    backdrop-filter: blur(10px);
-    transform: translateX(-50%);
+    background: rgba(4, 36, 39, 0.74);
+    backdrop-filter: blur(8px);
 }
 
-.photo-ready svg {
+.verification-overlay > span {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 18px;
+    color: #f0c77d;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 34px rgba(0, 20, 22, 0.2);
+}
+
+.verification-overlay svg {
+    width: 23px;
+    height: 23px;
+}
+
+.verification-overlay strong {
+    margin-top: 13px;
+    font-size: 11px;
+    font-weight: 820;
+}
+
+.verification-overlay small {
+    margin-top: 4px;
+    color: rgba(230, 246, 241, 0.68);
+    font-size: 8px;
+}
+
+.camera-retry {
+    min-height: 34px;
+    margin: 10px auto 0;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid #d9e5e1;
+    border-radius: 11px;
+    color: #35625f;
+    background: #fff;
+    font-size: 8px;
+    font-weight: 780;
+}
+
+.camera-retry svg {
     width: 12px;
     height: 12px;
-}
-
-.visually-hidden {
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    position: absolute;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-    white-space: nowrap;
-}
-
-.camera-action {
-    width: 100%;
-    min-height: 46px;
-    margin: 12px 0 0;
-    padding: 0 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    border: 1px solid #0b8278;
-    border-radius: 14px;
-    color: #fff;
-    background: #0a7c74;
-    box-shadow: 0 10px 22px rgba(7, 106, 99, 0.15);
-    cursor: pointer;
-    font-size: 10px;
-    font-weight: 800;
-}
-
-.camera-action:disabled {
-    cursor: wait;
-    opacity: 0.65;
-}
-
-.camera-action.secondary {
-    border-color: #dce6e2;
-    color: #3b5b5b;
-    background: #fff;
-    box-shadow: none;
-}
-
-.camera-action svg,
-.upload-hint svg {
-    width: 14px;
-    height: 14px;
-}
-
-.upload-hint {
-    margin-top: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    color: #82918f;
-    cursor: pointer;
-    font-size: 8px;
-    font-weight: 650;
 }
 
 .field-error,
@@ -1767,6 +1705,23 @@ onUnmounted(() => {
     background: transparent;
     font-size: 8px;
     font-weight: 700;
+}
+
+.auto-capture-note {
+    margin: 9px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    color: #879693;
+    font-size: 7px;
+    font-weight: 650;
+}
+
+.auto-capture-note svg {
+    width: 10px;
+    height: 10px;
+    color: #5f9188;
 }
 
 .sheet-overlay {

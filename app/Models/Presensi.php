@@ -23,6 +23,9 @@ class Presensi extends Model
         'clock_in_address',
         'clock_out_address',
         'clock_in_photo_path',
+        'face_verified_at',
+        'face_similarity',
+        'face_verification_provider',
         'clock_out_photo_path',
         'is_day_off',
         'overtime_minutes',
@@ -36,6 +39,8 @@ class Presensi extends Model
         return [
             'tanggal_presensi' => 'date',
             'clock_in_at' => 'datetime',
+            'face_verified_at' => 'datetime',
+            'face_similarity' => 'float',
             'clock_out_at' => 'datetime',
             'clock_in_latitude' => 'float',
             'clock_in_longitude' => 'float',

@@ -26,6 +26,17 @@ const props = defineProps<{
     canAccessAdmin: boolean;
     canAccessAccount: boolean;
     profilePhotoUrl: string | null;
+    todaySchedule: {
+        shift_name: string | null;
+        start_time: string | null;
+        end_time: string | null;
+        location_name: string | null;
+    };
+    todayAttendance: {
+        clocked_in_at: string | null;
+        clocked_out_at: string | null;
+        is_day_off: boolean;
+    };
 }>();
 
 const page = usePage<SharedData>();
@@ -92,6 +103,8 @@ const showFeedback = (message: string) => {
 
 onMounted(() => {
     clockTimer = window.setInterval(() => (now.value = new Date()), 30_000);
+    const flashMessage = page.props.flash.success || page.props.flash.error;
+    if (flashMessage) showFeedback(flashMessage);
 });
 
 onUnmounted(() => {
@@ -138,7 +151,7 @@ onUnmounted(() => {
                     <div class="schedule-topline">
                         <div>
                             <span class="eyebrow"><Sparkles /> Jadwal hari ini</span>
-                            <h2 id="today-schedule-title">Shift Reguler</h2>
+                            <h2 id="today-schedule-title">{{ todaySchedule.shift_name || 'Shift belum ditentukan' }}</h2>
                         </div>
                         <time :datetime="now.toISOString()">{{ formattedDate }}</time>
                     </div>
@@ -146,18 +159,32 @@ onUnmounted(() => {
                     <div class="schedule-time-row">
                         <div class="schedule-location">
                             <span><MapPin /></span>
-                            <p><small>Lokasi kerja</small><strong>Kantor Utama</strong></p>
+                            <p>
+                                <small>Lokasi kerja</small><strong>{{ todaySchedule.location_name || 'Belum ditentukan' }}</strong>
+                            </p>
                         </div>
                         <div class="schedule-hours">
                             <small>Jam kerja</small>
-                            <strong>08:00 <i>—</i> 16:00</strong>
+                            <strong>{{ todaySchedule.start_time || '--:--' }} <i>—</i> {{ todaySchedule.end_time || '--:--' }}</strong>
                         </div>
                     </div>
 
                     <div class="attendance-panel">
-                        <button type="button" class="attendance-action check-in" @click="showFeedback('Modul Clock In sedang disiapkan.')">
+                        <Link
+                            v-if="!todayAttendance.clocked_in_at && !todayAttendance.is_day_off"
+                            :href="route('absensi.mobile.clock-in.create')"
+                            as="button"
+                            class="attendance-action check-in"
+                        >
                             <span><LogIn /></span>
                             <span><small>Mulai kerja</small><strong>Clock In</strong></span>
+                        </Link>
+                        <button v-else type="button" class="attendance-action check-in completed" disabled>
+                            <span><LogIn /></span>
+                            <span>
+                                <small>{{ todayAttendance.is_day_off ? 'Tidak perlu presensi' : `Tercatat ${todayAttendance.clocked_in_at}` }}</small>
+                                <strong>{{ todayAttendance.is_day_off ? 'Hari Libur' : 'Sudah Clock In' }}</strong>
+                            </span>
                         </button>
                         <span class="attendance-divider" aria-hidden="true"></span>
                         <button type="button" class="attendance-action check-out" @click="showFeedback('Modul Clock Out sedang disiapkan.')">
@@ -167,7 +194,16 @@ onUnmounted(() => {
                     </div>
 
                     <div class="attendance-status">
-                        <span><i></i> Siap untuk presensi</span>
+                        <span>
+                            <i></i>
+                            {{
+                                todayAttendance.is_day_off
+                                    ? 'Hari ini tercatat sebagai hari libur'
+                                    : todayAttendance.clocked_in_at
+                                      ? `Clock-in tercatat ${todayAttendance.clocked_in_at} WIB`
+                                      : 'Siap untuk presensi'
+                            }}
+                        </span>
                         <span><Clock3 /> {{ liveTime }} WIB</span>
                     </div>
                 </article>
@@ -651,6 +687,16 @@ onUnmounted(() => {
 .attendance-action:hover {
     background: #edf7f3;
     transform: translateY(-1px);
+}
+
+.attendance-action.completed {
+    cursor: default;
+    opacity: 0.78;
+}
+
+.attendance-action.completed:hover {
+    background: transparent;
+    transform: none;
 }
 
 .attendance-action > span:first-child {

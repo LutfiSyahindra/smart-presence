@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccountController;
+use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
@@ -29,6 +30,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
+        Route::get('clock-in', [MobileClockInController::class, 'create'])->name('clock-in.create');
+        Route::post('clock-in', [MobileClockInController::class, 'store'])->name('clock-in.store');
 
         Route::middleware('can:'.AccessPermission::MOBILE_ACCOUNT)->group(function () {
             Route::get('akun', [MobileAccountController::class, 'show'])->name('account.show');

@@ -32,6 +32,7 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
         Route::get('/', MobileHomeController::class)->name('home');
         Route::get('clock-in', [MobileClockInController::class, 'create'])->name('clock-in.create');
         Route::post('clock-in', [MobileClockInController::class, 'store'])->name('clock-in.store');
+        Route::get('clock-in/berhasil', [MobileClockInController::class, 'success'])->name('clock-in.success');
 
         Route::middleware('can:'.AccessPermission::MOBILE_ACCOUNT)->group(function () {
             Route::get('akun', [MobileAccountController::class, 'show'])->name('account.show');

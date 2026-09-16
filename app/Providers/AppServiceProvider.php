@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\FaceVerifier;
 use App\Models\User;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepository;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepositoryInterface;
@@ -19,6 +20,8 @@ use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepository;
 use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepository;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepositoryInterface;
+use App\Services\Absensi\AbsensiMobile\FastApiFaceVerifier;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -37,6 +40,22 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
         $this->app->bind(RoleRepositoryInterface::class, RoleRepository::class);
         $this->app->bind(PermissionRepositoryInterface::class, PermissionRepository::class);
+        $this->app->singleton(FaceVerifier::class, function (Application $app): FaceVerifier {
+            $driver = $app['config']->get('face-verification.driver');
+
+            if ($driver === 'fastapi') {
+                $fastApi = $app['config']->get('face-verification.fastapi');
+
+                return new FastApiFaceVerifier(
+                    baseUrl: (string) $fastApi['url'],
+                    token: (string) $fastApi['token'],
+                    connectTimeout: max(1, (int) $fastApi['connect_timeout']),
+                    timeout: max(1, (int) $fastApi['timeout']),
+                );
+            }
+
+            throw new \LogicException("Driver verifikasi wajah [{$driver}] tidak didukung.");
+        });
     }
 
     /**

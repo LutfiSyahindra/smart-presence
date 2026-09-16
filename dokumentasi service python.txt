@@ -1,0 +1,327 @@
+DOKUMENTASI SERVICE PYTHON - VERIFIKASI WAJAH RSARSY
+====================================================
+
+Service Python pada proyek ini menggunakan FastAPI dan DeepFace untuk
+membandingkan foto profil pegawai dengan foto saat clock-in. Service berjalan
+di port 8001 dan hanya boleh dipanggil oleh aplikasi Laravel.
+
+
+1. KOMPONEN YANG PERLU DIINSTAL
+================================
+
+A. Server Windows
+-----------------
+
+Wajib:
+
+- Python 3.13 64-bit. Jangan menggunakan Python 3.14.
+- Microsoft Visual C++ Redistributable 2015-2022 x64 apabila belum tersedia.
+- Koneksi internet saat instalasi dependency dan startup pertama.
+- Paket Python yang terdaftar pada:
+  services\face-verification\requirements.txt
+
+Opsional untuk production:
+
+- NSSM agar Python dapat berjalan sebagai Windows Service dan otomatis hidup
+  setelah server direstart.
+
+Untuk development dan testing, dependency tambahan tersedia pada:
+
+  services\face-verification\requirements-dev.txt
+
+
+B. Server Xeon dengan Docker
+----------------------------
+
+Wajib:
+
+- Linux x86_64.
+- Docker Engine.
+- Docker Compose plugin dengan command "docker compose".
+- Koneksi internet saat build image dan startup pertama.
+- CPU Xeon yang mendukung instruksi AVX.
+- Disarankan RAM minimal 4 GB, lebih aman 8 GB.
+- Disarankan tersedia ruang penyimpanan Docker sekitar 10 GB.
+
+GPU NVIDIA tidak wajib. Konfigurasi saat ini berjalan menggunakan CPU.
+
+Library Linux seperti ffmpeg, libgl1, libglib2.0-0, libgomp1, libsm6, dan
+libxext6 sudah otomatis diinstal oleh Dockerfile.
+
+
+2. KONFIGURASI .ENV
+===================
+
+Tambahkan konfigurasi berikut ke file .env pada root aplikasi Laravel:
+
+FACE_VERIFICATION_DRIVER=fastapi
+FACE_SERVICE_URL=http://127.0.0.1:8001
+FACE_SERVICE_TOKEN=GANTI_DENGAN_TOKEN_ACAK_MINIMAL_32_KARAKTER
+FACE_SERVICE_CONNECT_TIMEOUT=3
+FACE_SERVICE_TIMEOUT=45
+
+FACE_SERVICE_MODEL_NAME=Facenet512
+FACE_SERVICE_DETECTOR_BACKEND=opencv
+FACE_SERVICE_DISTANCE_METRIC=cosine
+# FACE_SERVICE_DISTANCE_THRESHOLD=0.30
+FACE_SERVICE_ANTI_SPOOFING=true
+FACE_SERVICE_MAX_UPLOAD_BYTES=5242880
+FACE_SERVICE_MIN_IMAGE_DIMENSION=160
+FACE_SERVICE_MAX_IMAGE_DIMENSION=6000
+FACE_SERVICE_WARMUP=true
+
+Catatan penting:
+
+- FACE_SERVICE_TOKEN digunakan bersama oleh Laravel dan FastAPI.
+- Token wajib unik dan memiliki panjang minimal 32 karakter.
+- Jangan menggunakan token yang tertulis di .env.example untuk production.
+- Jangan memasukkan file .env atau token production ke source control.
+- Sebaiknya FACE_SERVICE_DISTANCE_THRESHOLD tetap dikomentari sampai dilakukan
+  kalibrasi menggunakan foto pegawai nyata.
+- Pertahankan worker sebanyak 1. Penambahan worker akan menggandakan penggunaan
+  RAM karena setiap worker memuat model AI sendiri.
+- Pertahankan FACE_SERVICE_WARMUP=true pada production supaya model dimuat dan
+  divalidasi ketika service mulai berjalan.
+
+Generate token pada Linux:
+
+  openssl rand -hex 32
+
+Generate token pada Windows PowerShell:
+
+  -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+
+Setelah mengubah .env Laravel, jalankan:
+
+  php artisan config:clear
+  php artisan config:cache
+
+Jalankan migration integrasi verifikasi wajah satu kali pada production:
+
+  php artisan migrate --force
+
+
+3. MENJALANKAN SERVICE DI WINDOWS SECARA MANUAL
+================================================
+
+Buka PowerShell lalu jalankan:
+
+  cd G:\Project\absensi-rsarsy\services\face-verification
+
+  py -3.13 -m venv .venv
+
+  .\.venv\Scripts\python.exe -m pip install --upgrade pip
+  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+  .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1
+
+Terminal tersebut harus tetap terbuka selama service dijalankan secara manual.
+
+Untuk development dan menjalankan test:
+
+  .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+  .\.venv\Scripts\python.exe -m pytest
+
+Pemeriksaan service dari PowerShell:
+
+  Invoke-RestMethod http://127.0.0.1:8001/api/v1/health/live
+  Invoke-RestMethod http://127.0.0.1:8001/api/v1/health/ready
+
+Hasil yang diharapkan dari liveness:
+
+  {"status":"ok","model_loaded":null}
+
+Hasil yang diharapkan dari readiness:
+
+  {"status":"ready","model_loaded":true}
+
+Startup pertama dapat memerlukan beberapa menit karena DeepFace mengunduh
+model pengenalan wajah dan anti-spoofing. Pada Windows, model disimpan di:
+
+  services\face-verification\.deepface\weights
+
+
+4. MENJADIKAN SERVICE SEBAGAI WINDOWS SERVICE
+==============================================
+
+Bagian ini memerlukan NSSM. Jalankan PowerShell sebagai Administrator.
+
+Buat folder log:
+
+  New-Item -ItemType Directory -Force G:\Project\absensi-rsarsy\services\face-verification\logs
+
+Daftarkan service:
+
+  nssm install RSARSYFaceVerification "G:\Project\absensi-rsarsy\services\face-verification\.venv\Scripts\python.exe" "-m uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1"
+
+Atur working directory:
+
+  nssm set RSARSYFaceVerification AppDirectory "G:\Project\absensi-rsarsy\services\face-verification"
+
+Atur file log:
+
+  nssm set RSARSYFaceVerification AppStdout "G:\Project\absensi-rsarsy\services\face-verification\logs\service.log"
+  nssm set RSARSYFaceVerification AppStderr "G:\Project\absensi-rsarsy\services\face-verification\logs\error.log"
+
+Atur agar otomatis berjalan dan otomatis restart ketika gagal:
+
+  nssm set RSARSYFaceVerification Start SERVICE_AUTO_START
+  nssm set RSARSYFaceVerification AppExit Default Restart
+
+Mulai service:
+
+  nssm start RSARSYFaceVerification
+
+Command operasional Windows Service:
+
+  nssm status RSARSYFaceVerification
+  nssm restart RSARSYFaceVerification
+  nssm stop RSARSYFaceVerification
+
+Pastikan akun Windows Service memiliki:
+
+- Akses baca ke root proyek dan file .env.
+- Akses tulis ke folder .deepface dan folder logs.
+
+Port 8001 tidak perlu dibuka pada Windows Firewall jika Laravel berjalan pada
+server yang sama karena service hanya menggunakan alamat 127.0.0.1.
+
+
+5. MENJALANKAN SERVICE DI SERVER XEON DENGAN DOCKER
+====================================================
+
+Masuk ke root proyek pada server:
+
+  cd /lokasi/absensi-rsarsy
+
+Build image:
+
+  docker compose -f compose.face-verification.yml build
+
+Jalankan container:
+
+  docker compose -f compose.face-verification.yml up -d
+
+Build dan jalankan dapat dilakukan sekaligus:
+
+  docker compose -f compose.face-verification.yml up -d --build
+
+Periksa status container:
+
+  docker compose -f compose.face-verification.yml ps
+
+Lihat log:
+
+  docker compose -f compose.face-verification.yml logs -f --tail=200 face-verification
+
+Periksa liveness dan readiness:
+
+  curl -fsS http://127.0.0.1:8001/api/v1/health/live
+  curl -fsS http://127.0.0.1:8001/api/v1/health/ready
+
+Restart service:
+
+  docker compose -f compose.face-verification.yml restart face-verification
+
+Update service setelah ada perubahan source code atau dependency:
+
+  docker compose -f compose.face-verification.yml up -d --build
+
+Menghentikan dan menghapus container tanpa menghapus model:
+
+  docker compose -f compose.face-verification.yml down
+
+Jangan menjalankan "docker compose down -v" kecuali memang ingin menghapus
+model DeepFace. Opsi -v akan menghapus named volume dan model harus diunduh
+ulang.
+
+Model disimpan secara permanen dalam named volume Docker:
+
+  face-verification-models
+
+
+6. PENENTUAN FACE_SERVICE_URL
+==============================
+
+A. Laravel berjalan langsung pada host Windows atau Linux yang sama
+--------------------------------------------------------------------
+
+Gunakan:
+
+  FACE_SERVICE_URL=http://127.0.0.1:8001
+
+Konfigurasi compose saat ini mempublikasikan port hanya ke 127.0.0.1 sehingga
+cocok untuk skenario ini.
+
+
+B. Laravel dan FastAPI sama-sama berada di Docker
+--------------------------------------------------
+
+Kedua container harus dimasukkan ke Docker network yang sama. Gunakan nama
+service Docker sebagai alamat:
+
+  FACE_SERVICE_URL=http://face-verification:8001
+
+Dalam skenario ini sebaiknya port FastAPI hanya tersedia di network internal
+Docker dan tidak diekspos ke internet.
+
+Jika Laravel dan FastAPI berada pada file Compose yang berbeda, gunakan shared
+external Docker network untuk menghubungkan kedua container.
+
+
+C. Laravel berada di server yang berbeda
+-----------------------------------------
+
+Gunakan private network, VPN, atau reverse proxy internal dengan pembatasan
+akses. Jangan mengekspos endpoint FastAPI langsung ke internet.
+
+
+7. ENDPOINT SERVICE
+===================
+
+- GET /api/v1/health/live
+  Memeriksa apakah proses FastAPI masih hidup. Tidak memerlukan token.
+
+- GET /api/v1/health/ready
+  Memeriksa kesiapan service dan status model. Tidak memerlukan token.
+
+- POST /api/v1/verify
+  Membandingkan profile_photo dengan clock_in_photo. Wajib memakai header:
+
+    Authorization: Bearer <FACE_SERVICE_TOKEN>
+
+  Format foto yang didukung adalah JPG, PNG, dan WebP. Ukuran default maksimal
+  adalah 5 MB per foto.
+
+
+8. CHECKLIST SETELAH DEPLOYMENT
+===============================
+
+[ ] Python 3.13 digunakan pada Windows.
+[ ] Docker dan Docker Compose aktif pada server Xeon.
+[ ] File .env memiliki FACE_SERVICE_TOKEN production yang unik.
+[ ] Token yang digunakan Laravel dan FastAPI sama.
+[ ] FACE_SERVICE_URL sesuai dengan lokasi Laravel.
+[ ] Migration Laravel sudah dijalankan.
+[ ] Cache konfigurasi Laravel sudah diperbarui.
+[ ] Service hanya menggunakan satu worker.
+[ ] Endpoint /health/live mengembalikan status ok.
+[ ] Endpoint /health/ready mengembalikan model_loaded true.
+[ ] Model DeepFace berhasil tersimpan.
+[ ] Port 8001 tidak terbuka langsung ke internet.
+[ ] Pengujian clock-in dengan foto profil dan foto kamera berhasil.
+
+
+9. STATUS PENGUJIAN PADA WORKSPACE WINDOWS
+===========================================
+
+Pada saat dokumentasi ini dibuat:
+
+- Python virtual environment menggunakan Python 3.13.
+- Service dapat diakses melalui http://127.0.0.1:8001.
+- Endpoint liveness memberikan status ok.
+- Endpoint readiness memberikan model_loaded=true.
+- Seluruh 4 test Python berhasil dijalankan.
+- Docker belum tersedia pada komputer Windows ini sehingga pengujian Docker
+  perlu dilakukan langsung pada server Xeon.
+

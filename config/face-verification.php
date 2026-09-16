@@ -1,0 +1,12 @@
+<?php
+
+return [
+    'driver' => env('FACE_VERIFICATION_DRIVER', 'fastapi'),
+
+    'fastapi' => [
+        'url' => env('FACE_SERVICE_URL', 'http://127.0.0.1:8001'),
+        'token' => env('FACE_SERVICE_TOKEN'),
+        'connect_timeout' => (int) env('FACE_SERVICE_CONNECT_TIMEOUT', 3),
+        'timeout' => (int) env('FACE_SERVICE_TIMEOUT', 45),
+    ],
+];

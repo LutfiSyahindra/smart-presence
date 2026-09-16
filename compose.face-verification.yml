@@ -1,0 +1,16 @@
+services:
+  face-verification:
+    build:
+      context: ./services/face-verification
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DEEPFACE_HOME: /home/face-service
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - face-verification-models:/home/face-service/.deepface
+
+volumes:
+  face-verification-models:

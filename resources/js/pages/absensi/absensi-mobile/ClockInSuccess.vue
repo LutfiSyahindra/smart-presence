@@ -8,6 +8,7 @@ const props = defineProps<{
         date: string | null;
         date_label: string | null;
         clock_in_time: string;
+        late_minutes: number;
         shift_name: string | null;
         start_time: string | null;
         end_time: string | null;
@@ -72,6 +73,11 @@ const faceVerificationLabel = computed(() => {
                         <small>Waktu clock in</small>
                         <time>{{ attendance.clock_in_time }}</time>
                         <span>WIB</span>
+                    </div>
+
+                    <div v-if="attendance.late_minutes > 0" class="late-status" role="status">
+                        <Clock3 />
+                        <span>Anda telat <strong>{{ attendance.late_minutes }} menit</strong></span>
                     </div>
 
                     <div class="shift-summary">
@@ -475,6 +481,33 @@ const faceVerificationLabel = computed(() => {
     color: #e7c17d;
     font-size: 9px;
     font-weight: 800;
+}
+
+.late-status {
+    margin: -4px 0 14px;
+    padding: 9px 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    position: relative;
+    z-index: 1;
+    border: 1px solid rgba(255, 207, 120, 0.24);
+    border-radius: 12px;
+    color: #ffe2ab;
+    background: rgba(119, 62, 23, 0.3);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.late-status svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.late-status strong {
+    font-weight: 900;
 }
 
 .shift-summary {

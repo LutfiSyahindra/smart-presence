@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -79,5 +80,21 @@ class Presensi extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function lateMinutes(): int
+    {
+        if ($this->is_day_off || ! $this->clock_in_at || ! $this->shift || ! $this->tanggal_presensi) {
+            return 0;
+        }
+
+        $scheduledClockIn = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            $this->tanggal_presensi->format('Y-m-d').' '.(string) $this->shift->jam_masuk,
+        );
+
+        return $this->clock_in_at->gt($scheduledClockIn)
+            ? (int) $scheduledClockIn->diffInMinutes($this->clock_in_at)
+            : 0;
     }
 }

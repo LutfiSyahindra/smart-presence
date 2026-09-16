@@ -116,6 +116,7 @@ class ClockInTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('absensi/absensi-mobile/ClockInSuccess')
                 ->where('attendance.clock_in_time', $presensi->clock_in_at->format('H:i'))
+                ->where('attendance.late_minutes', fn (int $minutes) => $minutes >= 0)
                 ->where('attendance.shift_name', 'Shift Pagi')
                 ->where('attendance.start_time', '07:00')
                 ->where('attendance.end_time', '15:00')
@@ -123,6 +124,45 @@ class ClockInTest extends TestCase
                 ->where('attendance.outside_radius', false)
                 ->where('attendance.face_verified', true)
                 ->where('attendance.face_similarity', 96.42));
+    }
+
+    public function test_clock_in_success_reports_late_minutes_from_the_shift_start_time(): void
+    {
+        Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id,
+            'shift_id' => $this->pegawai->shift_id,
+            'tanggal_presensi' => '2026-09-16',
+            'clock_in_at' => '2026-09-16 07:10:00',
+        ]);
+
+        $this->travelTo('2026-09-16 12:00:00');
+
+        $this->actingAs($this->user)
+            ->get('/absensi/mobile/clock-in/berhasil')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('absensi/absensi-mobile/ClockInSuccess')
+                ->where('attendance.clock_in_time', '07:10')
+                ->where('attendance.late_minutes', 10));
+    }
+
+    public function test_clock_in_success_reports_zero_late_minutes_when_on_time(): void
+    {
+        Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id,
+            'shift_id' => $this->pegawai->shift_id,
+            'tanggal_presensi' => '2026-09-16',
+            'clock_in_at' => '2026-09-16 06:55:00',
+        ]);
+
+        $this->travelTo('2026-09-16 12:00:00');
+
+        $this->actingAs($this->user)
+            ->get('/absensi/mobile/clock-in/berhasil')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('absensi/absensi-mobile/ClockInSuccess')
+                ->where('attendance.late_minutes', 0));
     }
 
     public function test_clock_in_is_rejected_when_face_does_not_match_profile(): void

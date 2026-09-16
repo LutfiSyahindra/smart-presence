@@ -103,6 +103,7 @@ class ClockInController extends Controller
                 'date' => $attendance->tanggal_presensi?->toDateString(),
                 'date_label' => $attendance->tanggal_presensi?->locale('id')->translatedFormat('l, d F Y'),
                 'clock_in_time' => $attendance->clock_in_at->format('H:i'),
+                'late_minutes' => $attendance->lateMinutes(),
                 'shift_name' => $attendance->shift?->nama,
                 'start_time' => $attendance->shift ? substr((string) $attendance->shift->jam_masuk, 0, 5) : null,
                 'end_time' => $attendance->shift ? substr((string) $attendance->shift->jam_keluar, 0, 5) : null,

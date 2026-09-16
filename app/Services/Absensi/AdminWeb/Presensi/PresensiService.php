@@ -191,18 +191,7 @@ class PresensiService
 
     private function lateMinutes(Presensi $presensi): int
     {
-        if ($presensi->is_day_off || ! $presensi->clock_in_at || ! $presensi->shift || ! $presensi->tanggal_presensi) {
-            return 0;
-        }
-
-        $scheduled = Carbon::createFromFormat(
-            'Y-m-d H:i:s',
-            $presensi->tanggal_presensi->format('Y-m-d').' '.(string) $presensi->shift->jam_masuk,
-        );
-
-        return $presensi->clock_in_at->gt($scheduled)
-            ? (int) $scheduled->diffInMinutes($presensi->clock_in_at)
-            : 0;
+        return $presensi->lateMinutes();
     }
 
     private function status(Presensi $presensi, int $lateMinutes): string

@@ -442,6 +442,7 @@ watch(
                                         :clock="record.clock_in"
                                         :employee="record.pegawai.nama"
                                         :empty="!record.has_presensi"
+                                        :late-minutes="record.late_minutes"
                                         @preview="previewPhoto = $event"
                                     />
                                 </td>
@@ -512,6 +513,7 @@ watch(
                                 :clock="record.clock_in"
                                 :employee="record.pegawai.nama"
                                 :empty="!record.has_presensi"
+                                :late-minutes="record.late_minutes"
                                 @preview="previewPhoto = $event"
                             />
                             <ClockDetail
@@ -1217,6 +1219,20 @@ watch(
 :deep(.clock-detail small) {
     color: #a0a7b4;
     font-size: 11px;
+}
+:deep(.clock-detail .late-indicator) {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 2px;
+    color: #d75662;
+    font-weight: 800;
+    white-space: nowrap;
+}
+:deep(.clock-detail .late-indicator svg) {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 auto;
 }
 :deep(.clock-detail a > svg),
 :deep(.clock-detail span > svg) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, Eye, ImageOff, MapPin } from 'lucide-vue-next';
+import { AlarmClock, ExternalLink, Eye, ImageOff, MapPin } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface LocationData {
@@ -22,6 +22,7 @@ const props = defineProps<{
     clock: ClockData;
     employee: string;
     empty?: boolean;
+    lateMinutes?: number;
 }>();
 
 const emit = defineEmits<{
@@ -59,6 +60,9 @@ const showPhoto = () => {
         </button>
         <div>
             <strong>{{ clock.time || '--:--' }}</strong>
+            <small v-if="type === 'in' && lateMinutes && lateMinutes > 0" class="late-indicator">
+                <AlarmClock aria-hidden="true" />Terlambat {{ lateMinutes }} menit
+            </small>
             <a
                 v-if="clock.location?.map_url"
                 :href="clock.location.map_url"

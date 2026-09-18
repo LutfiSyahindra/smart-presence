@@ -187,6 +187,12 @@ const locationSubmissionError = computed(
         form.errors.accuracy ||
         form.errors.outside_radius_confirmed,
 );
+const locationActionLabel = computed(() => {
+    if (!currentLocation.value) return 'Temukan lokasi saya';
+    if (isInsideRadius.value === false) return 'Lanjut dengan catatan';
+
+    return 'Lanjut verifikasi wajah';
+});
 
 const locationErrorMessage = (error: GeolocationPositionError) => {
     if (error.code === error.PERMISSION_DENIED) return 'Izin lokasi ditolak. Aktifkan akses lokasi pada pengaturan browser lalu coba lagi.';
@@ -705,10 +711,18 @@ onUnmounted(() => {
                         </div>
                     </div>
 
+                    <div v-if="isInsideRadius === false" class="outside-radius-notice" role="alert">
+                        <CircleAlert />
+                        <span>
+                            <strong>Presensi tetap dapat dilanjutkan.</strong>
+                            Periksa posisi Anda dan isi catatan alasan di luar radius pada langkah berikutnya.
+                        </span>
+                    </div>
+
                     <div class="location-actions">
                         <div class="privacy-note"><ShieldCheck /> Koordinat hanya digunakan untuk validasi presensi.</div>
                         <button type="button" class="primary-action" :disabled="locating" @click="continueFromLocation">
-                            <span>{{ currentLocation ? 'Lanjut verifikasi wajah' : 'Temukan lokasi saya' }}</span>
+                            <span>{{ locationActionLabel }}</span>
                             <ChevronRight />
                         </button>
                     </div>
@@ -1424,6 +1438,33 @@ onUnmounted(() => {
     color: #3d5b5c;
     font-size: 12px;
     font-weight: 830;
+}
+
+.outside-radius-notice {
+    margin: 12px 10px 0;
+    padding: 11px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    border: 1px solid #eed9b7;
+    border-radius: 13px;
+    color: #755f39;
+    background: #fff9ed;
+    font-size: 11px;
+    line-height: 1.55;
+}
+
+.outside-radius-notice svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: #b67a24;
+}
+
+.outside-radius-notice strong {
+    color: #684e25;
+    font-weight: 820;
 }
 
 .location-actions,

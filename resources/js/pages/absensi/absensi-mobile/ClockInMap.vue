@@ -186,7 +186,7 @@ onBeforeUnmount(() => {
     color: #315e5c;
     background: rgba(255, 255, 255, 0.91);
     box-shadow: 0 8px 25px rgba(18, 53, 52, 0.13);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 750;
     backdrop-filter: blur(12px);
 }
@@ -278,7 +278,7 @@ onBeforeUnmount(() => {
     padding: 2px 5px;
     color: #758583;
     background: rgba(255, 255, 255, 0.72);
-    font-size: 8px;
+    font-size: 11px;
 }
 
 :deep(.leaflet-control-zoom) {

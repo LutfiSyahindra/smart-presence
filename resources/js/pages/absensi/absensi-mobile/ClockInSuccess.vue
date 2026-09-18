@@ -237,7 +237,7 @@ const faceVerificationLabel = computed(() => {
 
 .brand-mark span {
     color: #173d40;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.15em;
 }
@@ -245,7 +245,7 @@ const faceVerificationLabel = computed(() => {
 .brand-mark small {
     margin-top: 1px;
     color: #aa8248;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.22em;
     text-transform: uppercase;
@@ -347,7 +347,7 @@ const faceVerificationLabel = computed(() => {
     border-radius: 999px;
     color: #08796f;
     background: #edf8f4;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -364,7 +364,7 @@ const faceVerificationLabel = computed(() => {
 .success-content > h1 {
     margin: 11px 0 0;
     color: #143639;
-    font-size: clamp(27px, 8vw, 35px);
+    font-size: clamp(25px, 7.5vw, 32px);
     font-weight: 900;
     letter-spacing: -0.055em;
     line-height: 1.05;
@@ -375,7 +375,7 @@ const faceVerificationLabel = computed(() => {
     max-width: 350px;
     margin: 9px auto 0;
     color: var(--success-muted);
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1.65;
     text-align: center;
 }
@@ -440,14 +440,14 @@ const faceVerificationLabel = computed(() => {
 .attendance-date small,
 .shift-summary small {
     color: rgba(205, 234, 227, 0.62);
-    font-size: 7px;
+    font-size: 11px;
 }
 
 .attendance-date strong,
 .shift-summary strong {
     margin-top: 2px;
     overflow: hidden;
-    font-size: 9px;
+    font-size: 15px;
     font-weight: 760;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -459,7 +459,7 @@ const faceVerificationLabel = computed(() => {
     border-radius: 999px;
     color: #8ce2c8;
     background: rgba(4, 36, 38, 0.25);
-    font-size: 7px;
+    font-size: 11px;
     font-style: normal;
     font-weight: 800;
 }
@@ -479,11 +479,11 @@ const faceVerificationLabel = computed(() => {
     top: 7px;
     left: 0;
     color: rgba(203, 231, 225, 0.58);
-    font-size: 7px;
+    font-size: 11px;
 }
 
 .clock-in-time time {
-    font-size: 47px;
+    font-size: 44px;
     font-weight: 900;
     letter-spacing: -0.06em;
     line-height: 1;
@@ -492,7 +492,7 @@ const faceVerificationLabel = computed(() => {
 .clock-in-time > span {
     margin-left: 7px;
     color: #e7c17d;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -509,7 +509,7 @@ const faceVerificationLabel = computed(() => {
     border-radius: 12px;
     color: #ffe2ab;
     background: rgba(119, 62, 23, 0.3);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -586,14 +586,14 @@ const faceVerificationLabel = computed(() => {
 
 .verification-grid small {
     color: #879693;
-    font-size: 6px;
+    font-size: 11px;
     font-weight: 700;
 }
 
 .verification-grid strong {
     margin-top: 2px;
     overflow: hidden;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 830;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -603,7 +603,7 @@ const faceVerificationLabel = computed(() => {
     margin: 2px 0 0;
     overflow: hidden;
     color: #98a4a2;
-    font-size: 6px;
+    font-size: 11px;
     line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -642,13 +642,13 @@ const faceVerificationLabel = computed(() => {
     display: flex;
     color: #82918f;
     flex-direction: column;
-    font-size: 7px;
+    font-size: 11px;
     line-height: 1.45;
 }
 
 .delivery-note strong {
     color: #365657;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 820;
 }
 
@@ -672,7 +672,7 @@ const faceVerificationLabel = computed(() => {
     background: linear-gradient(135deg, #0b8178, #07524f);
     box-shadow: 0 15px 28px rgba(6, 92, 87, 0.23);
     grid-template-columns: 18px 1fr 18px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 820;
     transition: 160ms ease;
 }
@@ -697,7 +697,7 @@ const faceVerificationLabel = computed(() => {
     align-items: center;
     justify-content: center;
     color: #758784;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 720;
 }
 
@@ -720,6 +720,19 @@ const faceVerificationLabel = computed(() => {
     to {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+@media (max-width: 420px) {
+    .verification-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .verification-grid strong,
+    .verification-grid p {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
     }
 }
 
@@ -750,7 +763,7 @@ const faceVerificationLabel = computed(() => {
     }
 
     .success-content > h1 {
-        font-size: 27px;
+        font-size: 23px;
     }
 
     .attendance-card {

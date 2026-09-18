@@ -934,7 +934,7 @@ onUnmounted(() => {
 .clock-title span {
     display: block;
     color: #a27d45;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.17em;
 }
@@ -1001,7 +1001,7 @@ onUnmounted(() => {
 
 .step small {
     color: #9aa7a8;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -1010,7 +1010,7 @@ onUnmounted(() => {
 .step strong {
     margin-top: 1px;
     overflow: hidden;
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 780;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1089,7 +1089,7 @@ onUnmounted(() => {
 .shift-copy small {
     overflow: hidden;
     color: #9fcfc5;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1098,7 +1098,7 @@ onUnmounted(() => {
 .shift-copy strong {
     margin-top: 1px;
     color: #fff;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 820;
 }
 
@@ -1111,7 +1111,7 @@ onUnmounted(() => {
 .shift-copy > span {
     margin-top: 1px;
     color: rgba(221, 241, 235, 0.6);
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 600;
 }
 
@@ -1126,7 +1126,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: rgba(239, 255, 250, 0.77);
     background: rgba(4, 35, 36, 0.2);
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 750;
     white-space: nowrap;
 }
@@ -1200,7 +1200,7 @@ onUnmounted(() => {
 }
 
 .location-banner strong {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 800;
     line-height: 1.35;
 }
@@ -1208,7 +1208,7 @@ onUnmounted(() => {
 .location-banner small {
     margin-top: 1px;
     color: #8a9999;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .location-banner button {
@@ -1218,7 +1218,7 @@ onUnmounted(() => {
     border-radius: 9px;
     color: #8a611d;
     background: #f9e9bf;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -1284,14 +1284,14 @@ onUnmounted(() => {
 
 .map-locating strong {
     margin-top: 25px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 820;
 }
 
 .map-locating small {
     margin-top: 4px;
     color: #849491;
-    font-size: 9px;
+    font-size: 11px;
 }
 
 .recenter-button {
@@ -1309,7 +1309,7 @@ onUnmounted(() => {
     color: #245c5a;
     background: rgba(255, 255, 255, 0.93);
     box-shadow: 0 8px 22px rgba(18, 53, 52, 0.13);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 780;
     backdrop-filter: blur(10px);
 }
@@ -1373,7 +1373,7 @@ onUnmounted(() => {
 
 .summary-main small {
     color: #8a9998;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -1388,7 +1388,7 @@ onUnmounted(() => {
 .summary-main strong {
     margin-top: 1px;
     overflow: hidden;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 830;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1398,7 +1398,7 @@ onUnmounted(() => {
     margin-top: 2px;
     overflow: hidden;
     color: #94a09f;
-    font-size: 7px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1416,13 +1416,13 @@ onUnmounted(() => {
 
 .distance-chip small {
     color: #97a3a1;
-    font-size: 7px;
+    font-size: 11px;
 }
 
 .distance-chip strong {
     margin-top: 1px;
     color: #3d5b5c;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 830;
 }
 
@@ -1438,7 +1438,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 5px;
     color: #879795;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 600;
 }
 
@@ -1461,7 +1461,7 @@ onUnmounted(() => {
     color: #fff;
     background: linear-gradient(135deg, #0a7772, #07524f);
     box-shadow: 0 13px 25px rgba(6, 92, 87, 0.22);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 820;
     transition: 170ms ease;
 }
@@ -1507,14 +1507,14 @@ onUnmounted(() => {
 
 .verification-intro small {
     color: #a67d42;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.13em;
 }
 
 .verification-intro h2 {
     margin: 2px 0 0;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 850;
     letter-spacing: -0.035em;
 }
@@ -1522,7 +1522,7 @@ onUnmounted(() => {
 .verification-intro p {
     margin: 4px 0 0;
     color: #7d8c8c;
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.55;
 }
 
@@ -1610,7 +1610,7 @@ onUnmounted(() => {
     box-shadow:
         inset 0 0 0 7px rgba(255, 255, 255, 0.035),
         0 17px 35px rgba(2, 30, 32, 0.2);
-    font-size: 27px;
+    font-size: 23px;
     font-weight: 850;
     letter-spacing: 0.04em;
 }
@@ -1660,7 +1660,7 @@ onUnmounted(() => {
 .camera-card > strong {
     position: relative;
     z-index: 1;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 800;
 }
 
@@ -1669,7 +1669,7 @@ onUnmounted(() => {
     position: relative;
     z-index: 1;
     color: rgba(221, 243, 237, 0.6);
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .camera-live-status {
@@ -1685,7 +1685,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #f6fffc;
     background: rgba(7, 69, 64, 0.72);
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 800;
     backdrop-filter: blur(10px);
 }
@@ -1730,14 +1730,14 @@ onUnmounted(() => {
 
 .verification-overlay strong {
     margin-top: 13px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 820;
 }
 
 .verification-overlay small {
     margin-top: 4px;
     color: rgba(230, 246, 241, 0.68);
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .camera-retry {
@@ -1752,7 +1752,7 @@ onUnmounted(() => {
     border-radius: 11px;
     color: #35625f;
     background: #fff;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 780;
 }
 
@@ -1769,7 +1769,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 5px;
     color: #bd584c;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -1811,7 +1811,7 @@ onUnmounted(() => {
 }
 
 .verification-facts strong {
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 800;
 }
 
@@ -1819,7 +1819,7 @@ onUnmounted(() => {
     margin-top: 2px;
     overflow: hidden;
     color: #98a3a1;
-    font-size: 6px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1870,13 +1870,13 @@ onUnmounted(() => {
 
 .verified-location small {
     color: #7f9490;
-    font-size: 7px;
+    font-size: 11px;
 }
 
 .verified-location strong {
     margin-top: 1px;
     overflow: hidden;
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 800;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1888,7 +1888,7 @@ onUnmounted(() => {
     border-radius: 8px;
     color: #14776e;
     background: rgba(255, 255, 255, 0.74);
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -1902,7 +1902,7 @@ onUnmounted(() => {
     border: 0;
     color: #738482;
     background: transparent;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -1913,7 +1913,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 5px;
     color: #879693;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 650;
 }
 
@@ -2035,7 +2035,7 @@ onUnmounted(() => {
     color: #c64741;
     background: #fff1ed;
     box-shadow: 0 4px 10px rgba(115, 42, 38, 0.13);
-    font-size: 11px;
+    font-size: 13px;
     font-style: normal;
     font-weight: 900;
     transform: rotate(-45deg);
@@ -2047,7 +2047,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 5px;
     color: #c16051;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.13em;
     text-transform: uppercase;
@@ -2071,7 +2071,7 @@ onUnmounted(() => {
     max-width: 400px;
     margin: 9px auto 0;
     color: #718182;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.65;
     text-align: center;
 }
@@ -2091,7 +2091,7 @@ onUnmounted(() => {
     border-radius: 13px;
     color: #755f39;
     background: #fff9ed;
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.55;
 }
 
@@ -2110,7 +2110,7 @@ onUnmounted(() => {
 
 .note-field > span {
     color: #435d5e;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -2132,7 +2132,7 @@ onUnmounted(() => {
     background: #fafcfb;
     box-shadow: none;
     font-family: inherit;
-    font-size: 9px;
+    font-size: 16px;
     line-height: 1.55;
     transition: 150ms ease;
 }
@@ -2153,7 +2153,7 @@ onUnmounted(() => {
     justify-content: space-between;
     gap: 10px;
     color: #9aa5a3;
-    font-size: 7px;
+    font-size: 11px;
 }
 
 .note-field.invalid > small {
@@ -2180,7 +2180,7 @@ onUnmounted(() => {
     border: 0;
     color: #5f7575;
     background: transparent;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
 }
 
@@ -2246,6 +2246,29 @@ onUnmounted(() => {
     100% {
         opacity: 0;
         transform: scale(1.22);
+    }
+}
+
+@media (max-width: 420px) {
+    .step {
+        align-items: flex-start;
+    }
+
+    .step strong {
+        overflow: visible;
+        line-height: 1.2;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    .verification-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .verification-facts small {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
     }
 }
 

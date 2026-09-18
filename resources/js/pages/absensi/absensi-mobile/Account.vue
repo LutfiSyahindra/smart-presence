@@ -397,7 +397,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 5px;
     color: #9a7740;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.13em;
     text-transform: uppercase;
@@ -484,7 +484,7 @@ onUnmounted(() => {
     color: #fff;
     background: linear-gradient(145deg, #2b7772, #163d40);
     box-shadow: 0 17px 34px rgba(0, 19, 22, 0.3);
-    font-size: 25px;
+    font-size: 24px;
     font-weight: 900;
     letter-spacing: 0.04em;
 }
@@ -553,7 +553,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #efcd91;
     background: rgba(0, 17, 20, 0.18);
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -569,7 +569,7 @@ onUnmounted(() => {
 .hero-copy h2 {
     margin: 9px 0 0;
     overflow: hidden;
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 880;
     letter-spacing: -0.035em;
     line-height: 1.15;
@@ -579,7 +579,7 @@ onUnmounted(() => {
 .hero-copy p {
     margin: 5px 0 0;
     color: rgba(232, 248, 243, 0.78);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 650;
 }
 
@@ -587,7 +587,7 @@ onUnmounted(() => {
     margin-top: 4px;
     display: block;
     color: rgba(217, 236, 232, 0.5);
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.4;
 }
 
@@ -627,14 +627,14 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     color: #54736f;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.45;
 }
 
 .success-banner strong,
 .profile-warning strong {
     color: #24524d;
-    font-size: 10px;
+    font-size: 12px;
 }
 
 .photo-card,
@@ -663,7 +663,7 @@ onUnmounted(() => {
 .menu-heading h2 {
     margin: 4px 0 0;
     color: #1c383d;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 880;
     letter-spacing: -0.035em;
 }
@@ -677,7 +677,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #34766e;
     background: #f0f9f6;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -689,7 +689,7 @@ onUnmounted(() => {
 .photo-intro {
     margin: 9px 0 0;
     color: #768486;
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1.55;
 }
 
@@ -722,7 +722,7 @@ onUnmounted(() => {
     color: #fff;
     background: linear-gradient(145deg, #25736d, #173e42);
     box-shadow: 0 8px 17px rgba(22, 70, 69, 0.16);
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 850;
 }
 
@@ -755,7 +755,7 @@ onUnmounted(() => {
 .photo-editor-copy strong {
     overflow: hidden;
     color: #2a4246;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 820;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -764,7 +764,7 @@ onUnmounted(() => {
 .photo-editor-copy small {
     margin-top: 3px;
     color: #899597;
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.45;
 }
 
@@ -774,7 +774,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 3px;
     color: #178175;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 820;
 }
 
@@ -805,7 +805,7 @@ onUnmounted(() => {
 .photo-error {
     margin: 9px 2px 0;
     color: #b44d45;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 650;
     line-height: 1.4;
 }
@@ -828,7 +828,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 7px;
     border-radius: 13px;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 820;
     transition: 170ms ease;
 }
@@ -897,7 +897,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 4px;
     color: #778586;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
 }
@@ -985,7 +985,7 @@ onUnmounted(() => {
 }
 
 .menu-copy strong {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 790;
 }
 
@@ -993,7 +993,7 @@ onUnmounted(() => {
     margin-top: 2px;
     overflow: hidden;
     color: #929d9e;
-    font-size: 8px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1003,7 +1003,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #9b7a48;
     background: #fff7e7;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -1040,7 +1040,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 6px;
     color: #899695;
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.5;
     text-align: center;
 }
@@ -1100,7 +1100,7 @@ onUnmounted(() => {
 }
 
 .bottom-item small {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 720;
 }
 
@@ -1185,15 +1185,20 @@ a:focus-visible {
     }
 
     .hero-copy h2 {
-        font-size: 16px;
+        font-size: 17px;
     }
 
     .photo-card {
         padding: 16px;
     }
 
+    .photo-guides {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 8px;
+    }
+
     .photo-guides > span {
-        font-size: 7px;
+        font-size: 11px;
     }
 }
 

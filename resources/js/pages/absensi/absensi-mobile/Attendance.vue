@@ -533,7 +533,7 @@ onUnmounted(() => {
 
 .header-title small {
     color: #9b7b4a;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.11em;
     text-transform: uppercase;
@@ -543,7 +543,7 @@ onUnmounted(() => {
     margin-top: 1px;
     overflow: hidden;
     color: #203d40;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 830;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -642,7 +642,7 @@ onUnmounted(() => {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 820;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -690,7 +690,7 @@ onUnmounted(() => {
     min-height: 38px;
     margin: 9px 0 0;
     color: #b9d2ce;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.65;
 }
 
@@ -706,7 +706,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #f1d9ad;
     background: rgba(215, 174, 104, 0.1);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 780;
 }
 
@@ -763,7 +763,7 @@ onUnmounted(() => {
 
 .shift-overview small {
     color: #93b7b2;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -771,7 +771,7 @@ onUnmounted(() => {
     margin-top: 3px;
     overflow: hidden;
     color: #f5fbf9;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 790;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -800,7 +800,7 @@ onUnmounted(() => {
 
 .section-heading > div > span {
     color: #a07842;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.13em;
     text-transform: uppercase;
@@ -809,7 +809,7 @@ onUnmounted(() => {
 .section-heading h2 {
     margin: 3px 0 0;
     color: #213d40;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 830;
     letter-spacing: -0.025em;
 }
@@ -820,7 +820,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 5px;
     color: #798a8d;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 680;
     line-height: 1.35;
     text-align: right;
@@ -884,14 +884,14 @@ onUnmounted(() => {
 
 .timeline-item small {
     color: #8d9999;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 730;
 }
 
 .timeline-item strong {
     margin-top: 2px;
     color: #294548;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 840;
     font-variant-numeric: tabular-nums;
 }
@@ -943,13 +943,13 @@ onUnmounted(() => {
 
 .duration-strip small {
     color: #879593;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .duration-strip strong {
     margin-top: 1px;
     color: #31504f;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 800;
 }
 
@@ -963,7 +963,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #138176;
     background: #ecfaf6;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 800;
 }
 
@@ -1039,7 +1039,7 @@ onUnmounted(() => {
 
 .record-main small {
     color: #899795;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 720;
 }
 
@@ -1047,7 +1047,7 @@ onUnmounted(() => {
     margin-top: 2px;
     overflow: hidden;
     color: #294548;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 830;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1055,7 +1055,7 @@ onUnmounted(() => {
 
 .record-main strong i {
     color: #899694;
-    font-size: 8px;
+    font-size: 11px;
     font-style: normal;
     font-weight: 700;
 }
@@ -1070,7 +1070,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #147e72;
     background: #eefaf6;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 780;
 }
 
@@ -1137,13 +1137,13 @@ onUnmounted(() => {
 
 .detail-row small {
     color: #929d9b;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .detail-row strong {
     margin-top: 2px;
     color: #395552;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 790;
 }
 
@@ -1151,7 +1151,7 @@ onUnmounted(() => {
     margin-top: 2px;
     overflow: hidden;
     color: #8a9896;
-    font-size: 8px;
+    font-size: 11px;
     font-style: normal;
     line-height: 1.35;
     text-overflow: ellipsis;
@@ -1167,7 +1167,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #198072;
     background: #edf9f5;
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 780;
 }
 
@@ -1229,14 +1229,14 @@ onUnmounted(() => {
 
 .empty-detail strong {
     color: #647573;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 780;
 }
 
 .empty-detail small {
     margin-top: 3px;
     color: #98a3a1;
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.45;
 }
 
@@ -1273,14 +1273,14 @@ onUnmounted(() => {
 
 .attendance-note small {
     color: #9a825e;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 800;
     text-transform: uppercase;
 }
 
 .attendance-note p {
     margin: 3px 0 0;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.55;
     white-space: pre-line;
 }
@@ -1318,12 +1318,12 @@ onUnmounted(() => {
 
 .action-copy small {
     color: #909b99;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .action-copy strong {
     color: #34504f;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 800;
 }
 
@@ -1370,14 +1370,14 @@ onUnmounted(() => {
 }
 
 .primary-action strong {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 820;
 }
 
 .primary-action small {
     margin-top: 3px;
     color: #abd1ca;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .primary-action > svg {
@@ -1390,7 +1390,7 @@ onUnmounted(() => {
     justify-content: center;
     gap: 5px;
     color: #8a9896;
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.4;
     text-align: center;
 }
@@ -1442,20 +1442,20 @@ onUnmounted(() => {
 
 .action-panel.completed small {
     color: #8b9997;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .action-panel.completed strong {
     margin-top: 2px;
     color: #31504e;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 820;
 }
 
 .action-panel.completed p {
     margin: 3px 0 0;
     color: #8b9997;
-    font-size: 9px;
+    font-size: 11px;
 }
 
 .bottom-navigation {
@@ -1511,7 +1511,7 @@ onUnmounted(() => {
 }
 
 .bottom-item small {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 720;
 }
 

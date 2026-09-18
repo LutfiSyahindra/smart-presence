@@ -374,7 +374,7 @@ onUnmounted(() => {
     color: #fff;
     background: linear-gradient(145deg, #165d5b, #0d3439);
     box-shadow: 0 9px 22px rgba(14, 65, 66, 0.17);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 850;
     letter-spacing: 0.04em;
 }
@@ -425,7 +425,7 @@ onUnmounted(() => {
 
 .profile-copy p {
     color: #77878b;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 650;
 }
 
@@ -434,7 +434,7 @@ onUnmounted(() => {
     margin-top: 1px;
     overflow: hidden;
     color: #173238;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 820;
     letter-spacing: -0.025em;
     text-overflow: ellipsis;
@@ -447,7 +447,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 4px;
     color: #9b7b4a;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -576,7 +576,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 5px;
     color: #acd8cc;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -595,7 +595,7 @@ onUnmounted(() => {
     border-radius: 10px;
     color: rgba(239, 252, 248, 0.78);
     background: rgba(4, 29, 32, 0.17);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     line-height: 1.3;
     text-align: right;
@@ -643,7 +643,7 @@ onUnmounted(() => {
 .schedule-location small,
 .schedule-hours small {
     color: rgba(218, 242, 236, 0.62);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 650;
 }
 
@@ -651,7 +651,7 @@ onUnmounted(() => {
     margin-top: 2px;
     overflow: hidden;
     color: #f6fffc;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 760;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -665,7 +665,7 @@ onUnmounted(() => {
 .schedule-hours strong {
     margin-top: 3px;
     color: #fff;
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 820;
     letter-spacing: -0.04em;
 }
@@ -754,16 +754,17 @@ onUnmounted(() => {
 
 .attendance-action small {
     color: #819095;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
 }
 
 .attendance-action strong {
     margin-top: 1px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 850;
+    line-height: 1.15;
     letter-spacing: -0.02em;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .attendance-divider {
@@ -779,7 +780,7 @@ onUnmounted(() => {
     justify-content: space-between;
     gap: 10px;
     color: rgba(226, 245, 240, 0.72);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 680;
 }
 
@@ -822,7 +823,7 @@ onUnmounted(() => {
 .section-heading span,
 .announcement-copy > span {
     color: #9c7b48;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 850;
     letter-spacing: 0.13em;
     text-transform: uppercase;
@@ -831,7 +832,7 @@ onUnmounted(() => {
 .section-heading h2 {
     margin: 3px 0 0;
     color: #1f393e;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 820;
     letter-spacing: -0.025em;
 }
@@ -845,7 +846,7 @@ onUnmounted(() => {
     border-radius: 999px;
     color: #6f7f83;
     background: #fafcfb;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
 }
 
@@ -906,18 +907,20 @@ onUnmounted(() => {
 
 .quick-action strong {
     max-width: 100%;
+    min-height: 32px;
     margin-top: 8px;
-    overflow: hidden;
-    font-size: 10px;
+    display: flex;
+    align-items: flex-end;
+    font-size: 12px;
     font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.15;
+    text-align: center;
 }
 
 .quick-action small {
     margin-top: 1px;
     color: #9aa5a7;
-    font-size: 8px;
+    font-size: 11px;
     white-space: nowrap;
 }
 
@@ -960,14 +963,14 @@ onUnmounted(() => {
 .announcement-copy h2 {
     margin: 3px 0 0;
     color: #3f3b30;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 820;
 }
 
 .announcement-copy p {
     margin: 4px 0 0;
     color: #8e887b;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.45;
 }
 
@@ -1037,7 +1040,7 @@ onUnmounted(() => {
 }
 
 .bottom-item small {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 720;
 }
 
@@ -1092,7 +1095,7 @@ onUnmounted(() => {
     box-shadow: 0 15px 34px rgba(8, 40, 42, 0.25);
     backdrop-filter: blur(12px);
     transform: translateX(50%);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 680;
 }
 
@@ -1134,6 +1137,24 @@ a:focus-visible {
     outline-offset: 2px;
 }
 
+@media (max-width: 420px) {
+    .attendance-action {
+        min-height: 98px;
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+    }
+
+    .attendance-action > span:last-child {
+        align-items: center;
+        text-align: center;
+    }
+
+    .quick-action {
+        min-height: 110px;
+    }
+}
+
 @media (max-width: 385px) {
     .mobile-header {
         padding-inline: 16px;
@@ -1146,7 +1167,7 @@ a:focus-visible {
 
     .profile-copy h1 {
         max-width: 190px;
-        font-size: 14px;
+        font-size: 16px;
     }
 
     .header-actions > button:first-child {
@@ -1159,7 +1180,7 @@ a:focus-visible {
     }
 
     .schedule-hours strong {
-        font-size: 16px;
+        font-size: 17px;
     }
 
     .attendance-action {

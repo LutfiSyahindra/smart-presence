@@ -21,11 +21,12 @@ class EmployeeAccountInvitation extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $expires = (int) config('auth.passwords.users.expire', 60);
-        $url = route('password.reset', [
+        $path = route('password.reset', [
             'token' => $this->token,
             'email' => $notifiable->getEmailForPasswordReset(),
             'invitation' => 1,
-        ]);
+        ], absolute: false);
+        $url = rtrim((string) config('app.url'), '/').$path;
 
         return (new MailMessage)
             ->subject('Aktivasi Akun Pegawai RSARSY')

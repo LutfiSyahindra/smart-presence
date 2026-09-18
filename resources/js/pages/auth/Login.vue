@@ -31,6 +31,7 @@ const submit = () => {
 
 <template>
     <AuthBase
+        compact
         :title="portal === 'admin' ? 'Masuk ke portal admin' : 'Masuk ke aplikasi presensi'"
         :description="
             portal === 'admin' ? 'Gunakan akun dengan akses administrator untuk melanjutkan.' : 'Gunakan akun pegawai RSARSY untuk melanjutkan.'
@@ -42,9 +43,9 @@ const submit = () => {
             {{ status }}
         </div>
 
-        <form @submit.prevent="submit" class="flex flex-col gap-6">
-            <div class="grid gap-6">
-                <div class="grid gap-2">
+        <form @submit.prevent="submit" class="flex flex-col gap-4">
+            <div class="grid gap-4">
+                <div class="grid gap-1.5">
                     <Label for="email">Alamat email</Label>
                     <Input
                         id="email"
@@ -59,7 +60,7 @@ const submit = () => {
                     <InputError :message="form.errors.email" />
                 </div>
 
-                <div class="grid gap-2">
+                <div class="grid gap-1.5">
                     <div class="flex items-center justify-between">
                         <Label for="password">Password</Label>
                         <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" tabindex="5"> Lupa kata sandi? </TextLink>
@@ -77,13 +78,13 @@ const submit = () => {
                 </div>
 
                 <div class="flex items-center justify-between" tabindex="3">
-                    <Label for="remember" class="flex items-center space-x-3">
+                    <Label for="remember" class="flex items-center space-x-2.5">
                         <Checkbox id="remember" v-model:checked="form.remember" tabindex="4" />
                         <span>Ingat saya</span>
                     </Label>
                 </div>
 
-                <Button type="submit" class="mt-4 w-full" tabindex="4" :disabled="form.processing">
+                <Button type="submit" class="mt-1 w-full" tabindex="4" :disabled="form.processing">
                     <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
                     {{ portal === 'admin' ? 'Masuk ke portal admin' : 'Masuk ke presensi' }}
                 </Button>

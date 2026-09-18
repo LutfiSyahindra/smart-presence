@@ -6,11 +6,12 @@ import { BadgeCheck, Check, HeartPulse, ShieldCheck, Sparkles } from 'lucide-vue
 defineProps<{
     title?: string;
     description?: string;
+    compact?: boolean;
 }>();
 </script>
 
 <template>
-    <div class="auth-premium-shell">
+    <div class="auth-premium-shell" :class="{ 'auth-compact': compact }">
         <div class="auth-premium-grid" aria-hidden="true"></div>
         <section class="auth-story-panel">
             <Link :href="route('home')" class="auth-brand">
@@ -405,6 +406,80 @@ defineProps<{
     display: none;
 }
 
+.auth-compact {
+    grid-template-columns: minmax(390px, 0.88fr) 1.12fr;
+}
+.auth-compact .auth-story-panel {
+    padding: 30px clamp(30px, 4.5vw, 64px);
+}
+.auth-compact .auth-story-copy {
+    max-width: 440px;
+}
+.auth-compact .auth-story-chip {
+    padding: 7px 10px;
+}
+.auth-compact .auth-story-copy h2 {
+    margin: 18px 0 12px;
+    font-size: clamp(32px, 3.5vw, 48px);
+}
+.auth-compact .auth-story-copy > p {
+    font-size: 13px;
+    line-height: 1.65;
+}
+.auth-compact .auth-benefits {
+    margin-top: 22px;
+    gap: 9px;
+}
+.auth-compact .auth-security-card {
+    min-width: 270px;
+    padding: 10px 13px;
+    border-radius: 14px;
+}
+.auth-compact .auth-security-icon {
+    width: 34px;
+    height: 34px;
+}
+.auth-compact .auth-form-panel {
+    padding: 28px;
+}
+.auth-compact .auth-form-wrap {
+    max-width: 390px;
+    padding: 30px 32px;
+    border-radius: 22px;
+}
+.auth-compact .auth-form-heading {
+    margin-bottom: 22px;
+}
+.auth-compact .auth-form-icon {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+}
+.auth-compact .auth-form-icon svg {
+    width: 19px;
+}
+.auth-compact .auth-form-heading h1 {
+    font-size: 21px;
+}
+.auth-compact .auth-form-heading p {
+    margin-top: 7px;
+    line-height: 1.5;
+}
+.auth-compact .auth-form-content :deep(input[type='text']),
+.auth-compact .auth-form-content :deep(input[type='email']),
+.auth-compact .auth-form-content :deep(input[type='password']) {
+    height: 42px;
+    border-radius: 11px;
+}
+.auth-compact .auth-form-content :deep(button[type='submit']) {
+    min-height: 42px;
+    border-radius: 11px;
+}
+.auth-compact .auth-privacy {
+    margin-top: 18px;
+}
+
 @media (max-width: 900px) {
     .auth-premium-shell {
         display: block;
@@ -441,6 +516,12 @@ defineProps<{
     .auth-mobile-brand svg {
         width: 23px;
     }
+    .auth-compact .auth-form-panel {
+        padding: 74px 18px 24px;
+    }
+    .auth-compact .auth-mobile-brand {
+        top: 20px;
+    }
 }
 
 @media (max-width: 520px) {
@@ -459,6 +540,21 @@ defineProps<{
     }
     .auth-form-heading {
         margin-bottom: 25px;
+    }
+    .auth-compact .auth-form-panel {
+        padding: 70px 12px 16px;
+    }
+    .auth-compact .auth-form-wrap {
+        padding: 24px 20px;
+        border-radius: 18px;
+    }
+    .auth-compact .auth-form-heading {
+        margin-bottom: 19px;
+    }
+    .auth-compact .auth-form-icon {
+        width: 42px;
+        height: 42px;
+        margin-bottom: 12px;
     }
 }
 </style>

@@ -12,10 +12,12 @@ TOKEN = "test-token-with-at-least-32-characters"
 
 
 class FakeDeepFace:
-    def __init__(self) -> None:
+    def __init__(self, *, verified: bool = True, confidence: float | None = 91.5) -> None:
         self.extract_calls: list[dict[str, Any]] = []
         self.represent_calls: list[dict[str, Any]] = []
         self.verify_calls: list[dict[str, Any]] = []
+        self.verified = verified
+        self.confidence = confidence
 
     def extract_faces(self, **kwargs: Any) -> list[dict[str, Any]]:
         self.extract_calls.append(kwargs)
@@ -39,8 +41,8 @@ class FakeDeepFace:
     def verify(self, **kwargs: Any) -> dict[str, Any]:
         self.verify_calls.append(kwargs)
         return {
-            "verified": True,
-            "confidence": 91.5,
+            "verified": self.verified,
+            "confidence": self.confidence,
             "distance": 0.1,
             "threshold": 0.3,
         }
@@ -79,6 +81,45 @@ def test_profile_embedding_is_cached_and_faces_are_not_detected_twice() -> None:
     assert isinstance(fake.represent_calls[1]["img_path"], np.ndarray)
     assert all(call["detector_backend"] == "skip" for call in fake.verify_calls)
     assert all(isinstance(call["img1_path"], list) for call in fake.verify_calls)
+
+
+def test_model_match_below_minimum_similarity_is_rejected() -> None:
+    fake = FakeDeepFace(confidence=63.0)
+    engine = DeepFaceEngine(
+        Settings(token=TOKEN, warmup=False, min_similarity=70.0)
+    )
+    engine._deepface = fake
+
+    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+
+    assert result["verified"] is False
+    assert result["similarity"] == 63.0
+    assert result["minimum_similarity"] == 70.0
+
+
+def test_model_match_at_minimum_similarity_is_accepted() -> None:
+    fake = FakeDeepFace(confidence=70.0)
+    engine = DeepFaceEngine(
+        Settings(token=TOKEN, warmup=False, min_similarity=70.0)
+    )
+    engine._deepface = fake
+
+    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+
+    assert result["verified"] is True
+
+
+def test_model_match_without_similarity_is_rejected() -> None:
+    fake = FakeDeepFace(confidence=None)
+    engine = DeepFaceEngine(
+        Settings(token=TOKEN, warmup=False, min_similarity=70.0)
+    )
+    engine._deepface = fake
+
+    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+
+    assert result["verified"] is False
+    assert result["similarity"] is None
 
 
 def test_profile_cache_is_invalidated_when_photo_contents_change() -> None:

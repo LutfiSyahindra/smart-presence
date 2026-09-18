@@ -9,6 +9,7 @@ use App\Http\Requests\Absensi\AbsensiMobile\StoreClockInRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Support\AccessPermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,10 @@ use Throwable;
 
 class ClockInController extends Controller
 {
-    public function __construct(private readonly FaceVerifier $faceVerifier) {}
+    public function __construct(
+        private readonly FaceVerifier $faceVerifier,
+        private readonly AttendanceLocationVerifier $locationVerifier,
+    ) {}
 
     public function create(Request $request): Response|RedirectResponse
     {
@@ -69,6 +73,7 @@ class ClockInController extends Controller
                 'longitude' => $office->longitude,
                 'radius_meters' => $office->radius_meters,
             ],
+            'locationChallenge' => $this->locationVerifier->issueChallenge($request, 'clock-in'),
             'profilePhotoUrl' => $this->profilePhotoUrl($request),
         ]);
     }
@@ -145,9 +150,10 @@ class ClockInController extends Controller
         }
 
         $data = $request->validated();
+        $verifiedLocation = $this->locationVerifier->verify($request, 'clock-in');
         $distance = $this->distanceInMeters(
-            (float) $data['latitude'],
-            (float) $data['longitude'],
+            $verifiedLocation->latitude,
+            $verifiedLocation->longitude,
             (float) $office->latitude,
             (float) $office->longitude,
         );
@@ -223,7 +229,7 @@ class ClockInController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($data, $distance, $existing, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification): void {
+            DB::transaction(function () use ($distance, $existing, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): void {
                 $presensi = $existing ?? new Presensi;
                 $presensi->fill([
                     'pegawai_id' => $pegawai->id,
@@ -231,8 +237,11 @@ class ClockInController extends Controller
                     'tanggal_presensi' => now()->toDateString(),
                     'clock_in_at' => now(),
                     'clock_in_location_id' => $office->id,
-                    'clock_in_latitude' => $data['latitude'],
-                    'clock_in_longitude' => $data['longitude'],
+                    'clock_in_latitude' => $verifiedLocation->latitude,
+                    'clock_in_longitude' => $verifiedLocation->longitude,
+                    'clock_in_accuracy' => $verifiedLocation->accuracy,
+                    'clock_in_location_sample_count' => $verifiedLocation->sampleCount,
+                    'clock_in_location_verified_at' => now(),
                     'clock_in_address' => $outsideRadius
                         ? sprintf('Di luar radius %s (%s)', $office->name, $this->formatDistance($distance))
                         : ($office->address ?: $office->name),
@@ -253,6 +262,8 @@ class ClockInController extends Controller
                 'attendance' => 'Clock-in belum berhasil disimpan. Silakan coba kembali.',
             ]);
         }
+
+        $this->locationVerifier->consumeChallenge($request, 'clock-in');
 
         return to_route('absensi.mobile.clock-in.success')->with(
             'success',

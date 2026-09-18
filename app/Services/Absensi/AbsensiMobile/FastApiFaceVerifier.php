@@ -17,6 +17,7 @@ final class FastApiFaceVerifier implements FaceVerifier
         private readonly string $token,
         private readonly int $connectTimeout = 3,
         private readonly int $timeout = 45,
+        private readonly float $minimumSimilarity = 70.0,
     ) {}
 
     public function compare(string $profilePhoto, string $clockInPhoto): FaceVerificationResult
@@ -58,14 +59,20 @@ final class FastApiFaceVerifier implements FaceVerifier
             throw $this->unavailable();
         }
 
+        $normalizedSimilarity = $similarity === null
+            ? null
+            : max(0, min(100, (float) $similarity));
+
         $provider = $payload['provider'] ?? 'deepface-fastapi';
         if (! is_string($provider) || trim($provider) === '') {
             $provider = 'deepface-fastapi';
         }
 
         return new FaceVerificationResult(
-            matched: $payload['verified'],
-            similarity: $similarity === null ? null : max(0, min(100, (float) $similarity)),
+            matched: $payload['verified']
+                && $normalizedSimilarity !== null
+                && $normalizedSimilarity >= $this->minimumSimilarity,
+            similarity: $normalizedSimilarity,
             provider: mb_substr($provider, 0, 50),
         );
     }

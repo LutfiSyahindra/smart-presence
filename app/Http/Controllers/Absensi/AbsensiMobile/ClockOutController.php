@@ -9,6 +9,7 @@ use App\Http\Requests\Absensi\AbsensiMobile\StoreClockOutRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Support\AccessPermission;
 use App\ValueObjects\FaceVerificationResult;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,10 @@ use Throwable;
 
 class ClockOutController extends Controller
 {
-    public function __construct(private readonly FaceVerifier $faceVerifier) {}
+    public function __construct(
+        private readonly FaceVerifier $faceVerifier,
+        private readonly AttendanceLocationVerifier $locationVerifier,
+    ) {}
 
     public function create(Request $request): Response|RedirectResponse
     {
@@ -75,6 +79,7 @@ class ClockOutController extends Controller
                 'longitude' => $office->longitude,
                 'radius_meters' => $office->radius_meters,
             ],
+            'locationChallenge' => $this->locationVerifier->issueChallenge($request, 'clock-out'),
             'profilePhotoUrl' => $this->profilePhotoUrl($request),
         ]);
     }
@@ -161,9 +166,10 @@ class ClockOutController extends Controller
         }
 
         $data = $request->validated();
+        $verifiedLocation = $this->locationVerifier->verify($request, 'clock-out');
         $distance = $this->distanceInMeters(
-            (float) $data['latitude'],
-            (float) $data['longitude'],
+            $verifiedLocation->latitude,
+            $verifiedLocation->longitude,
             (float) $office->latitude,
             (float) $office->longitude,
         );
@@ -211,7 +217,7 @@ class ClockOutController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($attendance, $data, $distance, $notes, $office, $outsideRadius, $path, $request, $verification): void {
+            DB::transaction(function () use ($attendance, $distance, $notes, $office, $outsideRadius, $path, $request, $verification, $verifiedLocation): void {
                 $lockedAttendance = Presensi::query()->lockForUpdate()->findOrFail($attendance->id);
                 if ($lockedAttendance->clock_out_at) {
                     throw ValidationException::withMessages([
@@ -222,8 +228,11 @@ class ClockOutController extends Controller
                 $lockedAttendance->fill([
                     'clock_out_at' => now(),
                     'clock_out_location_id' => $office->id,
-                    'clock_out_latitude' => $data['latitude'],
-                    'clock_out_longitude' => $data['longitude'],
+                    'clock_out_latitude' => $verifiedLocation->latitude,
+                    'clock_out_longitude' => $verifiedLocation->longitude,
+                    'clock_out_accuracy' => $verifiedLocation->accuracy,
+                    'clock_out_location_sample_count' => $verifiedLocation->sampleCount,
+                    'clock_out_location_verified_at' => now(),
                     'clock_out_address' => $outsideRadius
                         ? sprintf('Di luar radius %s (%s)', $office->name, $this->formatDistance($distance))
                         : ($office->address ?: $office->name),
@@ -247,6 +256,8 @@ class ClockOutController extends Controller
                 'attendance' => 'Clock-out belum berhasil disimpan. Silakan coba kembali.',
             ]);
         }
+
+        $this->locationVerifier->consumeChallenge($request, 'clock-out');
 
         return to_route('absensi.mobile.clock-out.success')->with(
             'success',

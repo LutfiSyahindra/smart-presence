@@ -16,10 +16,19 @@ class StoreClockInRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $maxAccuracy = max(10, (float) config('attendance.location.max_accuracy_meters', 100));
+        $minSamples = max(2, (int) config('attendance.location.min_samples', 3));
+
         return [
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
-            'accuracy' => ['required', 'numeric', 'min:0', 'max:5000'],
+            'accuracy' => ['required', 'numeric', 'min:0', 'max:'.$maxAccuracy],
+            'location_token' => ['required', 'string', 'size:64'],
+            'location_samples' => ['required', 'array', 'min:'.$minSamples, 'max:20'],
+            'location_samples.*.latitude' => ['required', 'numeric', 'between:-90,90'],
+            'location_samples.*.longitude' => ['required', 'numeric', 'between:-180,180'],
+            'location_samples.*.accuracy' => ['required', 'numeric', 'min:0', 'max:5000'],
+            'location_samples.*.captured_at' => ['required', 'integer', 'min:1000000000000'],
             'outside_radius_confirmed' => ['required', 'boolean'],
             'outside_radius_note' => ['nullable', 'string', 'max:500'],
             'photo' => [
@@ -43,6 +52,14 @@ class StoreClockInRequest extends FormRequest
             'longitude.between' => 'Koordinat longitude tidak valid.',
             'accuracy.required' => 'Informasi akurasi GPS belum tersedia.',
             'accuracy.max' => 'Akurasi GPS terlalu rendah. Perbarui lokasi lalu coba kembali.',
+            'location_token.required' => 'Sesi verifikasi lokasi belum tersedia. Muat ulang halaman lalu coba kembali.',
+            'location_token.size' => 'Sesi verifikasi lokasi tidak valid. Muat ulang halaman lalu coba kembali.',
+            'location_samples.required' => 'Sampel GPS belum tersedia. Ambil lokasi kembali.',
+            'location_samples.min' => 'Sampel GPS belum cukup. Ambil lokasi kembali dan tunggu sampai proses selesai.',
+            'location_samples.*.latitude.between' => 'Sampel latitude GPS tidak valid.',
+            'location_samples.*.longitude.between' => 'Sampel longitude GPS tidak valid.',
+            'location_samples.*.accuracy.max' => 'Salah satu sampel GPS memiliki akurasi terlalu rendah.',
+            'location_samples.*.captured_at.min' => 'Waktu pengambilan sampel GPS tidak valid.',
             'outside_radius_confirmed.required' => 'Konfirmasi lokasi presensi wajib diisi.',
             'photo.required' => 'Foto wajah belum berhasil diambil otomatis. Pastikan kamera aktif lalu coba verifikasi kembali.',
             'photo.image' => 'File foto wajah tidak valid.',

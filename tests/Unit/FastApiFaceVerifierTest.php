@@ -35,6 +35,54 @@ class FastApiFaceVerifierTest extends TestCase
         });
     }
 
+    public function test_it_rejects_a_model_match_below_the_minimum_similarity(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'verified' => true,
+                'similarity' => 63.0,
+                'provider' => 'deepface-facenet512',
+            ]),
+        ]);
+
+        $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
+
+        $this->assertFalse($result->matched);
+        $this->assertSame(63.0, $result->similarity);
+    }
+
+    public function test_it_accepts_a_model_match_at_the_minimum_similarity(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'verified' => true,
+                'similarity' => 70.0,
+                'provider' => 'deepface-facenet512',
+            ]),
+        ]);
+
+        $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
+
+        $this->assertTrue($result->matched);
+        $this->assertSame(70.0, $result->similarity);
+    }
+
+    public function test_it_fails_closed_when_a_model_match_has_no_similarity(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'verified' => true,
+                'similarity' => null,
+                'provider' => 'deepface-facenet512',
+            ]),
+        ]);
+
+        $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
+
+        $this->assertFalse($result->matched);
+        $this->assertNull($result->similarity);
+    }
+
     public function test_it_maps_a_spoof_response_to_a_domain_exception(): void
     {
         Http::fake([

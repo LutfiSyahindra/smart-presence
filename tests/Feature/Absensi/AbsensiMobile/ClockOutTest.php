@@ -106,6 +106,9 @@ class ClockOutTest extends TestCase
         $this->assertSame(30, $presensi->earlyDepartureMinutes());
         $this->assertSame($this->office->id, $presensi->clock_out_location_id);
         $this->assertSame('Jl. Rumah Sakit No. 1', $presensi->clock_out_address);
+        $this->assertSame(8.0, $presensi->clock_out_accuracy);
+        $this->assertSame(3, $presensi->clock_out_location_sample_count);
+        $this->assertNotNull($presensi->clock_out_location_verified_at);
         $this->assertNotNull($presensi->clock_out_face_verified_at);
         $this->assertSame(97.25, $presensi->clock_out_face_similarity);
         $this->assertSame('test-verifier', $presensi->clock_out_face_verification_provider);
@@ -234,7 +237,7 @@ class ClockOutTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function payload(array $overrides = []): array
     {
-        return array_merge([
+        $payload = array_merge([
             'latitude' => -6.2000000,
             'longitude' => 106.8166667,
             'accuracy' => 8,
@@ -242,5 +245,26 @@ class ClockOutTest extends TestCase
             'outside_radius_note' => '',
             'photo' => UploadedFile::fake()->image('clock-out.jpg', 800, 800)->size(120),
         ], $overrides);
+
+        $token = str_repeat('b', 64);
+        $issuedAt = now()->getTimestampMs() - 4_000;
+        $this->withSession([
+            'attendance.location_challenges.clock-out' => [
+                'token_hash' => hash('sha256', $token),
+                'user_id' => $this->user->id,
+                'issued_at' => $issuedAt,
+            ],
+        ]);
+
+        $payload['location_token'] = $token;
+        $payload['location_samples'] = [0, 1_500, 3_000];
+        $payload['location_samples'] = array_map(fn (int $offset): array => [
+            'latitude' => $payload['latitude'],
+            'longitude' => $payload['longitude'],
+            'accuracy' => $payload['accuracy'],
+            'captured_at' => $issuedAt + $offset,
+        ], $payload['location_samples']);
+
+        return $payload;
     }
 }

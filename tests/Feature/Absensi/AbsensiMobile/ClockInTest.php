@@ -87,7 +87,10 @@ class ClockInTest extends TestCase
                 ->where('office.name', 'Gedung Utama RSARSY')
                 ->where('office.latitude', -6.2)
                 ->where('office.longitude', 106.8166667)
-                ->where('office.radius_meters', 100));
+                ->where('office.radius_meters', 100)
+                ->where('locationChallenge.min_samples', 3)
+                ->where('locationChallenge.collection_seconds', 3)
+                ->where('locationChallenge.max_speed_meters_per_second', 80.0));
     }
 
     public function test_employee_can_clock_in_inside_office_radius(): void
@@ -104,6 +107,9 @@ class ClockInTest extends TestCase
         $this->assertNotNull($presensi->clock_in_at);
         $this->assertSame(-6.2, $presensi->clock_in_latitude);
         $this->assertSame(106.8166667, $presensi->clock_in_longitude);
+        $this->assertSame(8.0, $presensi->clock_in_accuracy);
+        $this->assertSame(3, $presensi->clock_in_location_sample_count);
+        $this->assertNotNull($presensi->clock_in_location_verified_at);
         $this->assertSame('Jl. Rumah Sakit No. 1', $presensi->clock_in_address);
         $this->assertNull($presensi->notes);
         $this->assertNotNull($presensi->face_verified_at);
@@ -181,6 +187,58 @@ class ClockInTest extends TestCase
 
         $this->assertDatabaseCount('presensis', 0);
         $this->assertSame([], Storage::disk('local')->allFiles("presensi-photos/{$this->pegawai->id}"));
+    }
+
+    public function test_clock_in_rejects_a_request_without_server_issued_location_proof(): void
+    {
+        $payload = $this->payload();
+        unset($payload['location_token']);
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $payload)
+            ->assertSessionHasErrors('location_token');
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_rejects_an_untrusted_network_when_network_lock_is_enabled(): void
+    {
+        config()->set('attendance.location.require_trusted_network', true);
+        config()->set('attendance.location.trusted_networks', ['10.0.0.0/8']);
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasErrors('location_proof');
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_rejects_an_impossible_gps_jump(): void
+    {
+        $payload = $this->payload();
+        $payload['location_samples'][1]['latitude'] = -7.257472;
+        $payload['location_samples'][1]['longitude'] = 112.75209;
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $payload)
+            ->assertSessionHasErrors('location_proof');
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_uses_the_verified_sample_median_instead_of_top_level_coordinates(): void
+    {
+        $payload = $this->payload();
+        $payload['latitude'] = -6.19;
+        $payload['longitude'] = 106.80;
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $payload)
+            ->assertRedirect('/absensi/mobile/clock-in/berhasil');
+
+        $presensi = Presensi::query()->sole();
+        $this->assertSame(-6.2, $presensi->clock_in_latitude);
+        $this->assertSame(106.8166667, $presensi->clock_in_longitude);
     }
 
     public function test_clock_in_is_rejected_when_face_cannot_be_detected(): void
@@ -314,7 +372,7 @@ class ClockInTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function payload(array $overrides = []): array
     {
-        return array_merge([
+        $payload = array_merge([
             'latitude' => -6.2000000,
             'longitude' => 106.8166667,
             'accuracy' => 8,
@@ -322,5 +380,26 @@ class ClockInTest extends TestCase
             'outside_radius_note' => '',
             'photo' => UploadedFile::fake()->image('clock-in.jpg', 800, 800)->size(120),
         ], $overrides);
+
+        $token = str_repeat('a', 64);
+        $issuedAt = now()->getTimestampMs() - 4_000;
+        $this->withSession([
+            'attendance.location_challenges.clock-in' => [
+                'token_hash' => hash('sha256', $token),
+                'user_id' => $this->user->id,
+                'issued_at' => $issuedAt,
+            ],
+        ]);
+
+        $payload['location_token'] = $token;
+        $payload['location_samples'] = [0, 1_500, 3_000];
+        $payload['location_samples'] = array_map(fn (int $offset): array => [
+            'latitude' => $payload['latitude'],
+            'longitude' => $payload['longitude'],
+            'accuracy' => $payload['accuracy'],
+            'captured_at' => $issuedAt + $offset,
+        ], $payload['location_samples']);
+
+        return $payload;
     }
 }

@@ -126,12 +126,16 @@ class DeepFaceEngine:
             similarity = self._optional_float(result.get("confidence"))
             distance = self._optional_float(result.get("distance"))
             threshold = self._optional_float(result.get("threshold"))
+            normalized_similarity = self._percentage(similarity)
 
             return {
-                "verified": bool(result.get("verified", False)),
-                "similarity": self._percentage(similarity),
+                "verified": bool(result.get("verified", False))
+                and normalized_similarity is not None
+                and normalized_similarity >= self.settings.min_similarity,
+                "similarity": normalized_similarity,
                 "distance": distance,
                 "threshold": threshold,
+                "minimum_similarity": self.settings.min_similarity,
                 "provider": f"deepface-{self.settings.model_name.lower()}"[:50],
                 "model": self.settings.model_name,
                 "detector_backend": self.settings.detector_backend,

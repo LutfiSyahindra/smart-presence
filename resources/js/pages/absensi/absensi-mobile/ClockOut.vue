@@ -17,10 +17,17 @@ defineProps<{
         longitude: number;
         radius_meters: number;
     };
+    locationChallenge: {
+        token: string;
+        min_samples: number;
+        collection_seconds: number;
+        max_accuracy_meters: number;
+        max_speed_meters_per_second: number;
+    };
     profilePhotoUrl: string | null;
 }>();
 </script>
 
 <template>
-    <ClockIn :schedule="schedule" :office="office" :profile-photo-url="profilePhotoUrl" mode="out" />
+    <ClockIn :schedule="schedule" :office="office" :location-challenge="locationChallenge" :profile-photo-url="profilePhotoUrl" mode="out" />
 </template>

@@ -88,8 +88,9 @@ class ClockInTest extends TestCase
                 ->where('office.latitude', -6.2)
                 ->where('office.longitude', 106.8166667)
                 ->where('office.radius_meters', 100)
-                ->where('locationChallenge.min_samples', 3)
-                ->where('locationChallenge.collection_seconds', 3)
+                ->where('locationChallenge.server_time', fn (int $timestamp): bool => abs(now()->getTimestampMs() - $timestamp) < 1000)
+                ->where('locationChallenge.min_samples', 1)
+                ->where('locationChallenge.collection_seconds', 0)
                 ->where('locationChallenge.max_speed_meters_per_second', 80));
     }
 
@@ -108,7 +109,7 @@ class ClockInTest extends TestCase
         $this->assertSame(-6.2, $presensi->clock_in_latitude);
         $this->assertSame(106.8166667, $presensi->clock_in_longitude);
         $this->assertSame(8.0, $presensi->clock_in_accuracy);
-        $this->assertSame(3, $presensi->clock_in_location_sample_count);
+        $this->assertSame(1, $presensi->clock_in_location_sample_count);
         $this->assertNotNull($presensi->clock_in_location_verified_at);
         $this->assertSame('Jl. Rumah Sakit No. 1', $presensi->clock_in_address);
         $this->assertNull($presensi->notes);
@@ -216,8 +217,11 @@ class ClockInTest extends TestCase
     public function test_clock_in_rejects_an_impossible_gps_jump(): void
     {
         $payload = $this->payload();
-        $payload['location_samples'][1]['latitude'] = -7.257472;
-        $payload['location_samples'][1]['longitude'] = 112.75209;
+        $payload['location_samples'][] = array_merge($payload['location_samples'][0], [
+            'latitude' => -7.257472,
+            'longitude' => 112.75209,
+            'captured_at' => $payload['location_samples'][0]['captured_at'] + 1_500,
+        ]);
 
         $this->actingAs($this->user)
             ->post('/absensi/mobile/clock-in', $payload)
@@ -226,10 +230,55 @@ class ClockInTest extends TestCase
         $this->assertDatabaseCount('presensis', 0);
     }
 
+    public function test_clock_in_still_rejects_stale_or_future_gps_samples(): void
+    {
+        foreach ([-60_000, 60_000] as $offset) {
+            $payload = $this->payload();
+            $payload['location_samples'][0]['captured_at'] += $offset;
+
+            $this->actingAs($this->user)
+                ->post('/absensi/mobile/clock-in', $payload)
+                ->assertSessionHasErrors([
+                    'location_proof' => 'Sampel GPS tidak segar. Ambil lokasi kembali sebelum melakukan presensi.',
+                ]);
+        }
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_can_retry_face_verification_with_fresh_gps_for_the_new_challenge(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        $this->mock(FaceVerifier::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('compare')->twice()->andReturn(
+                new FaceVerificationResult(false, null, 'test-verifier'),
+                new FaceVerificationResult(true, 96.42, 'test-verifier'),
+            );
+        });
+
+        $payload = $this->payload();
+        $firstChallenge = $this->actingAs($this->user)
+            ->get('/absensi/mobile/clock-in')
+            ->assertOk()->viewData('page')['props']['locationChallenge'];
+        $payload['location_token'] = $firstChallenge['token'];
+        $this->post('/absensi/mobile/clock-in', $payload)->assertSessionHasErrors('photo');
+
+        $this->travel(1)->minutes();
+        $nextChallenge = $this->get('/absensi/mobile/clock-in')
+            ->assertOk()->viewData('page')['props']['locationChallenge'];
+        $this->assertNotSame($firstChallenge['token'], $nextChallenge['token']);
+        $payload['location_token'] = $nextChallenge['token'];
+        $payload['location_samples'][0]['captured_at'] = $nextChallenge['server_time'];
+
+        $this->post('/absensi/mobile/clock-in', $payload)
+            ->assertRedirect('/absensi/mobile/clock-in/berhasil');
+        $this->assertDatabaseCount('presensis', 1);
+    }
+
     public function test_clock_in_rejects_a_mock_location_even_when_its_accuracy_is_poor(): void
     {
         $payload = $this->payload();
-        $payload['location_samples'][] = array_merge($payload['location_samples'][2], [
+        $payload['location_samples'][] = array_merge($payload['location_samples'][0], [
             'accuracy' => 5000,
             'is_mock' => '1',
         ]);
@@ -248,6 +297,9 @@ class ClockInTest extends TestCase
     public function test_android_clock_in_requires_a_mock_check_for_every_sample(): void
     {
         $payload = $this->payload(['location_source' => 'android_native']);
+        $payload['location_samples'][] = array_merge($payload['location_samples'][0], [
+            'captured_at' => $payload['location_samples'][0]['captured_at'] + 1_500,
+        ]);
         foreach ($payload['location_samples'] as &$sample) {
             $sample['is_mock'] = false;
         }
@@ -431,7 +483,7 @@ class ClockInTest extends TestCase
         ], $overrides);
 
         $token = str_repeat('a', 64);
-        $issuedAt = now()->getTimestampMs() - 4_000;
+        $issuedAt = now()->getTimestampMs();
         $this->withSession([
             'attendance.location_challenges.clock-in' => [
                 'token_hash' => hash('sha256', $token),
@@ -441,7 +493,7 @@ class ClockInTest extends TestCase
         ]);
 
         $payload['location_token'] = $token;
-        $payload['location_samples'] = [0, 1_500, 3_000];
+        $payload['location_samples'] = [0];
         $payload['location_samples'] = array_map(fn (int $offset): array => [
             'latitude' => $payload['latitude'],
             'longitude' => $payload['longitude'],

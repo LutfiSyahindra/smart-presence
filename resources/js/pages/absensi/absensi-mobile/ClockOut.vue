@@ -19,6 +19,7 @@ defineProps<{
     };
     locationChallenge: {
         token: string;
+        server_time: number;
         min_samples: number;
         collection_seconds: number;
         max_accuracy_meters: number;

@@ -17,7 +17,7 @@ class StoreClockInRequest extends FormRequest
     public function rules(): array
     {
         $maxAccuracy = max(10, (float) config('attendance.location.max_accuracy_meters', 100));
-        $minSamples = max(2, (int) config('attendance.location.min_samples', 3));
+        $minSamples = max(1, (int) config('attendance.location.min_samples', 1));
 
         return [
             'latitude' => ['required', 'numeric', 'between:-90,90'],

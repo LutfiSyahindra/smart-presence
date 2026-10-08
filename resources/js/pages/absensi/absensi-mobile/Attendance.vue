@@ -7,11 +7,9 @@ import {
     CalendarDays,
     Check,
     ChevronDown,
-    CircleUserRound,
     Clock3,
     FileText,
     Fingerprint,
-    Home,
     LogIn,
     LogOut,
     MapPin,
@@ -410,24 +408,6 @@ onUnmounted(() => {
                     </template>
                 </section>
             </section>
-
-            <nav class="bottom-navigation" :class="{ 'without-account': !canAccessAccount }" aria-label="Navigasi utama">
-                <Link :href="route('absensi.mobile.home')" class="bottom-item">
-                    <span><Home /></span><small>Beranda</small>
-                </Link>
-                <button type="button" class="bottom-item" disabled>
-                    <span><CalendarDays /></span><small>Jadwal</small>
-                </button>
-                <button type="button" class="bottom-item attendance-main active" aria-current="page">
-                    <span><TimerReset /></span><small>Presensi</small>
-                </button>
-                <button type="button" class="bottom-item" disabled>
-                    <span><FileText /></span><small>Pengajuan</small>
-                </button>
-                <Link v-if="canAccessAccount" :href="route('absensi.mobile.account.show')" class="bottom-item">
-                    <span><CircleUserRound /></span><small>Akun</small>
-                </Link>
-            </nav>
         </div>
     </main>
 </template>
@@ -453,7 +433,7 @@ onUnmounted(() => {
     display: flex;
     position: relative;
     flex-direction: column;
-    overflow-x: hidden;
+    overflow-x: clip;
     background: #f7faf8;
     box-shadow: 0 0 80px rgba(16, 48, 51, 0.13);
 }
@@ -465,6 +445,13 @@ onUnmounted(() => {
     grid-template-columns: 42px 1fr 42px;
     align-items: center;
     gap: 10px;
+    position: sticky;
+    z-index: 20;
+    top: 0;
+    border-bottom: 1px solid var(--line);
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    background: #f7faf8;
 }
 
 .header-back,
@@ -550,7 +537,7 @@ onUnmounted(() => {
 }
 
 .attendance-content {
-    padding: 3px 16px 28px;
+    padding: 3px 16px calc(28px + env(safe-area-inset-bottom));
     flex: 1;
 }
 
@@ -1458,88 +1445,6 @@ onUnmounted(() => {
     font-size: 11px;
 }
 
-.bottom-navigation {
-    min-height: 74px;
-    padding: 8px 13px max(8px, env(safe-area-inset-bottom));
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    align-items: end;
-    position: sticky;
-    z-index: 20;
-    bottom: 0;
-    border-top: 1px solid rgba(216, 228, 223, 0.9);
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 -14px 35px rgba(28, 61, 59, 0.06);
-    backdrop-filter: blur(18px);
-}
-
-.bottom-navigation.without-account {
-    grid-template-columns: repeat(4, 1fr);
-}
-
-.bottom-item {
-    min-width: 0;
-    min-height: 48px;
-    padding: 4px 2px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-direction: column;
-    gap: 3px;
-    border: 0;
-    border-radius: 12px;
-    color: #93a09f;
-    background: transparent;
-}
-
-.bottom-item:disabled {
-    opacity: 1;
-}
-
-.bottom-item > span {
-    width: 30px;
-    height: 26px;
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-}
-
-.bottom-item svg {
-    width: 18px;
-    height: 18px;
-    stroke-width: 1.9;
-}
-
-.bottom-item small {
-    font-size: 11px;
-    font-weight: 720;
-}
-
-.bottom-item.attendance-main {
-    color: #315858;
-}
-
-.bottom-item.attendance-main > span {
-    width: 51px;
-    height: 51px;
-    margin-top: -23px;
-    border: 5px solid #fff;
-    border-radius: 18px;
-    color: #f8fffd;
-    background: linear-gradient(145deg, #a8783b, #d5ad69);
-    box-shadow: 0 9px 22px rgba(151, 104, 44, 0.3);
-}
-
-.bottom-item.attendance-main svg {
-    width: 21px;
-    height: 21px;
-}
-
-.bottom-item.attendance-main small {
-    color: #997340;
-    font-weight: 850;
-}
-
 .detail-enter-active,
 .detail-leave-active {
     overflow: hidden;
@@ -1607,10 +1512,6 @@ onUnmounted(() => {
         margin-block: 20px;
         border: 1px solid rgba(210, 223, 218, 0.8);
         border-radius: 34px;
-    }
-
-    .bottom-navigation {
-        border-radius: 0 0 34px 34px;
     }
 }
 

@@ -101,8 +101,9 @@ class MobileApiTest extends TestCase
         $this->getJson('/api/mobile/v1/attendance/clock-in')
             ->assertOk()
             ->assertJsonPath('data.office.name', 'Gedung Utama RSARSY')
-            ->assertJsonPath('data.location_challenge.min_samples', 3)
-            ->assertJsonStructure(['data' => ['location_challenge' => ['token']]]);
+            ->assertJsonPath('data.location_challenge.min_samples', 1)
+            ->assertJsonPath('data.location_challenge.collection_seconds', 0)
+            ->assertJsonStructure(['data' => ['location_challenge' => ['token', 'server_time']]]);
     }
 
     public function test_mobile_api_requires_authentication(): void

@@ -63,6 +63,7 @@ const props = defineProps<{
     };
     locationChallenge: {
         token: string;
+        server_time: number;
         min_samples: number;
         collection_seconds: number;
         max_accuracy_meters: number;
@@ -100,6 +101,13 @@ let locationWatchId: number | null = null;
 let locationSampleTimer: ReturnType<typeof window.setInterval> | null = null;
 let locationDeadlineTimer: ReturnType<typeof window.setTimeout> | null = null;
 let verificationTimer: ReturnType<typeof window.setInterval> | null = null;
+let finishLocationCollection: ((success: boolean) => void) | null = null;
+let locationClock = { serverTime: props.locationChallenge.server_time, receivedAt: performance.now() };
+
+// GPS timestamps use the device clock; anchor their age to server time and
+// advance with a monotonic clock so a phone clock adjustment cannot age a fix.
+const locationTimestamp = (capturedAt: number) =>
+    Math.round(locationClock.serverTime + performance.now() - locationClock.receivedAt - Math.max(0, Date.now() - capturedAt));
 
 const form = useForm<{
     latitude: number | null;
@@ -161,9 +169,9 @@ const formattedDistance = computed(() => {
 const accuracyState = computed(() => {
     if (locating.value) {
         return {
-            label: 'Memverifikasi GPS',
+            label: 'Mengambil lokasi',
             tone: 'waiting',
-            detail: `Sampel ${locationSampleProgress.value}/${props.locationChallenge.min_samples} · jangan berpindah halaman`,
+            detail: 'Mengambil lokasi GPS dari perangkat',
         };
     }
 
@@ -226,7 +234,7 @@ const median = (values: number[]) => {
     return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
-const stopLocationCollection = () => {
+const stopLocationCollection = (success = false) => {
     if (locationWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchId);
     if (locationSampleTimer !== null) window.clearInterval(locationSampleTimer);
     if (locationDeadlineTimer !== null) window.clearTimeout(locationDeadlineTimer);
@@ -234,197 +242,227 @@ const stopLocationCollection = () => {
     locationWatchId = null;
     locationSampleTimer = null;
     locationDeadlineTimer = null;
+    finishLocationCollection?.(success);
+    finishLocationCollection = null;
 };
 
-const requestLocation = () => {
-    const requestId = ++locationRequestId;
-    stopLocationCollection();
-    locationError.value = '';
-    form.clearErrors();
-
-    if (!window.isSecureContext) {
-        locationError.value = 'Akses lokasi memerlukan koneksi HTTPS yang aman. Buka kembali aplikasi melalui alamat HTTPS.';
-        return;
-    }
-
-    if (!isAndroidAttendance() && !navigator.geolocation) {
-        locationError.value = 'Perangkat ini tidak mendukung layanan lokasi.';
-        return;
-    }
-
-    currentLocation.value = null;
-    locationSamples.value = [];
-    locationSampleProgress.value = 0;
-    locating.value = true;
-    const collectionMilliseconds = props.locationChallenge.collection_seconds * 1000;
-    const sampleIntervalMilliseconds = collectionMilliseconds / (props.locationChallenge.min_samples - 1);
-    const deadlineMilliseconds = Math.max(7_000, collectionMilliseconds + 5_000);
-    let latestAccurateLocation: CurrentLocation | null = null;
-    let previousObservedLocation: (CurrentLocation & { observed_at: number }) | null = null;
-    let lastGeolocationError: GeolocationPositionError | null = null;
-
-    const failCollection = (message: string) => {
-        if (requestId !== locationRequestId) return;
-
-        locationRequestId += 1;
+const requestLocation = (): Promise<boolean> =>
+    new Promise((resolve) => {
+        const requestId = ++locationRequestId;
         stopLocationCollection();
-        currentLocation.value = null;
-        locationSamples.value = [];
-        locationSampleProgress.value = 0;
-        locationError.value = message;
-        locating.value = false;
-    };
+        finishLocationCollection = resolve;
+        locationError.value = '';
+        form.clearErrors();
 
-    const completeCollection = () => {
-        if (requestId !== locationRequestId || locationSamples.value.length < props.locationChallenge.min_samples) return;
-
-        locationRequestId += 1;
-        stopLocationCollection();
-        currentLocation.value = {
-            latitude: median(locationSamples.value.map((sample) => sample.latitude)),
-            longitude: median(locationSamples.value.map((sample) => sample.longitude)),
-            accuracy: Math.max(...locationSamples.value.map((sample) => sample.accuracy)),
-        };
-        locating.value = false;
-    };
-
-    const captureLatestSample = () => {
-        if (requestId !== locationRequestId || !latestAccurateLocation) return;
-
-        const lastCapturedAt = locationSamples.value.at(-1)?.captured_at ?? 0;
-        locationSamples.value.push({
-            ...latestAccurateLocation,
-            captured_at: Math.max(Date.now(), lastCapturedAt + 1),
-        });
-        locationSampleProgress.value = Math.min(locationSamples.value.length, props.locationChallenge.min_samples);
-
-        if (locationSamples.value.length >= props.locationChallenge.min_samples) completeCollection();
-    };
-
-    if (isAndroidAttendance()) {
-        locationDeadlineTimer = window.setTimeout(
-            () => {
-                failCollection('Verifikasi GPS melewati batas waktu. Pastikan GPS aktif dan coba di area terbuka.');
-            },
-            Math.max(45_000, collectionMilliseconds + 30_000),
-        );
-
-        void (async () => {
-            try {
-                // Each sample is a new Android fix, including its mock flag and
-                // provider timestamp. Do not resample a cached WebView position.
-                while (requestId === locationRequestId && locationSamples.value.length < 20) {
-                    const sample = await getAndroidAttendanceLocation();
-                    if (requestId !== locationRequestId) return;
-                    const previous = locationSamples.value.at(-1);
-                    if (sample.accuracy <= props.locationChallenge.max_accuracy_meters && (!previous || sample.captured_at > previous.captured_at)) {
-                        locationSamples.value.push(sample);
-                        locationSampleProgress.value = Math.min(locationSamples.value.length, props.locationChallenge.min_samples);
-                        const span = sample.captured_at - locationSamples.value[0].captured_at;
-                        if (locationSamples.value.length >= props.locationChallenge.min_samples && span >= collectionMilliseconds) {
-                            completeCollection();
-                            return;
-                        }
-                    }
-                    await new Promise((resolve) => window.setTimeout(resolve, Math.ceil(sampleIntervalMilliseconds)));
-                }
-                failCollection('GPS belum stabil. Aktifkan lokasi presisi dan ambil lokasi kembali.');
-            } catch (error) {
-                failCollection((error as Error)?.message || 'Pemeriksaan keamanan GPS gagal. Ambil lokasi kembali.');
-            }
-        })();
-        return;
-    }
-
-    locationWatchId = navigator.geolocation.watchPosition(
-        (position) => {
-            if (requestId !== locationRequestId) return;
-
-            const coordinates = position.coords as ExtendedGeolocationCoordinates;
-            if (coordinates.mocked === true || coordinates.isMock === true || coordinates.isFromMockProvider === true) {
-                failCollection('Perangkat melaporkan lokasi tiruan. Nonaktifkan aplikasi Fake GPS lalu coba kembali.');
-                return;
-            }
-
-            const observedAt = Date.now();
-            const observedLocation = {
-                latitude: Number(coordinates.latitude.toFixed(7)),
-                longitude: Number(coordinates.longitude.toFixed(7)),
-                accuracy: Number(coordinates.accuracy.toFixed(1)),
-                observed_at: observedAt,
-            };
-
-            if (previousObservedLocation) {
-                const elapsedSeconds = (observedAt - previousObservedLocation.observed_at) / 1000;
-                const uncertaintyMeters = previousObservedLocation.accuracy + observedLocation.accuracy;
-                const credibleMovementMeters = Math.max(0, distanceBetween(previousObservedLocation, observedLocation) - uncertaintyMeters);
-
-                if (elapsedSeconds > 0 && credibleMovementMeters / elapsedSeconds > props.locationChallenge.max_speed_meters_per_second) {
-                    failCollection('Terdeteksi perpindahan GPS yang tidak wajar. Nonaktifkan aplikasi Fake GPS lalu ambil lokasi kembali.');
-                    return;
-                }
-            }
-
-            previousObservedLocation = observedLocation;
-            lastGeolocationError = null;
-
-            if (observedLocation.accuracy > props.locationChallenge.max_accuracy_meters) return;
-
-            latestAccurateLocation = {
-                latitude: observedLocation.latitude,
-                longitude: observedLocation.longitude,
-                accuracy: observedLocation.accuracy,
-            };
-            if (locationSamples.value.length === 0) {
-                captureLatestSample();
-                locationSampleTimer = window.setInterval(captureLatestSample, sampleIntervalMilliseconds);
-            }
-        },
-        (error) => {
-            if (requestId !== locationRequestId) return;
-            if (error.code === error.PERMISSION_DENIED) {
-                failCollection(locationErrorMessage(error));
-                return;
-            }
-
-            lastGeolocationError = error;
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: deadlineMilliseconds,
-            maximumAge: 0,
-        },
-    );
-
-    locationDeadlineTimer = window.setTimeout(() => {
-        if (requestId !== locationRequestId) return;
-
-        if (!latestAccurateLocation) {
-            failCollection(
-                lastGeolocationError
-                    ? locationErrorMessage(lastGeolocationError)
-                    : `Akurasi GPS belum mencapai ±${Math.round(props.locationChallenge.max_accuracy_meters)} m. Aktifkan akurasi tinggi lalu coba kembali.`,
-            );
+        if (!window.isSecureContext) {
+            locationError.value = 'Akses lokasi memerlukan koneksi HTTPS yang aman. Buka kembali aplikasi melalui alamat HTTPS.';
+            stopLocationCollection();
             return;
         }
 
-        failCollection('Verifikasi GPS melewati batas waktu. Pastikan GPS aktif lalu coba kembali.');
-    }, deadlineMilliseconds);
-};
+        if (!isAndroidAttendance() && !navigator.geolocation) {
+            locationError.value = 'Perangkat ini tidak mendukung layanan lokasi.';
+            stopLocationCollection();
+            return;
+        }
 
-const retryLocation = () => {
-    if (!locationProofError.value) {
-        void requestLocation();
-        return;
-    }
+        currentLocation.value = null;
+        locationSamples.value = [];
+        locationSampleProgress.value = 0;
+        locating.value = true;
+        const collectionMilliseconds = props.locationChallenge.collection_seconds * 1000;
+        const sampleIntervalMilliseconds = collectionMilliseconds / Math.max(1, props.locationChallenge.min_samples - 1);
+        const deadlineMilliseconds = Math.max(7_000, collectionMilliseconds + 5_000);
+        let latestAccurateLocation: LocationSample | null = null;
+        let previousObservedLocation: (CurrentLocation & { observed_at: number }) | null = null;
+        let lastGeolocationError: GeolocationPositionError | null = null;
 
-    router.reload({
-        only: ['locationChallenge'],
-        onSuccess: () => {
-            form.location_token = props.locationChallenge.token;
-            void requestLocation();
-        },
+        const failCollection = (message: string) => {
+            if (requestId !== locationRequestId) return;
+
+            locationRequestId += 1;
+            stopLocationCollection();
+            currentLocation.value = null;
+            locationSamples.value = [];
+            locationSampleProgress.value = 0;
+            locationError.value = message;
+            locating.value = false;
+        };
+
+        const completeCollection = () => {
+            if (requestId !== locationRequestId || locationSamples.value.length < props.locationChallenge.min_samples) return;
+
+            locationRequestId += 1;
+            stopLocationCollection(true);
+            currentLocation.value = {
+                latitude: median(locationSamples.value.map((sample) => sample.latitude)),
+                longitude: median(locationSamples.value.map((sample) => sample.longitude)),
+                accuracy: Math.max(...locationSamples.value.map((sample) => sample.accuracy)),
+            };
+            locating.value = false;
+        };
+
+        const captureLatestSample = () => {
+            if (requestId !== locationRequestId || !latestAccurateLocation) return;
+
+            const lastCapturedAt = locationSamples.value.at(-1)?.captured_at ?? 0;
+            if (latestAccurateLocation.captured_at <= lastCapturedAt) return;
+            locationSamples.value.push({ ...latestAccurateLocation });
+            locationSampleProgress.value = Math.min(locationSamples.value.length, props.locationChallenge.min_samples);
+
+            const span = latestAccurateLocation.captured_at - locationSamples.value[0].captured_at;
+            if (locationSamples.value.length >= props.locationChallenge.min_samples && span >= collectionMilliseconds) completeCollection();
+        };
+
+        if (isAndroidAttendance()) {
+            locationDeadlineTimer = window.setTimeout(
+                () => {
+                    failCollection('Verifikasi GPS melewati batas waktu. Pastikan GPS aktif dan coba di area terbuka.');
+                },
+                Math.max(45_000, collectionMilliseconds + 30_000),
+            );
+
+            void (async () => {
+                try {
+                    // Each sample is a new Android fix, including its mock flag and
+                    // provider timestamp. Do not resample a cached WebView position.
+                    while (requestId === locationRequestId && locationSamples.value.length < 20) {
+                        const nativeLocation = await getAndroidAttendanceLocation();
+                        const sample = { ...nativeLocation, captured_at: locationTimestamp(nativeLocation.captured_at) };
+                        if (requestId !== locationRequestId) return;
+                        const previous = locationSamples.value.at(-1);
+                        if (
+                            sample.accuracy <= props.locationChallenge.max_accuracy_meters &&
+                            (!previous || sample.captured_at > previous.captured_at)
+                        ) {
+                            locationSamples.value.push(sample);
+                            locationSampleProgress.value = Math.min(locationSamples.value.length, props.locationChallenge.min_samples);
+                            const span = sample.captured_at - locationSamples.value[0].captured_at;
+                            if (locationSamples.value.length >= props.locationChallenge.min_samples && span >= collectionMilliseconds) {
+                                completeCollection();
+                                return;
+                            }
+                        }
+                        await new Promise((resolve) => window.setTimeout(resolve, Math.ceil(sampleIntervalMilliseconds)));
+                    }
+                    failCollection('GPS belum stabil. Aktifkan lokasi presisi dan ambil lokasi kembali.');
+                } catch (error) {
+                    failCollection((error as Error)?.message || 'Pemeriksaan keamanan GPS gagal. Ambil lokasi kembali.');
+                }
+            })();
+            return;
+        }
+
+        locationWatchId = navigator.geolocation.watchPosition(
+            (position) => {
+                if (requestId !== locationRequestId) return;
+
+                const coordinates = position.coords as ExtendedGeolocationCoordinates;
+                if (coordinates.mocked === true || coordinates.isMock === true || coordinates.isFromMockProvider === true) {
+                    failCollection('Perangkat melaporkan lokasi tiruan. Nonaktifkan aplikasi Fake GPS lalu coba kembali.');
+                    return;
+                }
+
+                const observedAt = Date.now();
+                if (!Number.isFinite(position.timestamp) || observedAt - position.timestamp > 15_000 || position.timestamp > observedAt + 5_000) {
+                    // Wait for a fresh provider fix instead of re-stamping a cached one.
+                    return;
+                }
+                const observedLocation = {
+                    latitude: Number(coordinates.latitude.toFixed(7)),
+                    longitude: Number(coordinates.longitude.toFixed(7)),
+                    accuracy: Number(coordinates.accuracy.toFixed(1)),
+                    observed_at: observedAt,
+                };
+
+                if (previousObservedLocation) {
+                    const elapsedSeconds = (observedAt - previousObservedLocation.observed_at) / 1000;
+                    const uncertaintyMeters = previousObservedLocation.accuracy + observedLocation.accuracy;
+                    const credibleMovementMeters = Math.max(0, distanceBetween(previousObservedLocation, observedLocation) - uncertaintyMeters);
+
+                    if (elapsedSeconds > 0 && credibleMovementMeters / elapsedSeconds > props.locationChallenge.max_speed_meters_per_second) {
+                        failCollection('Terdeteksi perpindahan GPS yang tidak wajar. Nonaktifkan aplikasi Fake GPS lalu ambil lokasi kembali.');
+                        return;
+                    }
+                }
+
+                previousObservedLocation = observedLocation;
+                lastGeolocationError = null;
+
+                if (observedLocation.accuracy > props.locationChallenge.max_accuracy_meters) return;
+
+                latestAccurateLocation = {
+                    latitude: observedLocation.latitude,
+                    longitude: observedLocation.longitude,
+                    accuracy: observedLocation.accuracy,
+                    captured_at: locationTimestamp(position.timestamp),
+                };
+                if (locationSamples.value.length === 0) {
+                    captureLatestSample();
+                    if (requestId === locationRequestId) {
+                        locationSampleTimer = window.setInterval(captureLatestSample, sampleIntervalMilliseconds);
+                    }
+                }
+            },
+            (error) => {
+                if (requestId !== locationRequestId) return;
+                if (error.code === error.PERMISSION_DENIED) {
+                    failCollection(locationErrorMessage(error));
+                    return;
+                }
+
+                lastGeolocationError = error;
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: deadlineMilliseconds,
+                maximumAge: 0,
+            },
+        );
+
+        locationDeadlineTimer = window.setTimeout(() => {
+            if (requestId !== locationRequestId) return;
+
+            if (!latestAccurateLocation) {
+                failCollection(
+                    lastGeolocationError
+                        ? locationErrorMessage(lastGeolocationError)
+                        : `Akurasi GPS belum mencapai ±${Math.round(props.locationChallenge.max_accuracy_meters)} m. Aktifkan akurasi tinggi lalu coba kembali.`,
+                );
+                return;
+            }
+
+            failCollection('Verifikasi GPS melewati batas waktu. Pastikan GPS aktif lalu coba kembali.');
+        }, deadlineMilliseconds);
     });
+
+const refreshLocationChallenge = (): Promise<boolean> =>
+    new Promise((resolve) => {
+        const requestId = locationRequestId;
+        router.reload({
+            only: ['locationChallenge'],
+            onSuccess: () => {
+                if (requestId !== locationRequestId) {
+                    resolve(false);
+                    return;
+                }
+                locationClock = { serverTime: props.locationChallenge.server_time, receivedAt: performance.now() };
+                form.location_token = props.locationChallenge.token;
+                resolve(true);
+            },
+            onFinish: () => resolve(false),
+        });
+    });
+
+const retryLocation = async () => {
+    if (locating.value) return;
+    locating.value = true;
+    if (await refreshLocationChallenge()) {
+        await requestLocation();
+    } else {
+        locating.value = false;
+        locationError.value = 'Sesi lokasi belum berhasil diperbarui. Periksa koneksi lalu coba kembali.';
+    }
 };
 
 const cameraErrorMessage = (error: unknown) => {
@@ -603,79 +641,84 @@ const submitClockIn = async () => {
         return;
     }
 
-    const requestId = locationRequestId;
-    const photo = await capturePhoto();
-    if (!photo || requestId !== locationRequestId || currentStep.value !== 2 || !currentLocation.value) return;
-
-    if (isAndroidAttendance()) {
-        checkingLocation.value = true;
-        try {
-            const latest = await getAndroidAttendanceLocation();
-            if (requestId !== locationRequestId || currentStep.value !== 2 || !currentLocation.value) return;
-            if (
-                latest.accuracy > props.locationChallenge.max_accuracy_meters ||
-                latest.captured_at <= (locationSamples.value.at(-1)?.captured_at ?? 0) ||
-                distanceBetween(currentLocation.value, latest) > currentLocation.value.accuracy + latest.accuracy + 25
-            ) {
-                throw new Error('Lokasi berubah atau GPS belum stabil. Ambil lokasi kembali sebelum presensi.');
-            }
-            locationSamples.value = [...locationSamples.value.slice(0, 19), latest];
-        } catch (error) {
-            if (requestId !== locationRequestId) return;
+    const cameraId = cameraRequestId;
+    const previousLocation = currentLocation.value;
+    checkingLocation.value = true;
+    try {
+        // A validation redirect issues a new challenge. Always collect new
+        // evidence for that challenge, including after waiting on the camera.
+        if (!(await refreshLocationChallenge())) {
+            photoError.value = 'Sesi lokasi belum berhasil diperbarui. Periksa koneksi lalu coba verifikasi kembali.';
+            return;
+        }
+        if (cameraId !== cameraRequestId || currentStep.value !== 2) return;
+        const located = await requestLocation();
+        if (cameraId !== cameraRequestId || currentStep.value !== 2) return;
+        if (!located || !currentLocation.value) {
             stopCamera();
             currentStep.value = 1;
-            currentLocation.value = null;
-            locationSamples.value = [];
-            locationSampleProgress.value = 0;
-            form.photo = null;
-            form.location_samples = [];
-            locationError.value = (error as Error)?.message || 'Pemeriksaan keamanan GPS gagal. Ambil lokasi kembali.';
             return;
-        } finally {
-            checkingLocation.value = false;
         }
-    }
 
-    form.latitude = currentLocation.value.latitude;
-    form.longitude = currentLocation.value.longitude;
-    form.accuracy = currentLocation.value.accuracy;
-    form.location_token = props.locationChallenge.token;
-    form.location_samples = locationSamples.value;
-    form.outside_radius_confirmed = isInsideRadius.value === false;
-    form.outside_radius_note = isInsideRadius.value === false ? outsideNote.value.trim() : '';
-    form.photo = photo;
-    form.post(route(`absensi.mobile.${actionSlug.value}.store`), {
-        forceFormData: true,
-        preserveScroll: true,
-        onStart: () => {
-            verificationElapsedSeconds.value = 0;
-            verificationTimer = window.setInterval(() => {
-                verificationElapsedSeconds.value += 1;
-            }, 1000);
-        },
-        onError: () => {
-            if (form.errors.outside_radius_confirmed || form.errors.outside_radius_note) {
-                stopCamera();
-                currentStep.value = 1;
-                outsideNoteError.value = form.errors.outside_radius_note || form.errors.outside_radius_confirmed || '';
-                outsideDialogOpen.value = true;
-            } else if (
-                locationProofError.value ||
-                form.errors.location_token ||
-                form.errors.location_samples ||
-                form.errors.latitude ||
-                form.errors.longitude ||
-                form.errors.accuracy
-            ) {
-                stopCamera();
-                currentStep.value = 1;
-            }
-        },
-        onFinish: () => {
-            if (verificationTimer !== null) window.clearInterval(verificationTimer);
-            verificationTimer = null;
-        },
-    });
+        if (distanceBetween(previousLocation, currentLocation.value) > previousLocation.accuracy + currentLocation.value.accuracy + 25) {
+            stopCamera();
+            currentStep.value = 1;
+            locationError.value = 'Lokasi berubah. Periksa lokasi terbaru sebelum melanjutkan presensi.';
+            return;
+        }
+        if (isInsideRadius.value === false && outsideNote.value.trim().length < 5) {
+            stopCamera();
+            currentStep.value = 1;
+            outsideDialogOpen.value = true;
+            return;
+        }
+
+        const photo = await capturePhoto();
+        if (!photo || cameraId !== cameraRequestId || currentStep.value !== 2 || !currentLocation.value) return;
+
+        form.latitude = currentLocation.value.latitude;
+        form.longitude = currentLocation.value.longitude;
+        form.accuracy = currentLocation.value.accuracy;
+        form.location_token = props.locationChallenge.token;
+        form.location_samples = locationSamples.value;
+        form.outside_radius_confirmed = isInsideRadius.value === false;
+        form.outside_radius_note = isInsideRadius.value === false ? outsideNote.value.trim() : '';
+        form.photo = photo;
+        form.post(route(`absensi.mobile.${actionSlug.value}.store`), {
+            forceFormData: true,
+            preserveScroll: true,
+            onStart: () => {
+                verificationElapsedSeconds.value = 0;
+                verificationTimer = window.setInterval(() => {
+                    verificationElapsedSeconds.value += 1;
+                }, 1000);
+            },
+            onError: () => {
+                if (form.errors.outside_radius_confirmed || form.errors.outside_radius_note) {
+                    stopCamera();
+                    currentStep.value = 1;
+                    outsideNoteError.value = form.errors.outside_radius_note || form.errors.outside_radius_confirmed || '';
+                    outsideDialogOpen.value = true;
+                } else if (
+                    locationProofError.value ||
+                    form.errors.location_token ||
+                    form.errors.location_samples ||
+                    form.errors.latitude ||
+                    form.errors.longitude ||
+                    form.errors.accuracy
+                ) {
+                    stopCamera();
+                    currentStep.value = 1;
+                }
+            },
+            onFinish: () => {
+                if (verificationTimer !== null) window.clearInterval(verificationTimer);
+                verificationTimer = null;
+            },
+        });
+    } finally {
+        checkingLocation.value = false;
+    }
 };
 
 onMounted(() => void requestLocation());
@@ -791,14 +834,6 @@ onUnmounted(() => {
                             Periksa posisi Anda dan isi catatan alasan di luar radius pada langkah berikutnya.
                         </span>
                     </div>
-
-                    <div class="location-actions">
-                        <div class="privacy-note"><ShieldCheck /> Koordinat hanya digunakan untuk validasi presensi.</div>
-                        <button type="button" class="primary-action" :disabled="locating" @click="continueFromLocation">
-                            <span>{{ locationActionLabel }}</span>
-                            <ChevronRight />
-                        </button>
-                    </div>
                 </section>
 
                 <section v-else key="photo" class="photo-stage">
@@ -870,25 +905,34 @@ onUnmounted(() => {
                     </div>
 
                     <p v-if="globalFormError" class="submit-error"><CircleAlert /> {{ globalFormError }}</p>
-
-                    <div class="photo-actions">
-                        <button type="button" class="text-action" :disabled="form.processing || checkingLocation" @click="returnToLocation">
-                            Kembali ke lokasi
-                        </button>
-                        <button
-                            type="button"
-                            class="primary-action"
-                            :disabled="form.processing || capturingPhoto || checkingLocation || cameraStarting || !cameraActive"
-                            @click="submitClockIn"
-                        >
-                            <LoaderCircle v-if="form.processing || capturingPhoto || checkingLocation" class="spin" />
-                            <span>{{ verificationButtonLabel }}</span>
-                            <Check v-if="!form.processing && !capturingPhoto && !checkingLocation" />
-                        </button>
-                        <p class="auto-capture-note"><Camera /> Kamera mengambil satu foto hanya saat tombol di atas ditekan.</p>
-                    </div>
                 </section>
             </Transition>
+
+            <footer class="clock-actions">
+                <template v-if="currentStep === 1">
+                    <div class="privacy-note"><ShieldCheck /> Koordinat hanya digunakan untuk validasi presensi.</div>
+                    <button type="button" class="primary-action" :disabled="locating" @click="continueFromLocation">
+                        <span>{{ locationActionLabel }}</span>
+                        <ChevronRight />
+                    </button>
+                </template>
+                <template v-else>
+                    <button type="button" class="text-action" :disabled="form.processing || checkingLocation" @click="returnToLocation">
+                        Kembali ke lokasi
+                    </button>
+                    <button
+                        type="button"
+                        class="primary-action"
+                        :disabled="form.processing || capturingPhoto || checkingLocation || cameraStarting || !cameraActive"
+                        @click="submitClockIn"
+                    >
+                        <LoaderCircle v-if="form.processing || capturingPhoto || checkingLocation" class="spin" />
+                        <span>{{ verificationButtonLabel }}</span>
+                        <Check v-if="!form.processing && !capturingPhoto && !checkingLocation" />
+                    </button>
+                    <p class="auto-capture-note"><Camera /> Kamera mengambil satu foto hanya saat tombol di atas ditekan.</p>
+                </template>
+            </footer>
 
             <Transition name="sheet">
                 <div v-if="outsideDialogOpen" class="sheet-overlay" role="presentation" @click.self="outsideDialogOpen = false">
@@ -946,6 +990,7 @@ onUnmounted(() => {
     --clock-teal: #087f78;
     --clock-deep: #0b393d;
     min-height: 100svh;
+    display: flow-root;
     color: var(--clock-ink);
     background:
         radial-gradient(circle at 8% 7%, rgba(58, 153, 139, 0.14), transparent 24rem),
@@ -956,8 +1001,11 @@ onUnmounted(() => {
 .clock-shell {
     width: 100%;
     max-width: 500px;
-    min-height: 100svh;
+    height: 100svh;
+    height: 100dvh;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
     position: relative;
     overflow: hidden;
     background: #f8faf9;
@@ -966,6 +1014,7 @@ onUnmounted(() => {
 
 .clock-header {
     padding: max(18px, env(safe-area-inset-top)) 17px 14px;
+    flex: 0 0 auto;
     position: relative;
     z-index: 10;
     border-bottom: 1px solid #e5ece9;
@@ -1231,6 +1280,10 @@ onUnmounted(() => {
 .location-stage,
 .photo-stage {
     padding: 13px 15px max(18px, env(safe-area-inset-bottom));
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
 }
 
 .location-banner {
@@ -1317,6 +1370,7 @@ onUnmounted(() => {
     margin-top: 11px;
     position: relative;
     overflow: hidden;
+    isolation: isolate;
     border: 1px solid #dce7e3;
     border-radius: 24px;
     background: #e7efec;
@@ -1413,13 +1467,13 @@ onUnmounted(() => {
 }
 
 .location-summary {
-    margin: -23px 10px 0;
+    margin: 12px 0 0;
     padding: 13px;
     display: flex;
     align-items: center;
     gap: 10px;
     position: relative;
-    z-index: 700;
+    z-index: 1;
     border: 1px solid rgba(255, 255, 255, 0.9);
     border-radius: 19px;
     background: rgba(255, 255, 255, 0.96);
@@ -1542,9 +1596,14 @@ onUnmounted(() => {
     font-weight: 820;
 }
 
-.location-actions,
-.photo-actions {
-    margin-top: 14px;
+.clock-actions {
+    padding: 12px 15px max(18px, env(safe-area-inset-bottom));
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 10;
+    border-top: 1px solid #e5ece9;
+    background: #f8faf9;
+    box-shadow: 0 -8px 24px rgba(21, 59, 56, 0.05);
 }
 
 .privacy-note {
@@ -2008,10 +2067,6 @@ onUnmounted(() => {
     font-weight: 800;
 }
 
-.photo-actions {
-    padding-bottom: max(2px, env(safe-area-inset-bottom));
-}
-
 .text-action {
     width: 100%;
     margin-bottom: 8px;
@@ -2391,7 +2446,8 @@ onUnmounted(() => {
 @media (min-width: 700px) {
     .clock-shell {
         margin-block: 22px;
-        min-height: calc(100svh - 44px);
+        height: calc(100svh - 44px);
+        height: calc(100dvh - 44px);
         border: 1px solid rgba(255, 255, 255, 0.75);
         border-radius: 32px;
     }

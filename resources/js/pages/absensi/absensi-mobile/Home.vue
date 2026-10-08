@@ -322,6 +322,7 @@ onUnmounted(() => {
     --mobile-muted: #728288;
     --mobile-line: #e5ece9;
     --mobile-surface: #ffffff;
+    --mobile-bottom-navigation-height: calc(74px + env(safe-area-inset-bottom, 0px));
     min-height: 100svh;
     color: var(--mobile-ink);
     background:
@@ -501,7 +502,7 @@ onUnmounted(() => {
 }
 
 .mobile-content {
-    padding: 0 16px 24px;
+    padding: 0 16px calc(var(--mobile-bottom-navigation-height) + 36px);
     flex: 1;
 }
 
@@ -992,14 +993,19 @@ onUnmounted(() => {
 }
 
 .bottom-navigation {
-    min-height: 74px;
-    padding: 8px 13px max(8px, env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: 500px;
+    min-height: var(--mobile-bottom-navigation-height);
+    margin-inline: auto;
+    padding: 8px 13px calc(8px + env(safe-area-inset-bottom, 0px));
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     align-items: end;
-    position: sticky;
+    position: fixed;
     z-index: 20;
+    right: 0;
     bottom: 0;
+    left: 0;
     border-top: 1px solid rgba(216, 228, 223, 0.9);
     background: rgba(255, 255, 255, 0.94);
     box-shadow: 0 -14px 35px rgba(28, 61, 59, 0.06);
@@ -1087,7 +1093,7 @@ onUnmounted(() => {
     position: fixed;
     z-index: 50;
     right: 50%;
-    bottom: calc(82px + env(safe-area-inset-bottom));
+    bottom: calc(var(--mobile-bottom-navigation-height) + 16px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 14px;
     color: #f4fcfa;
@@ -1206,7 +1212,13 @@ a:focus-visible {
     }
 
     .bottom-navigation {
+        max-width: 498px;
+        bottom: 20px;
         border-radius: 0 0 34px 34px;
+    }
+
+    .mobile-toast {
+        bottom: calc(var(--mobile-bottom-navigation-height) + 36px);
     }
 }
 

@@ -88,7 +88,10 @@ class ClockOutTest extends TestCase
                 ->where('schedule.shift_name', 'Shift Pagi')
                 ->where('schedule.start_time', '07:00')
                 ->where('schedule.end_time', '15:00')
-                ->where('office.id', $this->office->id));
+                ->where('office.id', $this->office->id)
+                ->where('locationChallenge.server_time', fn (int $timestamp): bool => abs(now()->getTimestampMs() - $timestamp) < 1000)
+                ->where('locationChallenge.min_samples', 1)
+                ->where('locationChallenge.collection_seconds', 0));
     }
 
     public function test_employee_can_clock_out_and_early_departure_is_reported(): void
@@ -107,7 +110,7 @@ class ClockOutTest extends TestCase
         $this->assertSame($this->office->id, $presensi->clock_out_location_id);
         $this->assertSame('Jl. Rumah Sakit No. 1', $presensi->clock_out_address);
         $this->assertSame(8.0, $presensi->clock_out_accuracy);
-        $this->assertSame(3, $presensi->clock_out_location_sample_count);
+        $this->assertSame(1, $presensi->clock_out_location_sample_count);
         $this->assertNotNull($presensi->clock_out_location_verified_at);
         $this->assertNotNull($presensi->clock_out_face_verified_at);
         $this->assertSame(97.25, $presensi->clock_out_face_similarity);
@@ -233,7 +236,7 @@ class ClockOutTest extends TestCase
             $sample['is_mock'] = false;
         }
         unset($sample);
-        $payload['location_samples'][] = array_merge($payload['location_samples'][2], [
+        $payload['location_samples'][] = array_merge($payload['location_samples'][0], [
             'accuracy' => 5000,
             'is_mock' => true,
         ]);
@@ -301,7 +304,7 @@ class ClockOutTest extends TestCase
         ], $overrides);
 
         $token = str_repeat('b', 64);
-        $issuedAt = now()->getTimestampMs() - 4_000;
+        $issuedAt = now()->getTimestampMs();
         $this->withSession([
             'attendance.location_challenges.clock-out' => [
                 'token_hash' => hash('sha256', $token),
@@ -311,7 +314,7 @@ class ClockOutTest extends TestCase
         ]);
 
         $payload['location_token'] = $token;
-        $payload['location_samples'] = [0, 1_500, 3_000];
+        $payload['location_samples'] = [0];
         $payload['location_samples'] = array_map(fn (int $offset): array => [
             'latitude' => $payload['latitude'],
             'longitude' => $payload['longitude'],

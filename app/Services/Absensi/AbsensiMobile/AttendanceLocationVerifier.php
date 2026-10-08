@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\IpUtils;
 class AttendanceLocationVerifier
 {
     /**
-     * @return array{token: string, min_samples: int, collection_seconds: int, max_accuracy_meters: float, max_speed_meters_per_second: float}
+     * @return array{token: string, server_time: int, min_samples: int, collection_seconds: int, max_accuracy_meters: float, max_speed_meters_per_second: float}
      */
     public function issueChallenge(Request $request, string $action): array
     {
@@ -35,6 +35,7 @@ class AttendanceLocationVerifier
 
         return [
             'token' => $token,
+            'server_time' => now()->getTimestampMs(),
             'min_samples' => $this->minSamples(),
             'collection_seconds' => $this->collectionSeconds(),
             'max_accuracy_meters' => $this->maxAccuracy(),
@@ -206,12 +207,12 @@ class AttendanceLocationVerifier
 
     private function minSamples(): int
     {
-        return max(2, (int) config('attendance.location.min_samples', 3));
+        return max(1, (int) config('attendance.location.min_samples', 1));
     }
 
     private function collectionSeconds(): int
     {
-        return max(2, (int) config('attendance.location.collection_seconds', 3));
+        return max(0, (int) config('attendance.location.collection_seconds', 0));
     }
 
     private function maxAccuracy(): float

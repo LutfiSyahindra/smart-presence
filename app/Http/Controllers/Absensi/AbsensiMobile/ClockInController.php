@@ -2,30 +2,26 @@
 
 namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
-use App\Contracts\FaceVerifier;
-use App\Exceptions\FaceVerificationException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Absensi\AbsensiMobile\StoreClockInRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
+use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
 use App\Support\AccessPermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class ClockInController extends Controller
 {
     public function __construct(
-        private readonly FaceVerifier $faceVerifier,
         private readonly AttendanceLocationVerifier $locationVerifier,
+        private readonly AttendanceSubmissionService $submissionService,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -91,7 +87,6 @@ class ClockInController extends Controller
             'shift:id,nama,jam_masuk,jam_keluar',
             'clockInLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
-
         $location = $attendance->clockInLocation;
         $outsideRadius = $location
             && $attendance->clock_in_latitude !== null
@@ -123,154 +118,9 @@ class ClockInController extends Controller
 
     public function store(StoreClockInRequest $request): RedirectResponse
     {
-        $pegawai = $this->pegawai($request);
-        if (! $pegawai) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Profil pegawai belum terhubung. Hubungi administrator.',
-            ]);
-        }
+        $result = $this->submissionService->clockIn($request);
 
-        $existing = $this->todayPresensi($pegawai);
-        if ($existing?->is_day_off) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Hari ini tercatat sebagai hari libur. Clock-in tidak diperlukan.',
-            ]);
-        }
-        if ($existing?->clock_in_at) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Clock-in hari ini sudah tercatat dan tidak dapat dikirim ulang.',
-            ]);
-        }
-
-        $office = $this->office();
-        if (! $office) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Lokasi kantor belum dikonfigurasi. Hubungi administrator.',
-            ]);
-        }
-
-        $data = $request->validated();
-        $verifiedLocation = $this->locationVerifier->verify($request, 'clock-in');
-        $distance = $this->distanceInMeters(
-            $verifiedLocation->latitude,
-            $verifiedLocation->longitude,
-            (float) $office->latitude,
-            (float) $office->longitude,
-        );
-        $outsideRadius = $distance > $office->radius_meters;
-
-        if ($outsideRadius && ! $request->boolean('outside_radius_confirmed')) {
-            throw ValidationException::withMessages([
-                'outside_radius_confirmed' => 'Anda berada di luar radius kantor. Tinjau lokasi dan berikan catatan sebelum melanjutkan.',
-            ]);
-        }
-
-        $outsideNote = trim((string) ($data['outside_radius_note'] ?? ''));
-        if ($outsideRadius && mb_strlen($outsideNote) < 5) {
-            throw ValidationException::withMessages([
-                'outside_radius_note' => 'Catatan lokasi di luar radius wajib diisi minimal 5 karakter.',
-            ]);
-        }
-        $notes = $existing?->notes;
-        if ($outsideRadius) {
-            $notes = $notes
-                ? $notes."\n\nCatatan clock-in di luar radius: ".$outsideNote
-                : $outsideNote;
-        }
-
-        $profilePhotoPath = $this->profilePhotoPath($request);
-        if (! $profilePhotoPath) {
-            throw ValidationException::withMessages([
-                'photo' => 'Foto profil wajah belum tersedia. Buka menu Akun dan tambahkan foto profil terlebih dahulu.',
-            ]);
-        }
-
-        try {
-            $verification = $this->faceVerifier->compare(
-                Storage::disk('local')->get($profilePhotoPath),
-                (string) file_get_contents($request->file('photo')->getRealPath()),
-            );
-        } catch (FaceVerificationException $exception) {
-            if ($exception->reason === FaceVerificationException::SERVICE_UNAVAILABLE) {
-                report($exception);
-
-                throw ValidationException::withMessages([
-                    'attendance' => 'Layanan verifikasi wajah sedang tidak tersedia. Silakan coba beberapa saat lagi.',
-                ]);
-            }
-
-            $message = match ($exception->reason) {
-                FaceVerificationException::INVALID_PROFILE_PHOTO => 'Foto profil tidak dapat digunakan untuk verifikasi. Perbarui foto profil dengan satu wajah yang terlihat jelas.',
-                FaceVerificationException::MULTIPLE_FACES => 'Terdeteksi lebih dari satu wajah. Pastikan hanya Anda yang terlihat lalu coba verifikasi kembali.',
-                FaceVerificationException::SPOOF_DETECTED => 'Wajah terindikasi berasal dari layar, cetakan, atau rekaman. Hadapkan wajah langsung ke kamera lalu coba kembali.',
-                default => 'Wajah tidak terdeteksi dengan jelas. Hadapkan wajah ke kamera lalu coba verifikasi kembali.',
-            };
-
-            throw ValidationException::withMessages(['photo' => $message]);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'attendance' => 'Layanan verifikasi wajah sedang tidak tersedia. Silakan coba beberapa saat lagi.',
-            ]);
-        }
-
-        if (! $verification->matched) {
-            throw ValidationException::withMessages([
-                'photo' => 'Wajah tidak cocok dengan foto profil. Pastikan Anda menggunakan akun sendiri lalu coba verifikasi kembali.',
-            ]);
-        }
-
-        $path = $request->file('photo')->store("presensi-photos/{$pegawai->id}/clock-in", 'local');
-        if (! $path) {
-            throw ValidationException::withMessages([
-                'photo' => 'Foto belum berhasil disimpan. Pastikan kamera aktif lalu coba verifikasi kembali.',
-            ]);
-        }
-
-        try {
-            DB::transaction(function () use ($distance, $existing, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): void {
-                $presensi = $existing ?? new Presensi;
-                $presensi->fill([
-                    'pegawai_id' => $pegawai->id,
-                    'shift_id' => $pegawai->shift_id,
-                    'tanggal_presensi' => now()->toDateString(),
-                    'clock_in_at' => now(),
-                    'clock_in_location_id' => $office->id,
-                    'clock_in_latitude' => $verifiedLocation->latitude,
-                    'clock_in_longitude' => $verifiedLocation->longitude,
-                    'clock_in_accuracy' => $verifiedLocation->accuracy,
-                    'clock_in_location_sample_count' => $verifiedLocation->sampleCount,
-                    'clock_in_location_verified_at' => now(),
-                    'clock_in_address' => $outsideRadius
-                        ? sprintf('Di luar radius %s (%s)', $office->name, $this->formatDistance($distance))
-                        : ($office->address ?: $office->name),
-                    'clock_in_photo_path' => $path,
-                    'face_verified_at' => now(),
-                    'face_similarity' => $verification->similarity,
-                    'face_verification_provider' => $verification->provider,
-                    'is_day_off' => false,
-                    'notes' => $notes,
-                    'updated_by' => $request->user()->id,
-                ])->save();
-            });
-        } catch (Throwable $exception) {
-            Storage::disk('local')->delete($path);
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'attendance' => 'Clock-in belum berhasil disimpan. Silakan coba kembali.',
-            ]);
-        }
-
-        $this->locationVerifier->consumeChallenge($request, 'clock-in');
-
-        return to_route('absensi.mobile.clock-in.success')->with(
-            'success',
-            $outsideRadius
-                ? 'Clock-in berhasil dikirim dengan catatan lokasi di luar radius.'
-                : 'Clock-in berhasil. Selamat bekerja!',
-        );
+        return to_route('absensi.mobile.clock-in.success')->with('success', $result['message']);
     }
 
     private function pegawai(Request $request): ?Pegawai
@@ -287,9 +137,7 @@ class ClockInController extends Controller
 
     private function todayPresensi(Pegawai $pegawai): ?Presensi
     {
-        return $pegawai->presensis()
-            ->whereDate('tanggal_presensi', now()->toDateString())
-            ->first();
+        return $pegawai->presensis()->whereDate('tanggal_presensi', now()->toDateString())->first();
     }
 
     private function profilePhotoUrl(Request $request): ?string
@@ -297,11 +145,7 @@ class ClockInController extends Controller
         $user = $request->user();
         $path = $this->profilePhotoPath($request);
 
-        if (
-            ! $user
-            || ! $user->can(AccessPermission::MOBILE_ACCOUNT)
-            || ! $path
-        ) {
+        if (! $user || ! $user->can(AccessPermission::MOBILE_ACCOUNT) || ! $path) {
             return null;
         }
 
@@ -313,13 +157,7 @@ class ClockInController extends Controller
         $user = $request->user();
         $path = $user?->profile_photo_path;
 
-        if (
-            ! $user
-            || ! $path
-            || ! Str::startsWith($path, "profile-photos/{$user->id}/")
-            || str_contains($path, '..')
-            || ! Storage::disk('local')->exists($path)
-        ) {
+        if (! $user || ! $path || ! Str::startsWith($path, "profile-photos/{$user->id}/") || str_contains($path, '..') || ! Storage::disk('local')->exists($path)) {
             return null;
         }
 
@@ -338,12 +176,5 @@ class ClockInController extends Controller
         $a = min(1, max(0, $a));
 
         return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
-    }
-
-    private function formatDistance(float $meters): string
-    {
-        return $meters >= 1000
-            ? number_format($meters / 1000, 1, ',', '.').' km dari kantor'
-            : number_format($meters, 0, ',', '.').' m dari kantor';
     }
 }

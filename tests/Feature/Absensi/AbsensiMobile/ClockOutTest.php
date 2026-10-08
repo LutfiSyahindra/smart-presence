@@ -224,6 +224,60 @@ class ClockOutTest extends TestCase
                 ->where('todayAttendance.clocked_out_at', '05:30'));
     }
 
+    public function test_clock_out_rejects_fake_gps_without_saving_photo_or_clock_out(): void
+    {
+        $this->travelTo('2026-09-16 14:30:00');
+        $presensi = $this->attendance(['clock_in_at' => '2026-09-16 07:00:00']);
+        $payload = $this->payload(['location_source' => 'android_native']);
+        foreach ($payload['location_samples'] as &$sample) {
+            $sample['is_mock'] = false;
+        }
+        unset($sample);
+        $payload['location_samples'][] = array_merge($payload['location_samples'][2], [
+            'accuracy' => 5000,
+            'is_mock' => true,
+        ]);
+
+        $this->mock(FaceVerifier::class, fn (MockInterface $mock) => $mock->shouldNotReceive('compare'));
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-out', $payload)
+            ->assertSessionHasErrors([
+                'location_proof' => 'Fake GPS terdeteksi. Nonaktifkan aplikasi lokasi palsu lalu ambil lokasi kembali.',
+            ]);
+
+        $this->assertNull($presensi->fresh()->clock_out_at);
+        $this->assertSame([], Storage::disk('local')->allFiles("presensi-photos/{$this->pegawai->id}"));
+    }
+
+    public function test_android_clock_out_requires_native_mock_checks(): void
+    {
+        $this->travelTo('2026-09-16 14:30:00');
+        $presensi = $this->attendance(['clock_in_at' => '2026-09-16 07:00:00']);
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-out', $this->payload(['location_source' => 'android_native']))
+            ->assertSessionHasErrors('location_samples.0.is_mock');
+
+        $this->assertNull($presensi->fresh()->clock_out_at);
+    }
+
+    public function test_android_clock_out_accepts_non_mock_samples(): void
+    {
+        $this->travelTo('2026-09-16 14:30:00');
+        $presensi = $this->attendance(['clock_in_at' => '2026-09-16 07:00:00']);
+        $payload = $this->payload(['location_source' => 'android_native']);
+        foreach ($payload['location_samples'] as &$sample) {
+            $sample['is_mock'] = '0';
+        }
+        unset($sample);
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-out', $payload)
+            ->assertRedirect('/absensi/mobile/clock-out/berhasil');
+
+        $this->assertNotNull($presensi->fresh()->clock_out_at);
+    }
+
     /** @param array<string, mixed> $overrides */
     private function attendance(array $overrides = []): Presensi
     {

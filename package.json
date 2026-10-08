@@ -5,6 +5,11 @@
         "build": "vite build",
         "build:ssr": "vite build && vite build --ssr",
         "dev": "vite",
+        "mobile:dev": "npm --prefix apps/absensi-mobile run dev",
+        "mobile:build": "npm --prefix apps/absensi-mobile run build",
+        "mobile:sync": "npm --prefix apps/absensi-mobile run cap:sync",
+        "mobile:android": "npm --prefix apps/absensi-mobile run cap:android",
+        "mobile:apk:dev": "npm --prefix apps/absensi-mobile run android:apk:dev",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix"

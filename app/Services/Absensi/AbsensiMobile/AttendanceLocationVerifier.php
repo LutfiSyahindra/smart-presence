@@ -4,6 +4,7 @@ namespace App\Services\Absensi\AbsensiMobile;
 
 use App\ValueObjects\VerifiedAttendanceLocation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\IpUtils;
@@ -16,11 +17,21 @@ class AttendanceLocationVerifier
     public function issueChallenge(Request $request, string $action): array
     {
         $token = Str::random(64);
-        $request->session()->put($this->sessionKey($action), [
+        $challenge = [
             'token_hash' => hash('sha256', $token),
             'user_id' => $request->user()?->getAuthIdentifier(),
             'issued_at' => now()->getTimestampMs(),
-        ]);
+        ];
+
+        if ($request->hasSession()) {
+            $request->session()->put($this->sessionKey($action), $challenge);
+        } else {
+            Cache::put(
+                $this->cacheKey($action, $token),
+                $challenge,
+                now()->addMilliseconds($this->proofTtlMilliseconds()),
+            );
+        }
 
         return [
             'token' => $token,
@@ -35,8 +46,10 @@ class AttendanceLocationVerifier
     {
         $this->verifyTrustedNetwork($request);
 
-        $challenge = $request->session()->get($this->sessionKey($action));
         $token = (string) $request->input('location_token', '');
+        $challenge = $request->hasSession()
+            ? $request->session()->get($this->sessionKey($action))
+            : Cache::get($this->cacheKey($action, $token));
         $now = now()->getTimestampMs();
 
         if (
@@ -52,6 +65,16 @@ class AttendanceLocationVerifier
 
         /** @var list<array{latitude: float|int|string, longitude: float|int|string, accuracy: float|int|string, captured_at: int|string}> $samples */
         $samples = $request->input('location_samples', []);
+        // Inspect every submitted fix before accuracy filtering. A mocked fix
+        // must also be rejected when other, more accurate fixes look legitimate.
+        foreach ($samples as $index => $sample) {
+            if ($request->boolean("location_samples.{$index}.is_mock")) {
+                $this->fail('Fake GPS terdeteksi. Nonaktifkan aplikasi lokasi palsu lalu ambil lokasi kembali.');
+            }
+            if ($request->input('location_source') === 'android_native' && ! array_key_exists('is_mock', $sample)) {
+                $this->fail('Pemeriksaan keaslian GPS Android belum tersedia. Perbarui aplikasi lalu ambil lokasi kembali.');
+            }
+        }
         $samples = array_map(static fn (array $sample): array => [
             'latitude' => (float) $sample['latitude'],
             'longitude' => (float) $sample['longitude'],
@@ -122,7 +145,13 @@ class AttendanceLocationVerifier
 
     public function consumeChallenge(Request $request, string $action): void
     {
-        $request->session()->forget($this->sessionKey($action));
+        if ($request->hasSession()) {
+            $request->session()->forget($this->sessionKey($action));
+
+            return;
+        }
+
+        Cache::forget($this->cacheKey($action, (string) $request->input('location_token', '')));
     }
 
     private function verifyTrustedNetwork(Request $request): void
@@ -168,6 +197,11 @@ class AttendanceLocationVerifier
     private function sessionKey(string $action): string
     {
         return "attendance.location_challenges.{$action}";
+    }
+
+    private function cacheKey(string $action, string $token): string
+    {
+        return 'attendance:location-challenge:'.$action.':'.hash('sha256', $token);
     }
 
     private function minSamples(): int

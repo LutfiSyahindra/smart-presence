@@ -2,31 +2,26 @@
 
 namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
-use App\Contracts\FaceVerifier;
-use App\Exceptions\FaceVerificationException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Absensi\AbsensiMobile\StoreClockOutRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
+use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
 use App\Support\AccessPermission;
-use App\ValueObjects\FaceVerificationResult;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Throwable;
 
 class ClockOutController extends Controller
 {
     public function __construct(
-        private readonly FaceVerifier $faceVerifier,
         private readonly AttendanceLocationVerifier $locationVerifier,
+        private readonly AttendanceSubmissionService $submissionService,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -97,7 +92,6 @@ class ClockOutController extends Controller
             'shift:id,nama,jam_masuk,jam_keluar',
             'clockOutLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
-
         $location = $attendance->clockOutLocation;
         $outsideRadius = $location
             && $attendance->clock_out_latitude !== null
@@ -129,175 +123,9 @@ class ClockOutController extends Controller
 
     public function store(StoreClockOutRequest $request): RedirectResponse
     {
-        $pegawai = $this->pegawai($request);
-        if (! $pegawai) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Profil pegawai belum terhubung. Hubungi administrator.',
-            ]);
-        }
+        $result = $this->submissionService->clockOut($request);
 
-        $attendance = $this->attendanceForClockOut($pegawai);
-        if ($attendance?->is_day_off) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.',
-            ]);
-        }
-        if (! $attendance?->clock_in_at) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Lakukan clock-in terlebih dahulu sebelum clock-out.',
-            ]);
-        }
-        if ($attendance->clock_out_at) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Clock-out sudah tercatat dan tidak dapat dikirim ulang.',
-            ]);
-        }
-        if (now()->lt($attendance->clock_in_at)) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Waktu clock-out tidak boleh lebih awal dari waktu clock-in.',
-            ]);
-        }
-
-        $office = $this->office();
-        if (! $office) {
-            throw ValidationException::withMessages([
-                'attendance' => 'Lokasi kantor belum dikonfigurasi. Hubungi administrator.',
-            ]);
-        }
-
-        $data = $request->validated();
-        $verifiedLocation = $this->locationVerifier->verify($request, 'clock-out');
-        $distance = $this->distanceInMeters(
-            $verifiedLocation->latitude,
-            $verifiedLocation->longitude,
-            (float) $office->latitude,
-            (float) $office->longitude,
-        );
-        $outsideRadius = $distance > $office->radius_meters;
-
-        if ($outsideRadius && ! $request->boolean('outside_radius_confirmed')) {
-            throw ValidationException::withMessages([
-                'outside_radius_confirmed' => 'Anda berada di luar radius kantor. Tinjau lokasi dan berikan catatan sebelum melanjutkan.',
-            ]);
-        }
-
-        $outsideNote = trim((string) ($data['outside_radius_note'] ?? ''));
-        if ($outsideRadius && mb_strlen($outsideNote) < 5) {
-            throw ValidationException::withMessages([
-                'outside_radius_note' => 'Catatan lokasi di luar radius wajib diisi minimal 5 karakter.',
-            ]);
-        }
-
-        $notes = $attendance->notes;
-        if ($outsideRadius) {
-            $notes = $notes
-                ? $notes."\n\nCatatan clock-out di luar radius: ".$outsideNote
-                : $outsideNote;
-        }
-
-        $profilePhotoPath = $this->profilePhotoPath($request);
-        if (! $profilePhotoPath) {
-            throw ValidationException::withMessages([
-                'photo' => 'Foto profil wajah belum tersedia. Buka menu Akun dan tambahkan foto profil terlebih dahulu.',
-            ]);
-        }
-
-        $verification = $this->verifyFace($request, $profilePhotoPath);
-        if (! $verification->matched) {
-            throw ValidationException::withMessages([
-                'photo' => 'Wajah tidak cocok dengan foto profil. Pastikan Anda menggunakan akun sendiri lalu coba verifikasi kembali.',
-            ]);
-        }
-
-        $path = $request->file('photo')->store("presensi-photos/{$pegawai->id}/clock-out", 'local');
-        if (! $path) {
-            throw ValidationException::withMessages([
-                'photo' => 'Foto belum berhasil disimpan. Pastikan kamera aktif lalu coba verifikasi kembali.',
-            ]);
-        }
-
-        try {
-            DB::transaction(function () use ($attendance, $distance, $notes, $office, $outsideRadius, $path, $request, $verification, $verifiedLocation): void {
-                $lockedAttendance = Presensi::query()->lockForUpdate()->findOrFail($attendance->id);
-                if ($lockedAttendance->clock_out_at) {
-                    throw ValidationException::withMessages([
-                        'attendance' => 'Clock-out sudah tercatat dan tidak dapat dikirim ulang.',
-                    ]);
-                }
-
-                $lockedAttendance->fill([
-                    'clock_out_at' => now(),
-                    'clock_out_location_id' => $office->id,
-                    'clock_out_latitude' => $verifiedLocation->latitude,
-                    'clock_out_longitude' => $verifiedLocation->longitude,
-                    'clock_out_accuracy' => $verifiedLocation->accuracy,
-                    'clock_out_location_sample_count' => $verifiedLocation->sampleCount,
-                    'clock_out_location_verified_at' => now(),
-                    'clock_out_address' => $outsideRadius
-                        ? sprintf('Di luar radius %s (%s)', $office->name, $this->formatDistance($distance))
-                        : ($office->address ?: $office->name),
-                    'clock_out_photo_path' => $path,
-                    'clock_out_face_verified_at' => now(),
-                    'clock_out_face_similarity' => $verification->similarity,
-                    'clock_out_face_verification_provider' => $verification->provider,
-                    'notes' => $notes,
-                    'updated_by' => $request->user()->id,
-                ])->save();
-            });
-        } catch (ValidationException $exception) {
-            Storage::disk('local')->delete($path);
-
-            throw $exception;
-        } catch (Throwable $exception) {
-            Storage::disk('local')->delete($path);
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'attendance' => 'Clock-out belum berhasil disimpan. Silakan coba kembali.',
-            ]);
-        }
-
-        $this->locationVerifier->consumeChallenge($request, 'clock-out');
-
-        return to_route('absensi.mobile.clock-out.success')->with(
-            'success',
-            $outsideRadius
-                ? 'Clock-out berhasil dikirim dengan catatan lokasi di luar radius.'
-                : 'Clock-out berhasil. Terima kasih atas kerja keras Anda!',
-        );
-    }
-
-    private function verifyFace(StoreClockOutRequest $request, string $profilePhotoPath): FaceVerificationResult
-    {
-        try {
-            return $this->faceVerifier->compare(
-                Storage::disk('local')->get($profilePhotoPath),
-                (string) file_get_contents($request->file('photo')->getRealPath()),
-            );
-        } catch (FaceVerificationException $exception) {
-            if ($exception->reason === FaceVerificationException::SERVICE_UNAVAILABLE) {
-                report($exception);
-
-                throw ValidationException::withMessages([
-                    'attendance' => 'Layanan verifikasi wajah sedang tidak tersedia. Silakan coba beberapa saat lagi.',
-                ]);
-            }
-
-            $message = match ($exception->reason) {
-                FaceVerificationException::INVALID_PROFILE_PHOTO => 'Foto profil tidak dapat digunakan untuk verifikasi. Perbarui foto profil dengan satu wajah yang terlihat jelas.',
-                FaceVerificationException::MULTIPLE_FACES => 'Terdeteksi lebih dari satu wajah. Pastikan hanya Anda yang terlihat lalu coba verifikasi kembali.',
-                FaceVerificationException::SPOOF_DETECTED => 'Wajah terindikasi berasal dari layar, cetakan, atau rekaman. Hadapkan wajah langsung ke kamera lalu coba kembali.',
-                default => 'Wajah tidak terdeteksi dengan jelas. Hadapkan wajah ke kamera lalu coba verifikasi kembali.',
-            };
-
-            throw ValidationException::withMessages(['photo' => $message]);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'attendance' => 'Layanan verifikasi wajah sedang tidak tersedia. Silakan coba beberapa saat lagi.',
-            ]);
-        }
+        return to_route('absensi.mobile.clock-out.success')->with('success', $result['message']);
     }
 
     private function pegawai(Request $request): ?Pegawai
@@ -318,7 +146,6 @@ class ClockOutController extends Controller
             ->with('shift:id,nama,jam_masuk,jam_keluar')
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
-
         if ($today) {
             return $today;
         }
@@ -330,11 +157,7 @@ class ClockOutController extends Controller
             ->latest('clock_in_at')
             ->first();
 
-        if (! $previous?->shift) {
-            return null;
-        }
-
-        return (string) $previous->shift->jam_keluar <= (string) $previous->shift->jam_masuk
+        return $previous?->shift && (string) $previous->shift->jam_keluar <= (string) $previous->shift->jam_masuk
             ? $previous
             : null;
     }
@@ -356,13 +179,7 @@ class ClockOutController extends Controller
         $user = $request->user();
         $path = $user?->profile_photo_path;
 
-        if (
-            ! $user
-            || ! $path
-            || ! Str::startsWith($path, "profile-photos/{$user->id}/")
-            || str_contains($path, '..')
-            || ! Storage::disk('local')->exists($path)
-        ) {
+        if (! $user || ! $path || ! Str::startsWith($path, "profile-photos/{$user->id}/") || str_contains($path, '..') || ! Storage::disk('local')->exists($path)) {
             return null;
         }
 
@@ -381,12 +198,5 @@ class ClockOutController extends Controller
         $a = min(1, max(0, $a));
 
         return $earthRadius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
-    }
-
-    private function formatDistance(float $meters): string
-    {
-        return $meters >= 1000
-            ? number_format($meters / 1000, 1, ',', '.').' km dari kantor'
-            : number_format($meters, 0, ',', '.').' m dari kantor';
     }
 }

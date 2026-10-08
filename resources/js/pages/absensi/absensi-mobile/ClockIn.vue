@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
 import type { SharedData } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -32,8 +33,9 @@ interface CurrentLocation {
 }
 
 interface LocationSample extends CurrentLocation {
-    [key: string]: number;
+    [key: string]: number | boolean | undefined;
     captured_at: number;
+    is_mock?: boolean;
 }
 
 interface ExtendedGeolocationCoordinates extends GeolocationCoordinates {
@@ -89,6 +91,7 @@ const cameraStream = ref<MediaStream | null>(null);
 const cameraStarting = ref(false);
 const cameraActive = ref(false);
 const capturingPhoto = ref(false);
+const checkingLocation = ref(false);
 const cameraError = ref('');
 const verificationElapsedSeconds = ref(0);
 let cameraRequestId = 0;
@@ -104,6 +107,7 @@ const form = useForm<{
     accuracy: number | null;
     location_token: string;
     location_samples: LocationSample[];
+    location_source: 'android_native' | 'browser';
     outside_radius_confirmed: boolean;
     outside_radius_note: string;
     photo: File | null;
@@ -113,6 +117,7 @@ const form = useForm<{
     accuracy: null,
     location_token: props.locationChallenge.token,
     location_samples: [],
+    location_source: isAndroidAttendance() ? 'android_native' : 'browser',
     outside_radius_confirmed: false,
     outside_radius_note: '',
     photo: null,
@@ -172,6 +177,7 @@ const accuracyState = computed(() => {
 const globalFormError = computed(() => (form.errors as Record<string, string>).attendance);
 const locationProofError = computed(() => (form.errors as Record<string, string>).location_proof);
 const verificationButtonLabel = computed(() => {
+    if (checkingLocation.value) return 'Memeriksa keamanan GPS...';
     if (capturingPhoto.value) return 'Mengambil foto wajah...';
     if (!form.processing) return `Verifikasi & ${actionTitle.value}`;
     if (verificationElapsedSeconds.value < 2) return 'Mengirim foto...';
@@ -241,7 +247,7 @@ const requestLocation = () => {
         return;
     }
 
-    if (!navigator.geolocation) {
+    if (!isAndroidAttendance() && !navigator.geolocation) {
         locationError.value = 'Perangkat ini tidak mendukung layanan lokasi.';
         return;
     }
@@ -260,6 +266,7 @@ const requestLocation = () => {
     const failCollection = (message: string) => {
         if (requestId !== locationRequestId) return;
 
+        locationRequestId += 1;
         stopLocationCollection();
         currentLocation.value = null;
         locationSamples.value = [];
@@ -271,6 +278,7 @@ const requestLocation = () => {
     const completeCollection = () => {
         if (requestId !== locationRequestId || locationSamples.value.length < props.locationChallenge.min_samples) return;
 
+        locationRequestId += 1;
         stopLocationCollection();
         currentLocation.value = {
             latitude: median(locationSamples.value.map((sample) => sample.latitude)),
@@ -292,6 +300,41 @@ const requestLocation = () => {
 
         if (locationSamples.value.length >= props.locationChallenge.min_samples) completeCollection();
     };
+
+    if (isAndroidAttendance()) {
+        locationDeadlineTimer = window.setTimeout(
+            () => {
+                failCollection('Verifikasi GPS melewati batas waktu. Pastikan GPS aktif dan coba di area terbuka.');
+            },
+            Math.max(45_000, collectionMilliseconds + 30_000),
+        );
+
+        void (async () => {
+            try {
+                // Each sample is a new Android fix, including its mock flag and
+                // provider timestamp. Do not resample a cached WebView position.
+                while (requestId === locationRequestId && locationSamples.value.length < 20) {
+                    const sample = await getAndroidAttendanceLocation();
+                    if (requestId !== locationRequestId) return;
+                    const previous = locationSamples.value.at(-1);
+                    if (sample.accuracy <= props.locationChallenge.max_accuracy_meters && (!previous || sample.captured_at > previous.captured_at)) {
+                        locationSamples.value.push(sample);
+                        locationSampleProgress.value = Math.min(locationSamples.value.length, props.locationChallenge.min_samples);
+                        const span = sample.captured_at - locationSamples.value[0].captured_at;
+                        if (locationSamples.value.length >= props.locationChallenge.min_samples && span >= collectionMilliseconds) {
+                            completeCollection();
+                            return;
+                        }
+                    }
+                    await new Promise((resolve) => window.setTimeout(resolve, Math.ceil(sampleIntervalMilliseconds)));
+                }
+                failCollection('GPS belum stabil. Aktifkan lokasi presisi dan ambil lokasi kembali.');
+            } catch (error) {
+                failCollection((error as Error)?.message || 'Pemeriksaan keamanan GPS gagal. Ambil lokasi kembali.');
+            }
+        })();
+        return;
+    }
 
     locationWatchId = navigator.geolocation.watchPosition(
         (position) => {
@@ -535,7 +578,7 @@ const checkLocationAgain = () => {
 };
 
 const goBack = () => {
-    if (form.processing) return;
+    if (form.processing || checkingLocation.value) return;
     if (currentStep.value === 2) {
         stopCamera();
         currentStep.value = 1;
@@ -546,13 +589,13 @@ const goBack = () => {
 };
 
 const returnToLocation = () => {
-    if (form.processing) return;
+    if (form.processing || checkingLocation.value) return;
     stopCamera();
     currentStep.value = 1;
 };
 
 const submitClockIn = async () => {
-    if (!currentLocation.value || form.processing || capturingPhoto.value) return;
+    if (!currentLocation.value || form.processing || capturingPhoto.value || checkingLocation.value) return;
 
     if (!cameraActive.value) {
         cameraError.value = 'Kamera perlu aktif untuk mengambil foto saat verifikasi.';
@@ -560,8 +603,38 @@ const submitClockIn = async () => {
         return;
     }
 
+    const requestId = locationRequestId;
     const photo = await capturePhoto();
-    if (!photo) return;
+    if (!photo || requestId !== locationRequestId || currentStep.value !== 2 || !currentLocation.value) return;
+
+    if (isAndroidAttendance()) {
+        checkingLocation.value = true;
+        try {
+            const latest = await getAndroidAttendanceLocation();
+            if (requestId !== locationRequestId || currentStep.value !== 2 || !currentLocation.value) return;
+            if (
+                latest.accuracy > props.locationChallenge.max_accuracy_meters ||
+                latest.captured_at <= (locationSamples.value.at(-1)?.captured_at ?? 0) ||
+                distanceBetween(currentLocation.value, latest) > currentLocation.value.accuracy + latest.accuracy + 25
+            ) {
+                throw new Error('Lokasi berubah atau GPS belum stabil. Ambil lokasi kembali sebelum presensi.');
+            }
+            locationSamples.value = [...locationSamples.value.slice(0, 19), latest];
+        } catch (error) {
+            if (requestId !== locationRequestId) return;
+            stopCamera();
+            currentStep.value = 1;
+            currentLocation.value = null;
+            locationSamples.value = [];
+            locationSampleProgress.value = 0;
+            form.photo = null;
+            form.location_samples = [];
+            locationError.value = (error as Error)?.message || 'Pemeriksaan keamanan GPS gagal. Ambil lokasi kembali.';
+            return;
+        } finally {
+            checkingLocation.value = false;
+        }
+    }
 
     form.latitude = currentLocation.value.latitude;
     form.longitude = currentLocation.value.longitude;
@@ -738,7 +811,7 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <div class="camera-card" :class="{ verifying: form.processing || capturingPhoto }">
+                    <div class="camera-card" :class="{ verifying: form.processing || capturingPhoto || checkingLocation }">
                         <div class="camera-grid" aria-hidden="true"></div>
                         <video v-if="cameraActive" ref="cameraVideo" autoplay muted playsinline aria-label="Pratinjau langsung kamera depan"></video>
                         <template v-else>
@@ -762,7 +835,7 @@ onUnmounted(() => {
                             ><i class="corner bottom-right"></i>
                         </div>
                         <span v-if="cameraActive" class="camera-live-status"><i></i> Siap mengambil foto</span>
-                        <div v-if="form.processing || capturingPhoto" class="verification-overlay" aria-live="polite">
+                        <div v-if="form.processing || capturingPhoto || checkingLocation" class="verification-overlay" aria-live="polite">
                             <span><LoaderCircle class="spin" /></span>
                             <strong>{{ verificationButtonLabel }}</strong>
                             <small>Jangan tutup halaman ini</small>
@@ -799,16 +872,18 @@ onUnmounted(() => {
                     <p v-if="globalFormError" class="submit-error"><CircleAlert /> {{ globalFormError }}</p>
 
                     <div class="photo-actions">
-                        <button type="button" class="text-action" :disabled="form.processing" @click="returnToLocation">Kembali ke lokasi</button>
+                        <button type="button" class="text-action" :disabled="form.processing || checkingLocation" @click="returnToLocation">
+                            Kembali ke lokasi
+                        </button>
                         <button
                             type="button"
                             class="primary-action"
-                            :disabled="form.processing || capturingPhoto || cameraStarting || !cameraActive"
+                            :disabled="form.processing || capturingPhoto || checkingLocation || cameraStarting || !cameraActive"
                             @click="submitClockIn"
                         >
-                            <LoaderCircle v-if="form.processing || capturingPhoto" class="spin" />
+                            <LoaderCircle v-if="form.processing || capturingPhoto || checkingLocation" class="spin" />
                             <span>{{ verificationButtonLabel }}</span>
-                            <Check v-if="!form.processing && !capturingPhoto" />
+                            <Check v-if="!form.processing && !capturingPhoto && !checkingLocation" />
                         </button>
                         <p class="auto-capture-note"><Camera /> Kamera mengambil satu foto hanya saat tombol di atas ditekan.</p>
                     </div>

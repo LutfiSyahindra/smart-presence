@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RSARSY Presence</string>
+    <string name="title_activity_main">RSARSY Presence</string>
+    <string name="package_name">id.rsarsy.presensi</string>
+    <string name="custom_url_scheme">id.rsarsy.presensi</string>
+</resources>

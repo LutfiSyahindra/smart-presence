@@ -90,7 +90,7 @@ class ClockInTest extends TestCase
                 ->where('office.radius_meters', 100)
                 ->where('locationChallenge.min_samples', 3)
                 ->where('locationChallenge.collection_seconds', 3)
-                ->where('locationChallenge.max_speed_meters_per_second', 80.0));
+                ->where('locationChallenge.max_speed_meters_per_second', 80));
     }
 
     public function test_employee_can_clock_in_inside_office_radius(): void
@@ -224,6 +224,55 @@ class ClockInTest extends TestCase
             ->assertSessionHasErrors('location_proof');
 
         $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_rejects_a_mock_location_even_when_its_accuracy_is_poor(): void
+    {
+        $payload = $this->payload();
+        $payload['location_samples'][] = array_merge($payload['location_samples'][2], [
+            'accuracy' => 5000,
+            'is_mock' => '1',
+        ]);
+
+        $this->mock(FaceVerifier::class, fn (MockInterface $mock) => $mock->shouldNotReceive('compare'));
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $payload)
+            ->assertSessionHasErrors([
+                'location_proof' => 'Fake GPS terdeteksi. Nonaktifkan aplikasi lokasi palsu lalu ambil lokasi kembali.',
+            ]);
+
+        $this->assertDatabaseCount('presensis', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles("presensi-photos/{$this->pegawai->id}"));
+    }
+
+    public function test_android_clock_in_requires_a_mock_check_for_every_sample(): void
+    {
+        $payload = $this->payload(['location_source' => 'android_native']);
+        foreach ($payload['location_samples'] as &$sample) {
+            $sample['is_mock'] = false;
+        }
+        unset($sample, $payload['location_samples'][1]['is_mock']);
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $payload)
+            ->assertSessionHasErrors('location_samples.1.is_mock');
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_android_clock_in_accepts_explicit_non_mock_samples(): void
+    {
+        $payload = $this->payload(['location_source' => 'android_native']);
+        foreach ($payload['location_samples'] as &$sample) {
+            $sample['is_mock'] = '0';
+        }
+        unset($sample);
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $payload)
+            ->assertRedirect('/absensi/mobile/clock-in/berhasil');
+
+        $this->assertDatabaseCount('presensis', 1);
     }
 
     public function test_clock_in_uses_the_verified_sample_median_instead_of_top_level_coordinates(): void

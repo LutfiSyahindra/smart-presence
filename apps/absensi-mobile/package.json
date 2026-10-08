@@ -1,0 +1,57 @@
+{
+    "name": "@rsarsy/absensi-mobile",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "engines": {
+        "node": ">=22.0.0"
+    },
+    "scripts": {
+        "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action dev",
+        "build": "npm --prefix ../.. run build",
+        "build:dev": "npm --prefix ../.. run build -- --mode development",
+        "preview": "npm run services:start",
+        "dev:prototype": "vite",
+        "build:prototype": "vue-tsc -b && vite build",
+        "preview:prototype": "vite preview",
+        "cap:sync": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action sync-all",
+        "cap:sync:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action sync-all -Development",
+        "cap:android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action open",
+        "cap:ios": "npm run cap:sync && cap open ios",
+        "android:doctor": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action doctor",
+        "android:sync": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action sync",
+        "android:sync:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action sync -Development",
+        "android:run": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action run",
+        "android:connect": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pwa-connect.ps1",
+        "android:apk": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action apk",
+        "android:apk:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action apk -Development",
+        "android:emulator:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/emulator.ps1 -Action setup",
+        "android:emulator": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/emulator.ps1 -Action start",
+        "android:hypervisor": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hypervisor.ps1",
+        "android:hypervisor:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hypervisor.ps1 -Action status",
+        "services:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/services.ps1 -Action start",
+        "services:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/services.ps1 -Action status",
+        "services:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/services.ps1 -Action stop"
+    },
+    "dependencies": {
+        "@aparajita/capacitor-secure-storage": "^8.0.0",
+        "@capacitor/camera": "^8.0.1",
+        "@capacitor/core": "^8.5.2",
+        "@capacitor/device": "^8.0.3",
+        "@capacitor/geolocation": "^8.2.2",
+        "@lucide/vue": "^1.47.0",
+        "vue": "^3.5.43",
+        "vue-router": "^5.0.3"
+    },
+    "devDependencies": {
+        "@capacitor/android": "^8.5.2",
+        "@capacitor/cli": "^8.5.2",
+        "@capacitor/ios": "^8.5.2",
+        "@types/node": "^24.0.0",
+        "@vitejs/plugin-vue": "^6.0.0",
+        "cross-env": "^10.1.0",
+        "typescript": "~5.9.0",
+        "vite": "^8.3.0",
+        "vue-tsc": "^3.1.4"
+    }
+}

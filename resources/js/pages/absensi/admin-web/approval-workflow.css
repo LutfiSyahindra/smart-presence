@@ -1,0 +1,761 @@
+.al-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    color: #253047;
+}
+.al-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+    padding: 32px;
+    border: 1px solid #e3e5f6;
+    border-radius: 20px;
+    background: linear-gradient(115deg, #fff 35%, #eeefff);
+}
+.al-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #6056c9;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.al-eyebrow svg {
+    width: 17px;
+    height: 17px;
+}
+.al-hero h1 {
+    margin: 12px 0;
+    font-size: 30px;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+}
+.al-hero p {
+    max-width: 650px;
+    margin: 0;
+    color: #737c90;
+    line-height: 1.7;
+}
+.al-module {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 18px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    background: #f0effc;
+    color: #665eb0;
+    font-size: 12px;
+    font-weight: 600;
+}
+.al-module > span {
+    color: #b4aed9;
+}
+.al-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.al-button svg {
+    width: 17px;
+    height: 17px;
+}
+.al-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+.al-stats article {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 23px;
+    border: 1px solid #e8eaf1;
+    border-radius: 15px;
+    background: #fff;
+}
+.al-stat-icon {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 13px;
+    background: #efedfc;
+    color: #7766d4;
+}
+.al-stat-icon.cyan {
+    background: #e8f7f6;
+    color: #3a9f96;
+}
+.al-stat-icon.amber {
+    background: #fff4e6;
+    color: #ca9246;
+}
+.al-stat-icon svg {
+    width: 23px;
+    height: 23px;
+}
+.al-stats article strong {
+    display: block;
+    font-size: 25px;
+    line-height: 1.3;
+}
+.al-stats article div > span {
+    display: block;
+    margin-top: 4px;
+    color: #7b8395;
+    font-size: 12px;
+}
+.al-panel {
+    overflow: hidden;
+    border: 1px solid #e6e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 4px 24px #29365903;
+}
+.al-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 24px;
+}
+.al-panel h2 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    font-weight: 700;
+}
+.al-panel-header p {
+    margin: 0;
+    color: #80899b;
+    font-size: 12px;
+}
+.al-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 290px;
+    padding: 9px 12px;
+    border: 1px solid #e1e5ef;
+    border-radius: 9px;
+    background: #fafbfe;
+}
+.al-search svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: #9299aa;
+}
+.al-search input {
+    width: 100%;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: #343d53;
+    font-size: 12px;
+}
+.al-search:focus-within {
+    border-color: #8b81dc;
+    box-shadow: 0 0 0 3px #7766d415;
+}
+.al-table-wrap {
+    overflow-x: auto;
+}
+.al-table {
+    width: 100%;
+    min-width: 780px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.al-table th {
+    padding: 13px 24px;
+    border-top: 1px solid #eef0f5;
+    border-bottom: 1px solid #eef0f5;
+    background: #fafbfe;
+    color: #8a92a4;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.al-table td {
+    padding: 21px 24px;
+    border-bottom: 1px solid #eff1f5;
+    vertical-align: middle;
+}
+.al-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.al-table tbody tr:hover {
+    background: #fdfdff;
+}
+.al-table td > strong {
+    display: block;
+    font-weight: 650;
+}
+.al-table td small {
+    display: block;
+    margin-top: 5px;
+    color: #81899c;
+    font-size: 11px;
+    line-height: 1.5;
+}
+.al-flow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.al-flow-person {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.al-flow-person > span,
+.al-step-number,
+.al-preview li > span {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #eeecfb;
+    color: #7363c4;
+    font-size: 11px;
+    font-weight: 700;
+}
+.al-flow-person strong {
+    display: block;
+    max-width: 160px;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.al-flow-person small {
+    font-size: 10px !important;
+    margin-top: 2px !important;
+}
+.al-flow-arrow {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: #c1c5d4;
+}
+.al-unavailable strong,
+.al-unavailable small {
+    color: #c06a5c !important;
+}
+.al-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+}
+.al-icon-button {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid #e7e8f1;
+    border-radius: 8px;
+    background: #fff;
+    color: #7b769d;
+}
+.al-icon-button svg {
+    width: 14px;
+    height: 14px;
+}
+.al-icon-button:hover {
+    background: #f3f1ff;
+}
+.al-icon-button.danger {
+    color: #c97470;
+}
+.al-icon-button.danger:hover {
+    background: #fff0ef;
+}
+.al-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 65px 24px;
+    text-align: center;
+}
+.al-empty > svg {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 18px;
+    color: #b4afd7;
+}
+.al-empty h3 {
+    margin: 0 0 9px;
+    font-size: 16px;
+    font-weight: 650;
+}
+.al-empty p {
+    max-width: 450px;
+    margin: 0 0 20px;
+    color: #8a91a1;
+    font-size: 12px;
+    line-height: 1.7;
+}
+.al-footnote {
+    margin: 0;
+    color: #8a92a4;
+    font-size: 12px;
+    line-height: 1.7;
+}
+.al-form-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 24px;
+}
+.al-form-body > * {
+    flex-shrink: 0;
+}
+.al-form .al-field .searchable-select-panel {
+    position: static;
+    margin-top: 5px;
+}
+.al-form-footer {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 18px 24px;
+    border-top: 1px solid #eceef4;
+    background: #fafbfe;
+    border-radius: 0 0 16px 16px;
+}
+.al-info {
+    padding: 14px 16px;
+    border: 1px solid #e4e3f6;
+    border-radius: 10px;
+    background: #f5f4fd;
+    color: #797395;
+    font-size: 12px;
+    line-height: 1.8;
+}
+.al-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    color: #515a70;
+    font-size: 12px;
+}
+.al-field > span {
+    font-weight: 650;
+}
+.al-field > span small {
+    font-weight: 400;
+    color: #8a91a0;
+}
+.al-field b {
+    color: #ce7b74;
+}
+.al-field input,
+.al-field select,
+.al-field textarea,
+.al-filter-select {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #dfe3ed;
+    border-radius: 9px;
+    background: #fff;
+    color: #434b60;
+    font-size: 12px;
+}
+.al-field select {
+    padding-right: 28px;
+}
+.al-field textarea {
+    resize: vertical;
+    line-height: 1.7;
+}
+.al-field input:focus,
+.al-field select:focus,
+.al-field textarea:focus,
+.al-filter-select:focus {
+    outline: 0;
+    border-color: #8b81dc;
+    box-shadow: 0 0 0 3px #7766d415;
+}
+.al-error {
+    display: block;
+    margin: 0;
+    color: #cc6962;
+    font-size: 11px;
+    line-height: 1.7;
+}
+.al-help {
+    margin: 0;
+    color: #8b92a2;
+    font-size: 11px;
+    line-height: 1.8;
+}
+.al-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+}
+.al-section-label > span {
+    color: #9b94bb;
+    font-size: 11px;
+}
+.al-step-input {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    border: 1px solid #e8e7f2;
+    border-radius: 12px;
+    background: #fcfbff;
+}
+.al-step-input .al-field {
+    min-width: 0;
+}
+.al-approver-summary {
+    display: grid;
+    flex: 1;
+    gap: 3px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.al-approver-summary strong {
+    color: #545c70;
+    font-size: 12px;
+}
+.al-approver-summary small {
+    color: #9298a6;
+    font-size: 10px;
+}
+.al-step-input .al-actions {
+    flex-shrink: 0;
+}
+.al-step-input .al-icon-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.al-add-step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px dashed #c9c3e9;
+    border-radius: 10px;
+    background: #fbfaff;
+    color: #8171c1;
+    font-size: 12px;
+}
+.al-add-step svg {
+    width: 15px;
+    height: 15px;
+}
+.al-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 15px 24px 0;
+    border-bottom: 1px solid #e9ebf2;
+}
+.al-tabs button {
+    flex-shrink: 0;
+    padding: 13px 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: #9298a7;
+    font-size: 12px;
+}
+.al-tabs button.active {
+    border-bottom-color: #8171d1;
+    color: #7562c8;
+    font-weight: 650;
+}
+.al-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.al-filter-select {
+    width: auto;
+    padding-right: 30px;
+}
+.al-status {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+.al-status.pending {
+    background: #fff4e3;
+    color: #bf9349;
+}
+.al-status.approved {
+    background: #e9f6f0;
+    color: #57987e;
+}
+.al-status.rejected {
+    background: #fcefed;
+    color: #c77770;
+}
+.al-date-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+.al-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 0;
+    list-style: none;
+}
+.al-preview li {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #68627c;
+    font-size: 12px;
+}
+.al-detail-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+}
+.al-detail-heading h3,
+.al-review h3 {
+    margin: 0 0 6px;
+    color: #394256;
+    font-size: 16px;
+    font-weight: 650;
+}
+.al-detail-heading p,
+.al-review > p {
+    margin: 0;
+    color: #9298a6;
+    font-size: 12px;
+    line-height: 1.7;
+}
+.al-reason {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #737d90;
+    font-size: 12px;
+    line-height: 1.8;
+}
+.al-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+.al-timeline li {
+    position: relative;
+    display: flex;
+    gap: 13px;
+    padding-bottom: 23px;
+}
+.al-timeline li::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 34px;
+    bottom: 4px;
+    width: 1px;
+    background: #e6e7ef;
+}
+.al-timeline li:last-child {
+    padding-bottom: 0;
+}
+.al-timeline li:last-child::before {
+    display: none;
+}
+.al-timeline-number {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #f0f1f6;
+    color: #a7adbb;
+    font-size: 12px;
+    font-weight: 650;
+}
+.al-timeline-number svg {
+    width: 15px;
+    height: 15px;
+}
+.al-timeline .pending .al-timeline-number {
+    background: #fff2d9;
+    color: #c3964f;
+}
+.al-timeline .approved .al-timeline-number {
+    background: #e6f4ec;
+    color: #6ca58c;
+}
+.al-timeline .rejected .al-timeline-number {
+    background: #fceae6;
+    color: #ca7970;
+}
+.al-timeline li > div {
+    min-width: 0;
+    padding-top: 2px;
+}
+.al-timeline strong {
+    display: block;
+    color: #545c70;
+    font-size: 12px;
+}
+.al-timeline small {
+    display: block;
+    margin-top: 4px;
+    color: #9299aa;
+    font-size: 10px;
+    line-height: 1.7;
+}
+.al-timeline .al-reason {
+    margin-top: 7px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: #f6f7fa;
+}
+.al-review {
+    padding: 18px;
+    border: 1px solid #e6e3f4;
+    border-radius: 12px;
+    background: #fbfaff;
+}
+.al-review .al-field {
+    margin-top: 15px;
+}
+.al-position + .al-position {
+    margin-top: 12px;
+}
+.al-position-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.al-position-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #e3dff3;
+    border-radius: 9px;
+    background: #f7f5fd;
+}
+.al-position-chip > span {
+    display: grid;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.al-position-chip strong {
+    color: #686080;
+    font-size: 12px;
+}
+.al-position-chip small {
+    color: #9298a6;
+    font-size: 10px;
+}
+.al-position-chip button {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    padding: 3px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #837693;
+}
+.al-position-chip button:hover {
+    background: #eae5f5;
+}
+.al-position-chip button svg {
+    width: 14px;
+    height: 14px;
+}
+@media (max-width: 1100px) {
+    .al-panel-header {
+        flex-wrap: wrap;
+    }
+    .al-hero {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .al-flow-person strong {
+        max-width: 120px;
+    }
+}
+@media (max-width: 767px) {
+    .al-hero {
+        padding: 24px;
+    }
+    .al-hero h1 {
+        font-size: 25px;
+    }
+    .al-hero p {
+        font-size: 12px;
+    }
+    .al-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .al-stats article {
+        padding: 17px;
+    }
+    .al-stats article strong {
+        font-size: 22px;
+    }
+    .al-filter-group,
+    .al-search {
+        width: 100%;
+        min-width: 0;
+    }
+    .al-filter-group {
+        flex-wrap: wrap;
+    }
+    .al-filter-select {
+        width: 100%;
+    }
+    .al-form-body {
+        padding: 20px;
+    }
+    .al-date-fields {
+        grid-template-columns: 1fr;
+    }
+    .al-step-input {
+        gap: 8px;
+        padding: 12px;
+    }
+    .al-tabs {
+        padding-left: 12px;
+    }
+}

@@ -14,6 +14,7 @@ const props = withDefaults(
     defineProps<{
         modelValue: string | number;
         options: SearchableSelectOption[];
+        label?: string;
         placeholder?: string;
         placeholderValue?: string | number;
         placeholderDisabled?: boolean;
@@ -22,6 +23,7 @@ const props = withDefaults(
         searchThreshold?: number;
     }>(),
     {
+        label: undefined,
         placeholder: 'Pilih data',
         placeholderValue: '',
         placeholderDisabled: false,
@@ -78,10 +80,12 @@ const toggle = async () => {
 
 const handleSearchKeydown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
+        event.stopPropagation();
         open.value = false;
         return;
     }
 
+    if (event.key === 'Enter') event.preventDefault();
     if (!filteredOptions.value.length) return;
     if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -90,7 +94,6 @@ const handleSearchKeydown = (event: KeyboardEvent) => {
         event.preventDefault();
         activeIndex.value = (activeIndex.value - 1 + filteredOptions.value.length) % filteredOptions.value.length;
     } else if (event.key === 'Enter') {
-        event.preventDefault();
         const option = filteredOptions.value[activeIndex.value];
         if (option && !option.disabled) selectValue(option.value);
     }
@@ -117,7 +120,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 
 <template>
     <div ref="root" class="searchable-select" :class="{ disabled, open }">
-        <select v-if="!useSearch" v-model="nativeValue" class="searchable-select-native" :disabled="disabled">
+        <select v-if="!useSearch" v-model="nativeValue" class="searchable-select-native" :disabled="disabled" :aria-label="label">
             <option :value="placeholderValue" :disabled="placeholderDisabled">{{ placeholder }}</option>
             <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">
                 {{ option.label }}
@@ -129,6 +132,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
                 type="button"
                 class="searchable-select-trigger"
                 :disabled="disabled"
+                :aria-label="label"
                 :aria-expanded="open"
                 :aria-controls="listboxId"
                 aria-haspopup="listbox"
@@ -146,12 +150,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
                         v-model="query"
                         type="search"
                         :placeholder="searchPlaceholder"
+                        :aria-label="searchPlaceholder"
                         autocomplete="off"
                         @keydown="handleSearchKeydown"
                     />
                 </label>
 
-                <div :id="listboxId" class="searchable-select-options" role="listbox">
+                <div :id="listboxId" class="searchable-select-options" role="listbox" :aria-label="label">
                     <button
                         v-if="placeholder && !placeholderDisabled && !query"
                         type="button"

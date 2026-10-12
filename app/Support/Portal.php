@@ -61,11 +61,20 @@ final class Portal
         return $request->user()?->can(AccessPermission::ADMIN_ACCESS) ?? false;
     }
 
+    public static function canAccessCuti(Request $request): bool
+    {
+        return $request->user() !== null && CutiAccess::allows($request->user());
+    }
+
     public static function homeRouteName(Request $request): string
     {
         if (self::current($request) === self::ADMIN) {
             if (self::canAccessAdmin($request)) {
                 return 'absensi.admin-web.dashboard';
+            }
+
+            if (self::canAccessCuti($request)) {
+                return 'absensi.admin-web.cuti.index';
             }
 
             self::remember($request, self::PRESENSI);

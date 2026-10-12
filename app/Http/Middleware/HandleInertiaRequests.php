@@ -51,6 +51,7 @@ class HandleInertiaRequests extends Middleware
             'portal' => [
                 'active' => fn () => Portal::current($request),
                 'can_access_admin' => fn () => Portal::canAccessAdmin($request),
+                'can_access_cuti' => fn () => Portal::canAccessCuti($request),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

@@ -25,6 +25,7 @@ export interface SharedData extends Record<string, unknown> {
     portal: {
         active: 'presensi' | 'admin';
         can_access_admin: boolean;
+        can_access_cuti: boolean;
     };
     flash: {
         success?: string;

@@ -5,6 +5,8 @@ use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceController as MobileAtt
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClockOutController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
+use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
+use App\Http\Controllers\Absensi\AdminWeb\Cuti\CutiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
@@ -52,6 +54,13 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
     ->name('absensi.admin-web.')
     ->group(function () {
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+        Route::get('approval-line', [ApprovalLineController::class, 'index'])->middleware('can:'.AccessPermission::APPROVAL_LINE_VIEW)->name('approval-line.index');
+        Route::post('approval-line', [ApprovalLineController::class, 'store'])->middleware('can:'.AccessPermission::APPROVAL_LINE_CREATE)->name('approval-line.store');
+        Route::put('approval-line/{approvalLine}', [ApprovalLineController::class, 'update'])->middleware('can:'.AccessPermission::APPROVAL_LINE_UPDATE)->name('approval-line.update');
+        Route::delete('approval-line/{approvalLine}', [ApprovalLineController::class, 'destroy'])->middleware('can:'.AccessPermission::APPROVAL_LINE_DELETE)->name('approval-line.destroy');
+
+        Route::post('cuti', [CutiController::class, 'store'])->name('cuti.store');
 
         Route::prefix('presensi')->name('presensi.')->group(function () {
             Route::get('pegawai', [PresensiController::class, 'index'])->middleware('can:'.AccessPermission::PRESENSI_VIEW)->name('index');
@@ -115,4 +124,13 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
             Route::delete('permissions/{permission}', [PermissionController::class, 'destroy'])->middleware('can:'.AccessPermission::PERMISSIONS_DELETE)->name('permissions.destroy');
 
         });
+    });
+
+// Assigned approvers can access their tasks without receiving other admin permissions.
+Route::middleware(['auth', 'verified', 'can:cuti.access'])
+    ->prefix('absensi/admin-web')
+    ->name('absensi.admin-web.')
+    ->group(function () {
+        Route::get('cuti', [CutiController::class, 'index'])->name('cuti.index');
+        Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->name('cuti.decide');
     });

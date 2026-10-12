@@ -2,6 +2,8 @@
 
 namespace App\Services\Absensi\AdminWeb\Setting\User;
 
+use App\Models\ApprovalLineStep;
+use App\Models\CutiApproval;
 use App\Models\User;
 use App\Repositories\Absensi\AdminWeb\Setting\Permission\PermissionRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepositoryInterface;
@@ -131,6 +133,13 @@ class UserService
         }
 
         DB::transaction(function () use ($user) {
+            if (ApprovalLineStep::query()->where('user_id', $user->id)->exists()
+                || CutiApproval::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'waiting'])->exists()) {
+                throw ValidationException::withMessages([
+                    'user' => 'Pengguna masih menjadi approver pada approval line atau pengajuan cuti yang berjalan. Selesaikan pengajuan dan ubah approval line terlebih dahulu.',
+                ]);
+            }
+
             if ($user->hasRole(self::SUPER_ADMIN) && $this->users->countWithRole(self::SUPER_ADMIN) <= 1) {
                 throw ValidationException::withMessages([
                     'user' => 'Super admin terakhir tidak dapat dihapus.',

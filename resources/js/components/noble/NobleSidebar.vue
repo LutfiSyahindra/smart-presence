@@ -7,6 +7,7 @@ import {
     CalendarDays,
     ChevronDown,
     ContactRound,
+    GitPullRequestArrow,
     HeartPulse,
     LayoutDashboard,
     MapPinned,
@@ -50,7 +51,8 @@ const emit = defineEmits<{
 const page = usePage<SharedData>();
 const currentPath = computed(() => page.url.split('?')[0]);
 const isSuperAdmin = computed(() => page.props.auth.roles.includes('super-admin'));
-const can = (permission: string) => isSuperAdmin.value || page.props.auth.permissions.includes(permission);
+const can = (permission: string) => page.props.portal.can_access_admin && (isSuperAdmin.value || page.props.auth.permissions.includes(permission));
+const homeUrl = computed(() => (page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/cuti'));
 const roleLabel = computed(() => page.props.auth.roles[0]?.replaceAll('-', ' ') ?? 'Pengguna');
 
 const navigation = computed<NavigationGroup[]>(() => {
@@ -62,9 +64,15 @@ const navigation = computed<NavigationGroup[]>(() => {
         presensiChildren.push({ title: 'Set Presensi Pegawai', href: '/absensi/admin-web/presensi/set-pegawai', icon: SlidersHorizontal });
     }
 
-    const mainItems: NavigationItem[] = [{ title: 'Dashboard', href: '/absensi/admin-web/dashboard', icon: LayoutDashboard }];
+    const mainItems: NavigationItem[] = [];
+    if (page.props.portal.can_access_admin) {
+        mainItems.push({ title: 'Dashboard', href: '/absensi/admin-web/dashboard', icon: LayoutDashboard });
+    }
     if (presensiChildren.length) {
         mainItems.push({ title: 'Presensi', icon: CalendarDays, children: presensiChildren });
+    }
+    if (can('approval-line.view')) {
+        mainItems.push({ title: 'Aproval Line', href: '/absensi/admin-web/approval-line', icon: GitPullRequestArrow });
     }
 
     const shiftChildren: NavigationItem[] = [];
@@ -86,7 +94,7 @@ const navigation = computed<NavigationGroup[]>(() => {
                 can('users.view') ? { title: 'Pengguna', href: '/absensi/admin-web/setting/users', icon: UsersRound } : null,
                 can('roles.view') ? { title: 'Role', href: '/absensi/admin-web/setting/roles', icon: ShieldCheck } : null,
                 can('permissions.view') ? { title: 'Permission', href: '/absensi/admin-web/setting/permissions', icon: UserCog } : null,
-            ].filter((item): item is NavigationItem => item !== null),
+            ].filter((item): item is NonNullable<typeof item> => item !== null),
         },
         {
             category: 'Master data',
@@ -95,7 +103,7 @@ const navigation = computed<NavigationGroup[]>(() => {
                 can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
                 shiftChildren.length ? { title: 'Shift', icon: Timer, children: shiftChildren } : null,
                 can('geolocation.view') ? { title: 'Geolokasi', href: '/absensi/admin-web/master-data/geolocation', icon: MapPinned } : null,
-            ].filter((item): item is NavigationItem => item !== null),
+            ].filter((item): item is NonNullable<typeof item> => item !== null),
         },
         // {
         //     category: 'Pengaturan',
@@ -132,7 +140,7 @@ watch(currentPath, () => {
 <template>
     <nav class="sidebar" aria-label="Navigasi utama">
         <div class="sidebar-header">
-            <Link href="/absensi/admin-web/dashboard" class="sidebar-brand premium-sidebar-brand" @click="emit('navigate')">
+            <Link :href="homeUrl" class="sidebar-brand premium-sidebar-brand" @click="emit('navigate')">
                 <span class="sidebar-brand-mark"><HeartPulse /></span>
                 <span class="sidebar-brand-copy">
                     <strong>RSARSY</strong>

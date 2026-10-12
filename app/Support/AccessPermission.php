@@ -70,6 +70,14 @@ final class AccessPermission
 
     public const PRESENSI_MANAGE = 'presensi.manage';
 
+    public const APPROVAL_LINE_VIEW = 'approval-line.view';
+
+    public const APPROVAL_LINE_CREATE = 'approval-line.create';
+
+    public const APPROVAL_LINE_UPDATE = 'approval-line.update';
+
+    public const APPROVAL_LINE_DELETE = 'approval-line.delete';
+
     /**
      * @return list<string>
      */
@@ -109,6 +117,10 @@ final class AccessPermission
             self::GEOLOCATION_DELETE,
             self::PRESENSI_VIEW,
             self::PRESENSI_MANAGE,
+            self::APPROVAL_LINE_VIEW,
+            self::APPROVAL_LINE_CREATE,
+            self::APPROVAL_LINE_UPDATE,
+            self::APPROVAL_LINE_DELETE,
         ];
     }
 

@@ -11,6 +11,7 @@ const emit = defineEmits<{
 
 const page = usePage<SharedData>();
 const user = computed(() => page.props.auth.user);
+const homeUrl = computed(() => (page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/cuti'));
 const roleLabel = computed(() => page.props.auth.roles[0]?.replaceAll('-', ' ') ?? 'Pengguna');
 const profileOpen = ref(false);
 const profileMenu = ref<HTMLElement | null>(null);
@@ -43,7 +44,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeWhenClickingOut
         </button>
 
         <div class="navbar-content">
-            <Link href="/absensi/admin-web/dashboard" class="noble-mobile-brand" aria-label="RSARSY Dashboard">
+            <Link :href="homeUrl" class="noble-mobile-brand" aria-label="RSARSY Beranda">
                 <HeartPulse />
                 <span>RSARSY</span>
             </Link>

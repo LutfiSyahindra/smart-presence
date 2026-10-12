@@ -21,6 +21,7 @@ use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepository;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepositoryInterface;
 use App\Services\Absensi\AbsensiMobile\FastApiFaceVerifier;
+use App\Support\CutiAccess;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -64,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::define('cuti.access', fn (User $user): bool => CutiAccess::allows($user));
+
         Gate::before(function (User $user): ?bool {
             return $user->hasRole('super-admin') ? true : null;
         });

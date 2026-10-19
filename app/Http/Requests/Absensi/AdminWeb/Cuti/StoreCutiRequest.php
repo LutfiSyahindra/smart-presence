@@ -14,6 +14,7 @@ class StoreCutiRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'master_cuti_id' => ['required', 'integer', 'exists:master_cutis,id'],
             'tanggal_mulai' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'tanggal_selesai' => ['required', 'date_format:Y-m-d', 'after_or_equal:tanggal_mulai'],
             'alasan' => ['required', 'string', 'max:2000'],
@@ -28,6 +29,8 @@ class StoreCutiRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'master_cuti_id.required' => 'Pilih jenis cuti yang diberikan kepada Anda.',
+            'master_cuti_id.exists' => 'Jenis cuti tidak tersedia.',
             'tanggal_mulai.after_or_equal' => 'Tanggal mulai tidak boleh sebelum hari ini.',
             'tanggal_selesai.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
             'alasan.required' => 'Alasan cuti wajib diisi.',

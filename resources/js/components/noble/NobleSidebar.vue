@@ -74,6 +74,9 @@ const navigation = computed<NavigationGroup[]>(() => {
     if (can('approval-line.view')) {
         mainItems.push({ title: 'Aproval Line', href: '/absensi/admin-web/approval-line', icon: GitPullRequestArrow });
     }
+    if (page.props.portal.can_access_cuti) {
+        mainItems.push({ title: 'Pengajuan Cuti', href: '/absensi/admin-web/cuti', icon: CalendarDays });
+    }
 
     const shiftChildren: NavigationItem[] = [];
     if (can('shift.view')) {
@@ -101,6 +104,7 @@ const navigation = computed<NavigationGroup[]>(() => {
             items: [
                 can('jabatan.view') ? { title: 'Unit dan Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
                 can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
+                can('master-cuti.view') ? { title: 'Master Cuti', href: '/absensi/admin-web/master-data/cuti', icon: CalendarDays } : null,
                 shiftChildren.length ? { title: 'Shift', icon: Timer, children: shiftChildren } : null,
                 can('geolocation.view') ? { title: 'Geolokasi', href: '/absensi/admin-web/master-data/geolocation', icon: MapPinned } : null,
             ].filter((item): item is NonNullable<typeof item> => item !== null),

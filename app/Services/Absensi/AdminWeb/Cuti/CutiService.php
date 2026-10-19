@@ -5,7 +5,10 @@ namespace App\Services\Absensi\AdminWeb\Cuti;
 use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Models\Jabatan;
+use App\Models\MasterCuti;
+use App\Models\PegawaiCuti;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -45,7 +48,34 @@ class CutiService
                 throw ValidationException::withMessages(['tanggal_mulai' => 'Tanggal ini bertumpang tindih dengan pengajuan cuti yang menunggu atau sudah disetujui.']);
             }
 
+            $master = MasterCuti::query()->find($data['master_cuti_id']);
+            if (! $master?->aktif) {
+                throw ValidationException::withMessages(['master_cuti_id' => 'Jenis cuti tidak aktif atau tidak tersedia.']);
+            }
+            $start = CarbonImmutable::parse($data['tanggal_mulai']);
+            $end = CarbonImmutable::parse($data['tanggal_selesai']);
+            $days = (int) $start->diffInDays($end) + 1;
+            $annual = $master->jenis === 'tahunan';
+            if ($annual && $start->year !== $end->year) {
+                throw ValidationException::withMessages(['tanggal_selesai' => 'Cuti tahunan yang melewati pergantian tahun harus diajukan terpisah untuk setiap tahun.']);
+            }
+            $allocation = PegawaiCuti::query()->where('master_cuti_id', $master->id)->where('pegawai_id', $pegawai->id)
+                ->where('tahun', $annual ? $start->year : 0)->lockForUpdate()->first();
+            if (! $allocation) {
+                throw ValidationException::withMessages(['master_cuti_id' => 'Jenis cuti atau kuota untuk tahun tersebut belum diberikan kepada Anda.']);
+            }
+            $used = $annual ? (int) CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('master_cuti_id', $master->id)
+                ->where('tahun_cuti', $start->year)->whereIn('status', ['pending', 'approved'])->sum('jumlah_hari') : 0;
+            $available = $annual ? $allocation->jumlah_hari - $used : $master->durasi_hari;
+            if ($days > $available) {
+                throw ValidationException::withMessages(['tanggal_selesai' => $annual
+                    ? 'Sisa cuti tahunan tidak mencukupi. Tersedia '.max(0, $available).' hari (pengajuan menunggu sudah diperhitungkan).'
+                    : "Durasi jenis cuti ini maksimal {$available} hari kalender per pengajuan."]);
+            }
+
             $cuti = CutiRequest::query()->create([
+                'master_cuti_id' => $master->id, 'nama_cuti' => $master->nama, 'jumlah_hari' => $days,
+                'tahun_cuti' => $annual ? $start->year : null, 'is_tahunan' => $annual,
                 'user_id' => $user->id, 'pegawai_id' => $pegawai->id, 'jabatan_id' => $jabatan->id,
                 'nama_pegawai' => $pegawai->nama, 'nama_jabatan' => $jabatan->nama, 'nama_unit' => $jabatan->unitKerja->nama,
                 'tanggal_mulai' => $data['tanggal_mulai'], 'tanggal_selesai' => $data['tanggal_selesai'], 'alasan' => $data['alasan'],

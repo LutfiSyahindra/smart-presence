@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Models\Jabatan;
+use App\Models\MasterCuti;
 use App\Models\Pegawai;
+use App\Models\PegawaiCuti;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AdminWeb\Setting\User\UserService;
@@ -31,6 +33,8 @@ class ApprovalLineCutiTest extends TestCase
 
     private Jabatan $jabatan;
 
+    private MasterCuti $masterCuti;
+
     /** @var list<User> */
     private array $approvers;
 
@@ -46,6 +50,8 @@ class ApprovalLineCutiTest extends TestCase
         $this->jabatan = Jabatan::query()->create(['unit_kerja_id' => $unit->id, 'kode' => 'STF', 'nama' => 'Staff SIRS', 'aktif' => true]);
         $pegawai = Pegawai::query()->create(['nama' => 'Staff Pemohon', 'jabatan_id' => $this->jabatan->id, 'unit_kerja_id' => $unit->id]);
         $pegawai->forceFill(['user_id' => $this->applicant->id])->save();
+        $this->masterCuti = MasterCuti::query()->create(['kode' => 'KELUARGA', 'nama' => 'Cuti Keluarga', 'durasi_hari' => 30, 'aktif' => true]);
+        PegawaiCuti::query()->create(['master_cuti_id' => $this->masterCuti->id, 'pegawai_id' => $pegawai->id, 'tahun' => 0, 'jumlah_hari' => 30]);
         $this->approvers = [$this->webUser(), $this->webUser(), $this->webUser()];
     }
 
@@ -69,7 +75,7 @@ class ApprovalLineCutiTest extends TestCase
 
     private function payload(): array
     {
-        return ['tanggal_mulai' => '2026-10-12', 'tanggal_selesai' => '2026-10-14', 'alasan' => 'Keperluan keluarga'];
+        return ['master_cuti_id' => $this->masterCuti->id, 'tanggal_mulai' => '2026-10-12', 'tanggal_selesai' => '2026-10-14', 'alasan' => 'Keperluan keluarga'];
     }
 
     private function submit(): CutiRequest
@@ -175,6 +181,7 @@ class ApprovalLineCutiTest extends TestCase
             'nama' => 'Pemohon kedua', 'jabatan_id' => $other->id, 'unit_kerja_id' => $other->unit_kerja_id,
         ]);
         $employee->forceFill(['user_id' => $secondApplicant->id])->save();
+        PegawaiCuti::query()->create(['master_cuti_id' => $this->masterCuti->id, 'pegawai_id' => $employee->id, 'tahun' => 0, 'jumlah_hari' => 30]);
         $this->actingAs($secondApplicant)->get(self::CUTI)->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('unavailableReason', null)->has('approvalPreview', 2));
         $this->post(self::CUTI, $this->payload())->assertSessionHasNoErrors();

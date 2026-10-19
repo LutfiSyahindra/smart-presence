@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Models\Jabatan;
+use App\Models\MasterCuti;
 use App\Models\Pegawai;
+use App\Models\PegawaiCuti;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AdminWeb\ApprovalLine\ApprovalLineService;
@@ -27,6 +29,8 @@ class ApprovalLineLemburTest extends TestCase
 
     private Jabatan $jabatan;
 
+    private MasterCuti $masterCuti;
+
     /** @var list<User> */
     private array $approvers;
 
@@ -36,6 +40,7 @@ class ApprovalLineLemburTest extends TestCase
         $this->seed(AuthorizationSeeder::class);
         $this->admin = User::factory()->create();
         $this->admin->assignRole('super-admin');
+        $this->masterCuti = MasterCuti::query()->create(['kode' => 'KELUARGA', 'nama' => 'Cuti Keluarga', 'durasi_hari' => 30, 'aktif' => true]);
         $unit = UnitKerja::query()->create(['kode' => 'SIRS', 'nama' => 'SIRS', 'aktif' => true]);
         $this->jabatan = Jabatan::query()->create([
             'unit_kerja_id' => $unit->id, 'kode' => 'STF', 'nama' => 'Staff SIRS', 'aktif' => true,
@@ -217,6 +222,7 @@ class ApprovalLineLemburTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->has('approvalPreview', 0)
                 ->where('unavailableReason', 'Approval line cuti untuk jabatan Anda belum diatur.'));
         $this->post('/absensi/admin-web/cuti', [
+            'master_cuti_id' => $this->masterCuti->id,
             'tanggal_mulai' => now()->addDay()->toDateString(), 'tanggal_selesai' => now()->addDays(2)->toDateString(), 'alasan' => 'Keluarga',
         ])->assertSessionHasErrors('cuti');
         $this->assertDatabaseCount('cuti_requests', 0);
@@ -234,7 +240,9 @@ class ApprovalLineLemburTest extends TestCase
             'nama' => 'Pemohon', 'jabatan_id' => $this->jabatan->id, 'unit_kerja_id' => $this->jabatan->unit_kerja_id,
         ]);
         $employee->forceFill(['user_id' => $applicant->id])->save();
+        PegawaiCuti::query()->create(['master_cuti_id' => $this->masterCuti->id, 'pegawai_id' => $employee->id, 'tahun' => 0, 'jumlah_hari' => 30]);
         $this->actingAs($applicant)->post('/absensi/admin-web/cuti', [
+            'master_cuti_id' => $this->masterCuti->id,
             'tanggal_mulai' => now()->addDay()->toDateString(), 'tanggal_selesai' => now()->addDays(2)->toDateString(), 'alasan' => 'Keluarga',
         ])->assertSessionHasNoErrors();
         $this->assertSame([$this->approvers[0]->id], CutiRequest::query()->sole()->approvals->pluck('user_id')->all());

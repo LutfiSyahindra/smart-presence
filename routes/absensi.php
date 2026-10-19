@@ -7,6 +7,7 @@ use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClock
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
 use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
 use App\Http\Controllers\Absensi\AdminWeb\Cuti\CutiController;
+use App\Http\Controllers\Absensi\AdminWeb\MasterData\Cuti\MasterCutiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
@@ -71,6 +72,15 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
         });
 
         Route::prefix('master-data')->name('master-data.')->group(function () {
+            Route::get('cuti', [MasterCutiController::class, 'index'])->middleware('can:'.AccessPermission::MASTER_CUTI_VIEW)->name('cuti.index');
+            Route::post('cuti', [MasterCutiController::class, 'store'])->middleware('can:'.AccessPermission::MASTER_CUTI_CREATE)->name('cuti.store');
+            Route::get('cuti/template', [MasterCutiController::class, 'template'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.template');
+            Route::post('cuti/import', [MasterCutiController::class, 'import'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.import');
+            Route::put('cuti/tahunan', [MasterCutiController::class, 'setAnnual'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.annual');
+            Route::post('cuti/{masterCuti}/allocate', [MasterCutiController::class, 'allocate'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.allocate');
+            Route::put('cuti/{masterCuti}', [MasterCutiController::class, 'update'])->middleware('can:'.AccessPermission::MASTER_CUTI_UPDATE)->name('cuti.update');
+            Route::delete('cuti/{masterCuti}', [MasterCutiController::class, 'destroy'])->middleware('can:'.AccessPermission::MASTER_CUTI_DELETE)->name('cuti.destroy');
+
             Route::get('jabatan', [JabatanController::class, 'index'])->middleware('can:'.AccessPermission::JABATAN_VIEW)->name('jabatan.index');
             Route::post('jabatan/units', [JabatanController::class, 'storeUnit'])->middleware('can:'.AccessPermission::JABATAN_CREATE)->name('jabatan.units.store');
             Route::put('jabatan/units/{unitKerja}', [JabatanController::class, 'updateUnit'])->middleware('can:'.AccessPermission::JABATAN_UPDATE)->name('jabatan.units.update');

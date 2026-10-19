@@ -34,6 +34,16 @@ final class AccessPermission
 
     public const SHIFT_DELETE = 'shift.delete';
 
+    public const MASTER_CUTI_VIEW = 'master-cuti.view';
+
+    public const MASTER_CUTI_CREATE = 'master-cuti.create';
+
+    public const MASTER_CUTI_UPDATE = 'master-cuti.update';
+
+    public const MASTER_CUTI_DELETE = 'master-cuti.delete';
+
+    public const MASTER_CUTI_ASSIGN = 'master-cuti.assign';
+
     public const USERS_VIEW = 'users.view';
 
     public const USERS_CREATE = 'users.create';
@@ -99,6 +109,11 @@ final class AccessPermission
             self::SHIFT_CREATE,
             self::SHIFT_UPDATE,
             self::SHIFT_DELETE,
+            self::MASTER_CUTI_VIEW,
+            self::MASTER_CUTI_CREATE,
+            self::MASTER_CUTI_UPDATE,
+            self::MASTER_CUTI_DELETE,
+            self::MASTER_CUTI_ASSIGN,
             self::USERS_VIEW,
             self::USERS_CREATE,
             self::USERS_UPDATE,

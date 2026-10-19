@@ -18,6 +18,8 @@ interface CutiRow {
     tanggal_mulai: string;
     tanggal_selesai: string;
     alasan: string;
+    nama_cuti: string | null;
+    jumlah_hari: number | null;
     status: string;
     current_level: number | null;
     created_at: string;
@@ -35,6 +37,7 @@ const props = defineProps<{
     canViewAll: boolean;
     canSubmit: boolean;
     today: string;
+    leaveOptions: { id: number; nama: string; is_tahunan: boolean; tahun: number; jumlah_hari: number; sisa: number }[];
 }>();
 const baseUrl = '/absensi/admin-web/cuti';
 const breadcrumbs: BreadcrumbItem[] = [
@@ -45,7 +48,10 @@ const creating = ref(false);
 const selected = ref<CutiRow | null>(null);
 const search = ref(props.filters.search);
 const status = ref(props.filters.status);
-const form = useForm({ tanggal_mulai: '', tanggal_selesai: '', alasan: '' });
+const form = useForm({ master_cuti_id: '', tanggal_mulai: '', tanggal_selesai: '', alasan: '' });
+const optionYear = computed(() => Number((form.tanggal_mulai || props.today).slice(0, 4)));
+const availableTypes = computed(() => props.leaveOptions.filter((option) => !option.is_tahunan || option.tahun === optionYear.value));
+const selectedType = computed(() => availableTypes.value.find((option) => String(option.id) === String(form.master_cuti_id)));
 const decisionForm = useForm({ decision: 'approved', note: '' });
 const formErrors = computed(() => form.errors as Record<string, string | undefined>);
 const tabs = computed(() => [
@@ -220,6 +226,7 @@ const decide = (decision: 'approved' | 'rejected') => {
                                 </td>
                                 <td>
                                     <strong>{{ date(cuti.tanggal_mulai) }}</strong
+                                    ><small>{{ cuti.nama_cuti || 'Pengajuan sebelum master cuti' }}</small
                                     ><small>s.d. {{ date(cuti.tanggal_selesai) }}</small
                                     ><small>{{ days(cuti.tanggal_mulai, cuti.tanggal_selesai) }} hari kalender</small>
                                 </td>
@@ -282,6 +289,20 @@ const decide = (decision: 'approved' | 'rejected') => {
                         ><br />{{ employee?.unit }} · {{ employee?.jabatan }}
                     </div>
                     <p v-if="formErrors.cuti" class="al-error" role="alert">{{ formErrors.cuti }}</p>
+                    <label class="al-field">
+                        <span>Jenis cuti <b>*</b></span>
+                        <select v-model="form.master_cuti_id" required>
+                            <option value="" disabled>Pilih jenis cuti</option>
+                            <option v-for="option in availableTypes" :key="option.id" :value="String(option.id)">
+                                {{ option.nama }} ·
+                                {{ option.is_tahunan ? `sisa ${option.sisa} hari (${option.tahun})` : `maksimal ${option.jumlah_hari} hari` }}
+                            </option>
+                        </select>
+                        <small v-if="form.errors.master_cuti_id" class="al-error">{{ form.errors.master_cuti_id }}</small>
+                        <small class="al-help"
+                            >Kuota tahunan mengikuti tahun tanggal mulai. Pengajuan menunggu sudah diperhitungkan pada sisa kuota.</small
+                        >
+                    </label>
                     <div class="al-date-fields">
                         <label class="al-field"
                             ><span>Tanggal mulai <b>*</b></span
@@ -301,6 +322,12 @@ const decide = (decision: 'approved' | 'rejected') => {
                     </div>
                     <p v-if="days(form.tanggal_mulai, form.tanggal_selesai)" class="al-help">
                         Durasi: {{ days(form.tanggal_mulai, form.tanggal_selesai) }} hari kalender.
+                        <template v-if="selectedType"
+                            >{{
+                                selectedType.is_tahunan ? `Sisa kuota: ${selectedType.sisa}` : `Batas durasi: ${selectedType.jumlah_hari}`
+                            }}
+                            hari.</template
+                        >
                     </p>
                     <label class="al-field"
                         ><span>Alasan cuti <b>*</b></span
@@ -346,6 +373,8 @@ const decide = (decision: 'approved' | 'rejected') => {
                         <span class="al-status" :class="selected.status">{{ labels[selected.status] }}</span>
                     </div>
                     <div class="al-info">
+                        <strong>{{ selected.nama_cuti || 'Pengajuan sebelum master cuti' }}</strong
+                        ><br />
                         <strong>{{ date(selected.tanggal_mulai) }} — {{ date(selected.tanggal_selesai) }}</strong
                         ><br />{{ days(selected.tanggal_mulai, selected.tanggal_selesai) }} hari kalender · Diajukan {{ selected.created_at }}
                     </div>

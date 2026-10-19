@@ -13,6 +13,7 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
+use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotifikasiController;
 use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
@@ -141,6 +142,9 @@ Route::middleware(['auth', 'verified', 'can:cuti.access'])
     ->prefix('absensi/admin-web')
     ->name('absensi.admin-web.')
     ->group(function () {
+        Route::redirect('notifikasi', '/absensi/admin-web/notifikasi/butuh-approval');
+        Route::get('notifikasi/butuh-approval', [NotifikasiController::class, 'index'])->name('notifikasi.index');
+        Route::get('notifikasi/disetujui', [NotifikasiController::class, 'index'])->defaults('category', 'disetujui')->name('notifikasi.approved');
         Route::get('cuti', [CutiController::class, 'index'])->name('cuti.index');
         Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->name('cuti.decide');
     });

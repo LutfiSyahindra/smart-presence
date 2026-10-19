@@ -11,7 +11,9 @@ const emit = defineEmits<{
 
 const page = usePage<SharedData>();
 const user = computed(() => page.props.auth.user);
-const homeUrl = computed(() => (page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/cuti'));
+const homeUrl = computed(() =>
+    page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/notifikasi/butuh-approval',
+);
 const roleLabel = computed(() => page.props.auth.roles[0]?.replaceAll('-', ' ') ?? 'Pengguna');
 const profileOpen = ref(false);
 const profileMenu = ref<HTMLElement | null>(null);

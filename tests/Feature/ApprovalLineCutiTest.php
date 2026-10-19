@@ -27,6 +27,8 @@ class ApprovalLineCutiTest extends TestCase
 
     private const CUTI = '/absensi/admin-web/cuti';
 
+    private const NOTIFICATIONS = '/absensi/admin-web/notifikasi';
+
     private User $admin;
 
     private User $applicant;
@@ -323,6 +325,92 @@ class ApprovalLineCutiTest extends TestCase
         $this->actingAs($this->approvers[2])->get(self::CUTI.'?scope=inbox')->assertOk()->assertInertia(fn (Assert $page) => $page->has('requests.data', 0));
     }
 
+    public function test_approval_notifications_follow_the_current_approver_and_support_decisions(): void
+    {
+        $this->configure();
+        $cuti = $this->submit();
+        $this->actingAs($this->admin)->get(self::NOTIFICATIONS.'/butuh-approval')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('absensi/admin-web/notifikasi/Index')->has('requests.data', 0));
+        $this->actingAs($this->approvers[1])->get(self::NOTIFICATIONS.'/butuh-approval')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('category', 'butuh-approval')->where('overview.inbox', 0)->has('requests.data', 0));
+        $this->actingAs($this->approvers[0])->get(self::NOTIFICATIONS.'/butuh-approval')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('overview.inbox', 1)->has('requests.data', 1)
+                ->where('requests.data.0.id', $cuti->id)->where('requests.data.0.can_decide', true)->has('requests.data.0.approvals', 3));
+        $this->from(self::NOTIFICATIONS.'/butuh-approval')->post($this->decisionUrl($cuti), ['decision' => 'approved'])
+            ->assertSessionHasNoErrors()->assertRedirect(self::NOTIFICATIONS.'/butuh-approval');
+        $this->get(self::NOTIFICATIONS.'/butuh-approval')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('overview.inbox', 0)->has('requests.data', 0));
+        $this->actingAs($this->approvers[1])->get(self::NOTIFICATIONS.'/butuh-approval')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('overview.inbox', 1)->where('requests.data.0.can_decide', true));
+    }
+
+    public function test_approved_notifications_only_include_completed_requests_visible_to_the_user(): void
+    {
+        $this->configure();
+        $cuti = $this->submit();
+        foreach ($this->approvers as $approver) {
+            $this->actingAs($approver)->get(self::NOTIFICATIONS.'/disetujui')->assertOk()
+                ->assertInertia(fn (Assert $page) => $page->where('overview.approved', 0)->has('requests.data', 0));
+            $this->post($this->decisionUrl($cuti), ['decision' => 'approved'])->assertSessionHasNoErrors();
+        }
+        foreach ([$this->applicant, ...$this->approvers, $this->admin] as $user) {
+            $this->actingAs($user)->get(self::NOTIFICATIONS.'/disetujui')->assertOk()
+                ->assertInertia(fn (Assert $page) => $page->where('category', 'disetujui')->where('overview.approved', 1)
+                    ->has('requests.data', 1)->where('requests.data.0.id', $cuti->id)->where('requests.data.0.status', 'approved')
+                    ->where('requests.data.0.can_decide', false));
+        }
+        $this->actingAs($this->webUser())->get(self::NOTIFICATIONS.'/disetujui?scope=all&status=pending')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('overview.approved', 0)->has('requests.data', 0));
+    }
+
+    public function test_rejected_requests_are_excluded_from_both_notification_categories(): void
+    {
+        $this->configure();
+        $cuti = $this->submit();
+        $this->actingAs($this->approvers[0])->from(self::NOTIFICATIONS.'/butuh-approval')
+            ->post($this->decisionUrl($cuti), ['decision' => 'rejected', 'note' => 'Jadwal penuh'])
+            ->assertSessionHasNoErrors()->assertRedirect(self::NOTIFICATIONS.'/butuh-approval');
+        foreach (['butuh-approval', 'disetujui'] as $category) {
+            $this->get(self::NOTIFICATIONS.'/'.$category)->assertOk()
+                ->assertInertia(fn (Assert $page) => $page->has('requests.data', 0)->where('overview.inbox', 0)->where('overview.approved', 0));
+        }
+    }
+
+    public function test_notification_search_keeps_counts_and_pagination_scoped_to_the_user(): void
+    {
+        $this->configure(1);
+        $cuti = $this->submit();
+        for ($index = 0; $index < 11; $index++) {
+            $copy = $cuti->replicate();
+            $copy->nama_pegawai = 'Pegawai Lain';
+            $copy->save();
+            $copy->approvals()->create($cuti->approvals->first()->only(['level', 'user_id', 'approver_name', 'status']));
+        }
+        $this->actingAs($this->approvers[0])->get(self::NOTIFICATIONS.'/butuh-approval?search=Staff%20Pemohon')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('requests.data', 1)->where('requests.data.0.id', $cuti->id)
+                ->where('requests.total', 1)->where('filters.search', 'Staff Pemohon')->where('overview.inbox', 12));
+        $this->get(self::NOTIFICATIONS.'/butuh-approval?search=Pegawai&page=2')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('requests.data', 1)->where('requests.total', 11)
+                ->where('requests.current_page', 2)->where('filters.search', 'Pegawai')->where('overview.inbox', 12));
+        $this->getJson(self::NOTIFICATIONS.'/butuh-approval?search='.str_repeat('a', 151))->assertUnprocessable();
+    }
+
+    public function test_notification_routes_require_verified_admin_or_assigned_approver_access(): void
+    {
+        $this->get(self::NOTIFICATIONS.'/butuh-approval')->assertRedirect(route('absensi.admin-web.login'));
+        $ordinary = User::factory()->create();
+        foreach (['butuh-approval', 'disetujui'] as $category) {
+            $this->actingAs($ordinary)->get(self::NOTIFICATIONS.'/'.$category)->assertForbidden();
+        }
+        $this->approvers[0]->revokePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $this->configure(1);
+        $this->actingAs($this->approvers[0])->get(self::NOTIFICATIONS)->assertRedirect(self::NOTIFICATIONS.'/butuh-approval');
+        $this->get(self::NOTIFICATIONS.'/disetujui')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('portal.can_access_admin', false)->where('portal.can_access_cuti', true));
+        $this->approvers[0]->forceFill(['email_verified_at' => null])->save();
+        $this->get(self::NOTIFICATIONS.'/butuh-approval')->assertRedirect(route('verification.notice'));
+    }
+
     public function test_other_users_cannot_browse_all_requests(): void
     {
         $this->configure();
@@ -419,7 +507,7 @@ class ApprovalLineCutiTest extends TestCase
         $cuti = $this->submit();
         $this->actingAs($this->admin)->delete(self::LINES."/{$line->id}")->assertSessionHasNoErrors();
         $this->post('/logout');
-        $this->post('/absensi/admin-web/login', ['email' => $ordinary->email, 'password' => 'password'])->assertRedirect(self::CUTI);
+        $this->post('/absensi/admin-web/login', ['email' => $ordinary->email, 'password' => 'password'])->assertRedirect(self::NOTIFICATIONS.'/butuh-approval');
         $this->get(self::CUTI)->assertOk()->assertInertia(fn (Assert $page) => $page->has('requests.data', 1));
         $this->post($this->decisionUrl($cuti), ['decision' => 'approved'])->assertSessionHasNoErrors();
         $this->get(self::CUTI.'?scope=history')->assertOk()->assertInertia(fn (Assert $page) => $page->has('requests.data', 1));

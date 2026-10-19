@@ -3,7 +3,14 @@
 Modul tersedia di absensi-web:
 
 - **Aproval Line** (`/absensi/admin-web/approval-line`): pilih kategori **Cuti** atau **Lembur**, lalu pilih satu atau beberapa jabatan pemohon untuk menggunakan urutan 1–3 approver yang sama. Setiap jabatan dapat memiliki satu alur cuti dan satu alur lembur dengan approver berbeda.
-- Menu **Pengajuan Cuti** sementara dihapus dari navigasi absensi-web karena pengajuan nantinya dilakukan melalui absensi-mobile. Halaman dan layanan cuti yang sudah ada tetap tersimpan untuk integrasi berikutnya.
+- Menu **Notifikasi** menggantikan **Pengajuan Cuti** pada navigasi admin-web, dengan submenu **Pengajuan Butuh Approval** dan **Pengajuan Disetujui**. Halaman dan layanan pengajuan cuti lama tetap tersedia untuk integrasi berikutnya.
+
+## Notifikasi
+
+- **Pengajuan Butuh Approval** (`/absensi/admin-web/notifikasi/butuh-approval`) hanya menampilkan pengajuan pada tingkat approval aktif milik pengguna yang sedang login. Buka **Tinjau pengajuan** untuk melihat detail, menyetujui, atau menolak dengan catatan.
+- **Pengajuan Disetujui** (`/absensi/admin-web/notifikasi/disetujui`) menampilkan pengajuan yang telah disetujui seluruh approver. Pengguna melihat pengajuan sendiri atau yang pernah disetujuinya; super-admin dapat melihat seluruh pengajuan yang telah disetujui.
+- Kedua daftar mendukung pencarian pegawai, jabatan, dan unit, serta paginasi. Jumlah pada kategori menghitung seluruh pengajuan yang boleh dilihat pengguna, terlepas dari pencarian.
+- Approver tanpa permission `admin.access` diarahkan ke Notifikasi setelah login admin-web dan tetap tidak memperoleh akses ke modul admin lain.
 
 ## Pengaturan
 

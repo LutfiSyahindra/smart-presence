@@ -2,30 +2,17 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { CalendarDays, Check, CheckCircle2, Clock3, Inbox, Plus, Search, X } from 'lucide-vue-next';
+import { CalendarDays, CheckCircle2, Clock3, Inbox, Plus, Search } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import '../approval-workflow.css';
 import CrudModal from '../setting/components/CrudModal.vue';
 import FlashMessage from '../setting/components/FlashMessage.vue';
 import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
+import CutiRequestDetail from './components/CutiRequestDetail.vue';
+import { date, days, labels } from './formatters';
+import type { CutiRow } from './types';
 
-interface CutiRow {
-    id: number;
-    nama_pegawai: string;
-    jabatan: string;
-    unit: string;
-    tanggal_mulai: string;
-    tanggal_selesai: string;
-    alasan: string;
-    nama_cuti: string | null;
-    jumlah_hari: number | null;
-    status: string;
-    current_level: number | null;
-    created_at: string;
-    can_decide: boolean;
-    approvals: { level: number; name: string; status: string; note: string | null; decided_at: string | null }[];
-}
 type Scope = 'mine' | 'inbox' | 'history' | 'all';
 const props = defineProps<{
     requests: Paginated<CutiRow>;
@@ -52,7 +39,6 @@ const form = useForm({ master_cuti_id: '', tanggal_mulai: '', tanggal_selesai: '
 const optionYear = computed(() => Number((form.tanggal_mulai || props.today).slice(0, 4)));
 const availableTypes = computed(() => props.leaveOptions.filter((option) => !option.is_tahunan || option.tahun === optionYear.value));
 const selectedType = computed(() => availableTypes.value.find((option) => String(option.id) === String(form.master_cuti_id)));
-const decisionForm = useForm({ decision: 'approved', note: '' });
 const formErrors = computed(() => form.errors as Record<string, string | undefined>);
 const tabs = computed(() => [
     { key: 'mine' as Scope, label: 'Pengajuan saya' },
@@ -60,21 +46,6 @@ const tabs = computed(() => [
     { key: 'history' as Scope, label: 'Riwayat persetujuan' },
     ...(props.canViewAll ? [{ key: 'all' as Scope, label: 'Semua pengajuan' }] : []),
 ]);
-const labels: Record<string, string> = {
-    pending: 'Menunggu',
-    waiting: 'Belum mendapat giliran',
-    approved: 'Disetujui',
-    rejected: 'Ditolak',
-    skipped: 'Tidak dilanjutkan',
-};
-const date = (value: string) =>
-    new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(
-        new Date(`${value}T00:00:00+07:00`),
-    );
-const days = (start: string, end: string) => {
-    if (!start || !end) return 0;
-    return Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1);
-};
 let timer: ReturnType<typeof setTimeout> | undefined;
 const applyFilters = (scope: Scope = props.filters.scope) => {
     if (timer) clearTimeout(timer);
@@ -108,16 +79,6 @@ const create = () => {
     creating.value = true;
 };
 const submit = () => form.post(baseUrl, { preserveScroll: true, onSuccess: () => (creating.value = false) });
-const detail = (cuti: CutiRow) => {
-    selected.value = cuti;
-    decisionForm.reset();
-    decisionForm.clearErrors();
-};
-const decide = (decision: 'approved' | 'rejected') => {
-    if (!selected.value?.can_decide || decisionForm.processing) return;
-    decisionForm.decision = decision;
-    decisionForm.post(`${baseUrl}/${selected.value.id}/decision`, { preserveScroll: true, onSuccess: () => (selected.value = null) });
-};
 </script>
 
 <template>
@@ -244,7 +205,7 @@ const decide = (decision: 'approved' | 'rejected') => {
                                         type="button"
                                         class="btn btn-sm"
                                         :class="cuti.can_decide ? 'btn-primary' : 'btn-outline-secondary'"
-                                        @click="detail(cuti)"
+                                        @click="selected = cuti"
                                     >
                                         {{ cuti.can_decide ? 'Tinjau pengajuan' : 'Lihat detail' }}
                                     </button>
@@ -357,78 +318,6 @@ const decide = (decision: 'approved' | 'rejected') => {
             </form>
         </CrudModal>
 
-        <CrudModal
-            :open="!!selected"
-            :title="`Detail pengajuan #CUTI-${selected?.id ?? ''}`"
-            description="Riwayat persetujuan cuti secara berurutan."
-            @close="!decisionForm.processing && (selected = null)"
-        >
-            <div v-if="selected" class="al-form">
-                <div class="al-form-body">
-                    <div class="al-detail-heading">
-                        <div>
-                            <h3>{{ selected.nama_pegawai }}</h3>
-                            <p>{{ selected.unit }} · {{ selected.jabatan }}</p>
-                        </div>
-                        <span class="al-status" :class="selected.status">{{ labels[selected.status] }}</span>
-                    </div>
-                    <div class="al-info">
-                        <strong>{{ selected.nama_cuti || 'Pengajuan sebelum master cuti' }}</strong
-                        ><br />
-                        <strong>{{ date(selected.tanggal_mulai) }} — {{ date(selected.tanggal_selesai) }}</strong
-                        ><br />{{ days(selected.tanggal_mulai, selected.tanggal_selesai) }} hari kalender · Diajukan {{ selected.created_at }}
-                    </div>
-                    <div>
-                        <div class="al-section-label"><strong>Alasan cuti</strong></div>
-                        <p class="al-reason">{{ selected.alasan }}</p>
-                    </div>
-                    <div>
-                        <div class="al-section-label"><strong>Progres persetujuan</strong></div>
-                        <ol class="al-timeline">
-                            <li v-for="step in selected.approvals" :key="step.level" :class="step.status">
-                                <span class="al-timeline-number"
-                                    ><Check v-if="step.status === 'approved'" /><X v-else-if="step.status === 'rejected'" /><template v-else>{{
-                                        step.level
-                                    }}</template></span
-                                >
-                                <div>
-                                    <strong>{{ step.name }}</strong
-                                    ><small
-                                        >Tingkat {{ step.level }} · {{ labels[step.status]
-                                        }}<template v-if="step.decided_at"> · {{ step.decided_at }}</template></small
-                                    >
-                                    <p v-if="step.note" class="al-reason">{{ step.note }}</p>
-                                </div>
-                            </li>
-                        </ol>
-                    </div>
-                    <div v-if="selected.can_decide" class="al-review">
-                        <h3>Persetujuan tingkat {{ selected.current_level }}</h3>
-                        <p>Periksa tanggal dan alasan sebelum memberikan keputusan.</p>
-                        <label class="al-field"
-                            ><span>Catatan <small>(wajib untuk penolakan)</small></span
-                            ><textarea
-                                v-model="decisionForm.note"
-                                rows="3"
-                                maxlength="1000"
-                                placeholder="Tambahkan catatan atau alasan penolakan..."
-                                :disabled="decisionForm.processing"
-                            /><small v-if="decisionForm.errors.note" class="al-error">{{ decisionForm.errors.note }}</small></label
-                        >
-                    </div>
-                    <p v-if="decisionForm.errors.decision" class="al-error" role="alert">{{ decisionForm.errors.decision }}</p>
-                </div>
-                <footer class="al-form-footer">
-                    <button type="button" class="btn btn-outline-secondary" :disabled="decisionForm.processing" @click="selected = null">Tutup</button
-                    ><template v-if="selected.can_decide"
-                        ><button type="button" class="btn btn-outline-danger" :disabled="decisionForm.processing" @click="decide('rejected')">
-                            Tolak pengajuan</button
-                        ><button type="button" class="btn btn-primary" :disabled="decisionForm.processing" @click="decide('approved')">
-                            {{ decisionForm.processing ? 'Memproses...' : `Setujui tingkat ${selected.current_level}` }}
-                        </button></template
-                    >
-                </footer>
-            </div>
-        </CrudModal>
+        <CutiRequestDetail :request="selected" @close="selected = null" />
     </AppLayout>
 </template>

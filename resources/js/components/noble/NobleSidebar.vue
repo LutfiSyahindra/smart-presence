@@ -3,12 +3,15 @@ import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
     Activity,
+    Bell,
     BriefcaseBusiness,
     CalendarDays,
+    CheckCircle2,
     ChevronDown,
     ContactRound,
     GitPullRequestArrow,
     HeartPulse,
+    Inbox,
     LayoutDashboard,
     MapPinned,
     ShieldCheck,
@@ -52,7 +55,9 @@ const page = usePage<SharedData>();
 const currentPath = computed(() => page.url.split('?')[0]);
 const isSuperAdmin = computed(() => page.props.auth.roles.includes('super-admin'));
 const can = (permission: string) => page.props.portal.can_access_admin && (isSuperAdmin.value || page.props.auth.permissions.includes(permission));
-const homeUrl = computed(() => (page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/cuti'));
+const homeUrl = computed(() =>
+    page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/notifikasi/butuh-approval',
+);
 const roleLabel = computed(() => page.props.auth.roles[0]?.replaceAll('-', ' ') ?? 'Pengguna');
 
 const navigation = computed<NavigationGroup[]>(() => {
@@ -75,7 +80,14 @@ const navigation = computed<NavigationGroup[]>(() => {
         mainItems.push({ title: 'Aproval Line', href: '/absensi/admin-web/approval-line', icon: GitPullRequestArrow });
     }
     if (page.props.portal.can_access_cuti) {
-        mainItems.push({ title: 'Pengajuan Cuti', href: '/absensi/admin-web/cuti', icon: CalendarDays });
+        mainItems.push({
+            title: 'Notifikasi',
+            icon: Bell,
+            children: [
+                { title: 'Pengajuan Butuh Approval', href: '/absensi/admin-web/notifikasi/butuh-approval', icon: Inbox },
+                { title: 'Pengajuan Disetujui', href: '/absensi/admin-web/notifikasi/disetujui', icon: CheckCircle2 },
+            ],
+        });
     }
 
     const shiftChildren: NavigationItem[] = [];
@@ -125,6 +137,7 @@ const isItemActive = (item: NavigationItem) => Boolean(item.href && isActive(ite
 const isParentActive = (item: NavigationItem) => item.children?.some((child) => isItemActive(child)) ?? false;
 const expandedMenus = ref<string[]>([
     ...(currentPath.value.startsWith('/absensi/admin-web/presensi') ? ['Presensi'] : []),
+    ...(currentPath.value.startsWith('/absensi/admin-web/notifikasi') ? ['Notifikasi'] : []),
     ...(currentPath.value.startsWith('/absensi/admin-web/master-data/shift') ? ['Shift'] : []),
 ]);
 const isExpanded = (title: string) => expandedMenus.value.includes(title);

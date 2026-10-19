@@ -74,7 +74,7 @@ final class Portal
             }
 
             if (self::canAccessCuti($request)) {
-                return 'absensi.admin-web.cuti.index';
+                return 'absensi.admin-web.notifikasi.index';
             }
 
             self::remember($request, self::PRESENSI);

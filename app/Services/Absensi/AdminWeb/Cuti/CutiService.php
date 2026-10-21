@@ -118,6 +118,23 @@ class CutiService
         });
     }
 
+    public function approveMany(User $actor, array $requestIds): int
+    {
+        return DB::transaction(function () use ($actor, $requestIds) {
+            $requests = CutiRequest::query()->whereIn('id', $requestIds)->orderBy('id')->lockForUpdate()->get();
+            if ($requests->count() !== count($requestIds)) {
+                throw ValidationException::withMessages(['request_ids' => 'Ada pengajuan yang tidak tersedia. Muat ulang daftar dan pilih kembali pengajuan.']);
+            }
+
+            foreach ($requests as $cuti) {
+                // Reuse the locked identity, current-level, and status checks for every request.
+                $this->decide($cuti, $actor, ['decision' => 'approved']);
+            }
+
+            return $requests->count();
+        });
+    }
+
     public function decide(CutiRequest $cuti, User $actor, array $data): CutiRequest
     {
         return DB::transaction(function () use ($cuti, $actor, $data) {

@@ -28,6 +28,7 @@ class NotificationInboxController extends Controller
         return response()->json([
             'items' => $request->user()->notifications()->latest()->limit(8)->get()->map(fn ($item) => $this->serialize($item)),
             'unread_count' => $request->user()->unreadNotifications()->count(),
+            'pending_approval_count' => CutiRequest::query()->awaitingApprovalBy($request->user())->count(),
             'push_public_key' => $push->configured() ? config('webpush.public_key') : null,
         ])->header('Cache-Control', 'no-store, private');
     }

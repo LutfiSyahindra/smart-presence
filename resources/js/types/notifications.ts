@@ -8,8 +8,12 @@ export interface AdminNotification {
     url: string;
 }
 
-export interface NotificationFeed {
-    items: AdminNotification[];
+export interface AdminNotificationCounts {
     unread_count: number;
+    pending_approval_count: number;
+}
+
+export interface NotificationFeed extends AdminNotificationCounts {
+    items: AdminNotification[];
     push_public_key: string | null;
 }

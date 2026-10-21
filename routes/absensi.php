@@ -166,6 +166,7 @@ Route::middleware(['auth', 'verified', 'can:cuti.access'])
         Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->name('notifikasi.cuti');
         Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.push.store');
         Route::get('notifikasi/butuh-approval', [NotifikasiController::class, 'index'])->name('notifikasi.index');
+        Route::post('notifikasi/approve-many', [NotifikasiController::class, 'approveMany'])->name('notifikasi.approve-many');
         Route::get('notifikasi/disetujui', [NotifikasiController::class, 'index'])->defaults('category', 'disetujui')->name('notifikasi.approved');
         Route::get('cuti', [CutiController::class, 'index'])->name('cuti.index');
         Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->name('cuti.decide');

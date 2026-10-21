@@ -918,6 +918,7 @@ body.noble-layout-active :focus-visible {
 }
 
 .sidebar .sidebar-body .nav .sidebar-menu-toggle {
+    position: relative;
     width: 100%;
     display: flex;
     align-items: center;
@@ -985,6 +986,45 @@ body.noble-layout-active :focus-visible {
 .sidebar-submenu li.active .sidebar-submenu-dot {
     background: #686ae7;
     box-shadow: 0 0 0 3px rgba(104, 106, 231, 0.12);
+}
+
+.sidebar-notification-badge {
+    display: inline-flex;
+    min-width: 22px;
+    min-height: 20px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #e9e5ff;
+    color: #6250bf;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.2;
+}
+
+.sidebar-notification-badge.is-empty {
+    background: #edf0f5;
+    color: #7b8498;
+}
+
+.sidebar-menu-toggle .sidebar-notification-badge + .sidebar-menu-arrow {
+    margin-left: 8px;
+}
+
+@media (min-width: 992px) {
+    .sidebar-folded:not(.open-sidebar-folded) .sidebar-parent-notification-badge {
+        position: absolute;
+        top: 2px;
+        right: 1px;
+        min-width: 18px;
+        min-height: 16px;
+        margin-left: 0;
+        padding: 1px 4px;
+        font-size: 9px;
+    }
 }
 
 .sidebar-folded:not(.open-sidebar-folded) .sidebar-submenu,

@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-vue-next';
+import type { AdminNotificationCounts } from './notifications';
 
 export interface Auth {
     user: User;
@@ -22,6 +23,7 @@ export interface SharedData extends Record<string, unknown> {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
+    adminNotificationCounts: AdminNotificationCounts | null;
     portal: {
         active: 'presensi' | 'admin';
         can_access_admin: boolean;

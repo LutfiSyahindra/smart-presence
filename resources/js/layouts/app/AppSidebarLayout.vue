@@ -2,6 +2,7 @@
 import NobleFooter from '@/components/noble/NobleFooter.vue';
 import NobleNavbar from '@/components/noble/NobleNavbar.vue';
 import NobleSidebar from '@/components/noble/NobleSidebar.vue';
+import { provideAdminNotificationCounts } from '@/composables/useAdminNotificationCounts';
 import type { BreadcrumbItemType } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -13,6 +14,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
+
+provideAdminNotificationCounts();
 
 const sidebarFolded = ref(false);
 const sidebarOpen = ref(false);

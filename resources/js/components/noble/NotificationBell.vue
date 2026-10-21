@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import { useAdminNotificationCounts } from '@/composables/useAdminNotificationCounts';
 import type { AdminNotification, NotificationFeed } from '@/types/notifications';
 import { Link } from '@inertiajs/vue3';
 import { Bell, BellRing, CheckCheck, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const baseUrl = '/absensi/admin-web/notifikasi';
+const { counts, updateCounts } = useAdminNotificationCounts();
 const menu = ref<HTMLElement | null>(null);
 const open = ref(false);
-const feed = ref<NotificationFeed>({ items: [], unread_count: 0, push_public_key: null });
+const feed = ref<NotificationFeed>({ items: [], unread_count: 0, pending_approval_count: 0, push_public_key: null });
 const toast = ref<AdminNotification | null>(null);
 const feedback = ref('');
 const pushSupported = ref(false);
@@ -42,7 +44,8 @@ const refresh = async () => {
         const response = await fetch(`${baseUrl}/feed`, { headers: { Accept: 'application/json' }, signal: controller.signal, cache: 'no-store' });
         if (response.status === 401 || response.status === 403) {
             stopped = true;
-            feed.value = { items: [], unread_count: 0, push_public_key: null };
+            feed.value = { items: [], unread_count: 0, pending_approval_count: 0, push_public_key: null };
+            updateCounts(null);
             return;
         }
         if (!response.ok) return;
@@ -56,6 +59,7 @@ const refresh = async () => {
         knownIds = new Set([...knownIds, ...next.items.map((item) => item.id)]);
         initialized = true;
         feed.value = next;
+        updateCounts(next);
     } catch {
         // Keep the saved inbox available while offline; the next poll retries.
     } finally {
@@ -166,13 +170,13 @@ onBeforeUnmount(() => {
             class="nav-link noble-icon-button notification-trigger"
             :aria-expanded="open"
             aria-controls="admin-notification-menu"
-            :aria-label="`Notifikasi, ${feed.unread_count} belum dibaca`"
+            :aria-label="`Notifikasi, ${counts.unread_count} belum dibaca`"
             @click.stop="
                 open = !open;
                 refresh();
             "
         >
-            <Bell /><span v-if="feed.unread_count" class="notification-count">{{ feed.unread_count > 99 ? '99+' : feed.unread_count }}</span>
+            <Bell /><span v-if="counts.unread_count" class="notification-count">{{ counts.unread_count > 99 ? '99+' : counts.unread_count }}</span>
         </button>
         <div v-if="open" id="admin-notification-menu" class="notification-panel">
             <header>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAdminNotificationCounts } from '@/composables/useAdminNotificationCounts';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
@@ -30,6 +31,8 @@ interface NavigationItem {
     href?: string;
     children?: NavigationItem[];
     exact?: boolean;
+    badge?: number;
+    badgeLabel?: string;
 }
 
 interface NavigationGroup {
@@ -52,6 +55,7 @@ const emit = defineEmits<{
 }>();
 
 const page = usePage<SharedData>();
+const { counts } = useAdminNotificationCounts();
 const currentPath = computed(() => page.url.split('?')[0]);
 const isSuperAdmin = computed(() => page.props.auth.roles.includes('super-admin'));
 const can = (permission: string) => page.props.portal.can_access_admin && (isSuperAdmin.value || page.props.auth.permissions.includes(permission));
@@ -83,9 +87,23 @@ const navigation = computed<NavigationGroup[]>(() => {
         mainItems.push({
             title: 'Notifikasi',
             icon: Bell,
+            badge: counts.value.unread_count + counts.value.pending_approval_count,
+            badgeLabel: `${counts.value.unread_count} notifikasi belum dibaca, ${counts.value.pending_approval_count} pengajuan menunggu approval Anda`,
             children: [
-                { title: 'Semua Notifikasi', href: '/absensi/admin-web/notifikasi/semua', icon: Bell },
-                { title: 'Pengajuan Butuh Approval', href: '/absensi/admin-web/notifikasi/butuh-approval', icon: Inbox },
+                {
+                    title: 'Semua Notifikasi',
+                    href: '/absensi/admin-web/notifikasi/semua',
+                    icon: Bell,
+                    badge: counts.value.unread_count,
+                    badgeLabel: 'notifikasi belum dibaca',
+                },
+                {
+                    title: 'Pengajuan Butuh Approval',
+                    href: '/absensi/admin-web/notifikasi/butuh-approval',
+                    icon: Inbox,
+                    badge: counts.value.pending_approval_count,
+                    badgeLabel: 'pengajuan menunggu approval Anda',
+                },
                 { title: 'Pengajuan Disetujui', href: '/absensi/admin-web/notifikasi/disetujui', icon: CheckCircle2 },
             ],
         });
@@ -194,12 +212,19 @@ watch(currentPath, () => {
                             v-if="item.children"
                             type="button"
                             class="nav-link sidebar-menu-toggle"
-                            :title="folded ? item.title : undefined"
+                            :title="item.badge !== undefined ? `${item.title}: ${item.badgeLabel}` : folded ? item.title : undefined"
                             :aria-expanded="isExpanded(item.title)"
                             @click="toggleMenu(item.title)"
                         >
                             <span class="sidebar-link-icon"><component :is="item.icon" class="link-icon" /></span>
                             <span class="link-title">{{ item.title }}</span>
+                            <span
+                                v-if="item.badge !== undefined"
+                                class="sidebar-notification-badge sidebar-parent-notification-badge"
+                                :class="{ 'is-empty': item.badge === 0 }"
+                                :aria-label="item.badgeLabel"
+                                >{{ item.badge > 99 ? '99+' : item.badge }}</span
+                            >
                             <ChevronDown class="sidebar-menu-arrow" aria-hidden="true" />
                         </button>
                         <Link
@@ -225,6 +250,14 @@ watch(currentPath, () => {
                                 >
                                     <span class="sidebar-submenu-dot" aria-hidden="true"></span>
                                     <span>{{ child.title }}</span>
+                                    <span
+                                        v-if="child.badge !== undefined"
+                                        class="sidebar-notification-badge"
+                                        :class="{ 'is-empty': child.badge === 0 }"
+                                        :aria-label="`${child.badge} ${child.badgeLabel}`"
+                                        :title="`${child.badge} ${child.badgeLabel}`"
+                                        >{{ child.badge > 99 ? '99+' : child.badge }}</span
+                                    >
                                 </Link>
                             </li>
                         </ul>

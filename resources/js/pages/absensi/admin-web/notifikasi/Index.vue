@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, SharedData } from '@/types';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Bell, CheckCircle2, Inbox, Search } from 'lucide-vue-next';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Bell, CheckCheck, CheckCircle2, Inbox, Search } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import '../approval-workflow.css';
 import CutiRequestDetail from '../cuti/components/CutiRequestDetail.vue';
 import { date, days, labels } from '../cuti/formatters';
 import type { CutiRow } from '../cuti/types';
+import CrudModal from '../setting/components/CrudModal.vue';
 import FlashMessage from '../setting/components/FlashMessage.vue';
 import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
@@ -31,10 +32,37 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     { title: activeCategory.value.title, href: `${baseUrl}/${props.category}` },
 ]);
 const selected = ref<CutiRow | null>(null);
+const bulkForm = useForm({ request_ids: [] as number[] });
+const bulkReviewOpen = ref(false);
+const selectableRequests = computed(() => (props.category === 'butuh-approval' ? props.requests.data.filter((cuti) => cuti.can_decide) : []));
+const selectedRequests = computed(() => selectableRequests.value.filter((cuti) => bulkForm.request_ids.includes(cuti.id)));
+const allSelected = computed(() => selectableRequests.value.length > 0 && selectedRequests.value.length === selectableRequests.value.length);
+const someSelected = computed(() => selectedRequests.value.length > 0 && !allSelected.value);
+const bulkError = computed(() => Object.values(bulkForm.errors)[0]);
+const toggleAll = (event: Event) => {
+    bulkForm.clearErrors();
+    bulkForm.request_ids = (event.target as HTMLInputElement).checked ? selectableRequests.value.map((cuti) => cuti.id) : [];
+};
+const closeBulkReview = () => {
+    if (!bulkForm.processing) bulkReviewOpen.value = false;
+};
+const approveSelected = () => {
+    if (bulkForm.processing || !selectedRequests.value.length) return;
+    if (timer) clearTimeout(timer);
+    bulkForm.post(`${baseUrl}/approve-many`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            bulkReviewOpen.value = false;
+            bulkForm.reset();
+        },
+        onError: () => (bulkReviewOpen.value = false),
+    });
+};
 const search = ref(props.filters.search);
 let timer: ReturnType<typeof setTimeout> | undefined;
 const applySearch = () => {
     if (timer) clearTimeout(timer);
+    if (bulkForm.processing) return;
     router.get(
         `${baseUrl}/${props.category}`,
         { search: search.value.trim() || undefined },
@@ -56,6 +84,13 @@ watch(
     () => {
         if (timer) clearTimeout(timer);
         selected.value = null;
+    },
+);
+watch(
+    () => [props.requests, props.category],
+    () => {
+        bulkForm.reset();
+        bulkReviewOpen.value = false;
     },
 );
 onBeforeUnmount(() => {
@@ -109,13 +144,54 @@ onBeforeUnmount(() => {
                             maxlength="150"
                             aria-label="Cari notifikasi pengajuan"
                             placeholder="Cari pegawai, jabatan, unit..."
+                            :disabled="bulkForm.processing"
                         />
                     </form>
                 </header>
+                <div v-if="category === 'butuh-approval' && requests.data.length" class="bulk-approval-bar">
+                    <div aria-live="polite">
+                        <strong>{{ selectedRequests.length }} pengajuan dipilih</strong>
+                        <small>Pilih pengajuan satu per satu atau pilih semua di halaman ini.</small>
+                    </div>
+                    <div class="bulk-approval-actions">
+                        <button
+                            v-if="selectedRequests.length"
+                            type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            :disabled="bulkForm.processing"
+                            @click="
+                                bulkForm.reset();
+                                bulkForm.clearErrors();
+                            "
+                        >
+                            Batalkan pilihan
+                        </button>
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-primary al-button"
+                            :disabled="!selectedRequests.length || bulkForm.processing"
+                            @click="bulkReviewOpen = true"
+                        >
+                            <CheckCheck /> Setujui terpilih ({{ selectedRequests.length }})
+                        </button>
+                    </div>
+                </div>
+                <p v-if="bulkError" class="al-error bulk-approval-error" role="alert">{{ bulkError }}</p>
                 <div v-if="requests.data.length" class="al-table-wrap">
                     <table class="al-table">
                         <thead>
                             <tr>
+                                <th v-if="category === 'butuh-approval'" class="bulk-select-cell">
+                                    <input
+                                        type="checkbox"
+                                        class="bulk-checkbox"
+                                        :checked="allSelected"
+                                        :indeterminate="someSelected"
+                                        :disabled="!selectableRequests.length || bulkForm.processing"
+                                        aria-label="Pilih semua pengajuan di halaman ini"
+                                        @change="toggleAll"
+                                    />
+                                </th>
                                 <th>Pemohon</th>
                                 <th>Pengajuan cuti</th>
                                 <th>Status & progres</th>
@@ -123,7 +199,19 @@ onBeforeUnmount(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="cuti in requests.data" :key="cuti.id">
+                            <tr v-for="cuti in requests.data" :key="cuti.id" :class="{ 'bulk-selected-row': bulkForm.request_ids.includes(cuti.id) }">
+                                <td v-if="category === 'butuh-approval'" class="bulk-select-cell">
+                                    <input
+                                        v-if="cuti.can_decide"
+                                        v-model="bulkForm.request_ids"
+                                        type="checkbox"
+                                        class="bulk-checkbox"
+                                        :value="cuti.id"
+                                        :disabled="bulkForm.processing"
+                                        :aria-label="`Pilih pengajuan #CUTI-${cuti.id} dari ${cuti.nama_pegawai}`"
+                                        @change="bulkForm.clearErrors()"
+                                    />
+                                </td>
                                 <td>
                                     <strong>{{ cuti.nama_pegawai }}</strong>
                                     <small>{{ cuti.unit }} · {{ cuti.jabatan }}</small>
@@ -144,6 +232,7 @@ onBeforeUnmount(() => {
                                         type="button"
                                         class="btn btn-sm"
                                         :class="cuti.can_decide ? 'btn-primary' : 'btn-outline-secondary'"
+                                        :disabled="bulkForm.processing"
                                         @click="selected = cuti"
                                     >
                                         {{ cuti.can_decide ? 'Tinjau pengajuan' : 'Lihat detail' }}
@@ -178,10 +267,106 @@ onBeforeUnmount(() => {
             </section>
         </div>
         <CutiRequestDetail :request="selected" @close="selected = null" />
+        <CrudModal
+            :open="bulkReviewOpen"
+            title="Setujui pengajuan terpilih"
+            description="Periksa daftar pengajuan sebelum menyetujui sekaligus."
+            @close="closeBulkReview"
+        >
+            <form class="al-form" @submit.prevent="approveSelected">
+                <div class="al-form-body">
+                    <p class="al-info">
+                        {{ selectedRequests.length }} pengajuan akan disetujui pada tingkat approval Anda. Pengajuan yang masih memiliki approver
+                        berikutnya akan diteruskan sesuai urutannya.
+                    </p>
+                    <ul class="bulk-review-list">
+                        <li v-for="cuti in selectedRequests" :key="cuti.id">
+                            <strong>#CUTI-{{ cuti.id }} · {{ cuti.nama_pegawai }}</strong>
+                            <span>{{ cuti.nama_cuti || 'Cuti' }} · {{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</span>
+                            <small>Persetujuan tingkat {{ cuti.current_level }}</small>
+                        </li>
+                    </ul>
+                </div>
+                <footer class="al-form-footer">
+                    <button type="button" class="btn btn-outline-secondary" :disabled="bulkForm.processing" @click="closeBulkReview">Batal</button>
+                    <button type="submit" class="btn btn-primary" :disabled="bulkForm.processing || !selectedRequests.length">
+                        {{ bulkForm.processing ? 'Memproses...' : `Setujui ${selectedRequests.length} pengajuan` }}
+                    </button>
+                </footer>
+            </form>
+        </CrudModal>
     </AppLayout>
 </template>
 
 <style scoped>
+.bulk-approval-bar,
+.bulk-approval-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.bulk-approval-bar {
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid #e9ebf2;
+    background: #faf9ff;
+}
+.bulk-approval-bar strong,
+.bulk-approval-bar small {
+    display: block;
+    font-size: 12px;
+}
+.bulk-approval-bar small {
+    margin-top: 5px;
+    color: #80899b;
+}
+.al-table .bulk-select-cell {
+    width: 44px;
+    padding-right: 0;
+}
+.bulk-checkbox {
+    width: 17px;
+    height: 17px;
+    border: 1px solid #b8b2d1;
+    border-radius: 4px;
+    accent-color: #6f60c6;
+    cursor: pointer;
+}
+.bulk-checkbox:focus-visible {
+    outline: 2px solid #6f60c6;
+    outline-offset: 3px;
+}
+.bulk-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+.bulk-selected-row {
+    background: #f7f5ff;
+}
+.bulk-approval-error {
+    padding: 12px 24px;
+}
+.bulk-review-list {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.bulk-review-list li {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid #e6e3f4;
+    border-radius: 10px;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.bulk-review-list span,
+.bulk-review-list small {
+    color: #80899b;
+}
 .notification-tab {
     display: inline-flex;
     align-items: center;

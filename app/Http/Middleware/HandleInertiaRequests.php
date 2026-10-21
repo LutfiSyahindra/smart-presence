@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\CutiRequest;
 use App\Support\Portal;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
@@ -53,6 +54,10 @@ class HandleInertiaRequests extends Middleware
                 'can_access_admin' => fn () => Portal::canAccessAdmin($request),
                 'can_access_cuti' => fn () => Portal::canAccessCuti($request),
             ],
+            'adminNotificationCounts' => fn () => Portal::canAccessCuti($request) ? [
+                'unread_count' => $request->user()->unreadNotifications()->count(),
+                'pending_approval_count' => CutiRequest::query()->awaitingApprovalBy($request->user())->count(),
+            ] : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

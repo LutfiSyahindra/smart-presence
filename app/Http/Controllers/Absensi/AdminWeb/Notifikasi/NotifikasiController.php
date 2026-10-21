@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Absensi\AdminWeb\Notifikasi;
 
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
+use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,9 +18,7 @@ class NotifikasiController extends Controller
         $user = $request->user();
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:150']]);
         $search = trim($filters['search'] ?? '');
-        $inbox = CutiRequest::query()->where('status', 'pending')->where('user_id', '!=', $user->id)
-            ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id)->where('status', 'pending')
-                ->whereColumn('cuti_approvals.level', 'cuti_requests.current_level'));
+        $inbox = CutiRequest::query()->awaitingApprovalBy($user);
         $approved = CutiRequest::query()->where('status', 'approved')
             ->when(! $user->hasRole('super-admin'), fn (Builder $query) => $query->where(function (Builder $query) use ($user) {
                 $query->where('user_id', $user->id)->orWhereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id)->where('status', 'approved'));
@@ -47,5 +47,21 @@ class NotifikasiController extends Controller
             'filters' => ['search' => $search],
             'overview' => $overview,
         ]);
+    }
+
+    public function approveMany(Request $request, CutiService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'request_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'request_ids.*' => ['required', 'integer', 'distinct'],
+        ], [
+            'request_ids.required' => 'Pilih setidaknya satu pengajuan untuk disetujui.',
+            'request_ids.max' => 'Maksimal 100 pengajuan dapat disetujui sekaligus.',
+            'request_ids.*.distinct' => 'Pengajuan yang sama tidak boleh dipilih lebih dari sekali.',
+        ]);
+
+        $count = $service->approveMany($request->user(), $data['request_ids']);
+
+        return back()->with('success', "Berhasil menyetujui {$count} pengajuan pada tingkat approval Anda.");
     }
 }

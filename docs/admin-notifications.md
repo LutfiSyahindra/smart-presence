@@ -24,6 +24,25 @@ menampilkan detail pengajuan yang bersangkutan. Tersedia tombol tandai semua
 dibaca. Data diperbarui setiap 20 detik saat halaman terlihat, saat kembali ke tab,
 dan saat service worker menerima push.
 
+Badge sidebar **Semua Notifikasi** menampilkan jumlah notifikasi belum dibaca.
+Badge **Pengajuan Butuh Approval** menampilkan jumlah pengajuan yang sedang
+menunggu giliran pengguna tersebut, tanpa dipengaruhi pencarian atau paginasi.
+Menu induk **Notifikasi** juga menampilkan badge gabungan kedua jumlah tersebut,
+termasuk saat submenu tertutup atau sidebar diperkecil. Tooltip menu menjelaskan
+rincian jumlah notifikasi dan pengajuan approval.
+Keduanya diperbarui bersama feed lonceng serta setelah navigasi dan keputusan
+approval.
+
+Pada **Pengajuan Butuh Approval**, centang beberapa pengajuan atau gunakan
+kotak centang pada judul tabel untuk memilih seluruh pengajuan di halaman itu.
+Klik **Setujui terpilih**, periksa ringkasannya, lalu konfirmasi persetujuan.
+Pilihan dibersihkan saat berpindah halaman, mengganti pencarian, atau kategori.
+Persetujuan hanya berlaku pada tingkat approval pengguna; tingkat berikutnya
+berjalan seperti biasa. Server memeriksa ulang status dan approver dalam satu
+transaksi. Jika satu pengajuan tidak tersedia, sudah berubah, atau tidak boleh
+disetujui pengguna, seluruh batch dibatalkan, termasuk notifikasi dan job push.
+Endpoint menerima maksimal 100 ID pengajuan unik per permintaan.
+
 ## Menjalankan
 
 Notifikasi pemohon untuk PWA, Android, dan iOS dijelaskan pada
@@ -76,8 +95,8 @@ mengubah konfigurasi OpenSSL yang sudah dimuat.
 ## Pengujian
 
 ```sh
-php -d extension=php_pdo_sqlite.dll -d extension=php_sqlite3.dll vendor/phpunit/phpunit/phpunit --filter="PengajuanNotificationTest|ApprovalLineCutiTest|CutiPageTest"
-node --test tests/Frontend/admin-notifications-sw.test.mjs
+php -d extension=php_pdo_sqlite.dll -d extension=php_sqlite3.dll vendor/phpunit/phpunit/phpunit --filter="NotificationApprovalTest|PengajuanNotificationTest|ApprovalLineCutiTest|CutiPageTest"
+node --test tests/frontend/admin-notifications-sw.test.mjs tests/frontend/admin-notification-approval.test.mjs
 npm run build
 ```
 
@@ -87,8 +106,9 @@ status dibaca, pembatasan endpoint subscription, pergantian akun, logout,
 penghapusan subscription kedaluwarsa, retry, serta enkripsi dan tanda tangan VAPID
 pada request HTTP tanpa mengirim push ke perangkat nyata.
 
-Validasi perubahan: 56 tes PHP (1.310 assertion), lima tes service worker, build
-frontend, lint pada komponen yang diubah, dan Laravel Pint lulus. Pemeriksaan
+Validasi badge dan persetujuan massal: 64 tes PHP terkait dan 10 tes frontend
+(termasuk lima tes service worker), build frontend, lint pada file yang diubah,
+dan Laravel Pint lulus. Pemeriksaan
 seluruh proyek masih menghasilkan satu error pada import `AccessPermission` di
 `DashboardTest` dan enam kegagalan pada foto profil/presensi (urutan header cache,
 format tanggal SQLite, filter riwayat, dan validasi duplikasi). Pemeriksaan tipe

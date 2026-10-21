@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -22,6 +23,13 @@ class CutiRequest extends Model
     public function approvals(): HasMany
     {
         return $this->hasMany(CutiApproval::class)->orderBy('level');
+    }
+
+    public function scopeAwaitingApprovalBy(Builder $query, User $user): Builder
+    {
+        return $query->where('status', 'pending')->where('user_id', '!=', $user->id)
+            ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id)->where('status', 'pending')
+                ->whereColumn('cuti_approvals.level', 'cuti_requests.current_level'));
     }
 
     public function canBeCancelledBy(User $user): bool

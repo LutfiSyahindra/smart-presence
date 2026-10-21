@@ -6,9 +6,27 @@ approver berikutnya; pemohon belum mendapat status disetujui. Penolakan juga
 memberi notifikasi kepada pemohon. Akun cukup memiliki `mobile.access` dan email
 terverifikasi, tanpa perlu akses admin-web.
 
-Lonceng di beranda dan halaman cuti menampilkan notifikasi terbaru dan jumlah
-belum dibaca. Menu **Lihat semua notifikasi** membuka riwayat dengan paginasi dan
-tombol tandai dibaca. Ketukan pada push membuka detail pengajuan yang bersangkutan,
+Lonceng di beranda dan halaman cuti membuka **Inbox** dengan jumlah notifikasi
+belum dibaca. Tab **Notifikasi** menampilkan riwayat berdasarkan tanggal, status
+pengajuan, paginasi, tombol **Baca semua**, dan pengaturan notifikasi perangkat.
+Tab **Butuh persetujuan** menampilkan kategori pengajuan; hanya **Cuti** yang aktif,
+sedangkan kategori lain berlabel **Segera hadir** dan tidak dapat dipilih.
+Header Inbox rata tengah dan tetap terlihat saat halaman digulir.
+Kategori Cuti membuka halaman khusus **Persetujuan Cuti** di `/absensi/mobile/notifikasi/cuti`.
+Halaman ini memiliki pencarian nama/unit/jenis cuti, filter periode, pengurutan,
+rincian pengajuan, serta tindakan setujui/tolak tanpa membuka halaman Delegasi.
+Kotak centang langsung tampil pada setiap pengajuan. Centang satu per satu atau
+gunakan **Pilih semua di halaman ini**, lalu ketuk **Setujui pilihan**. Konfirmasi
+menampilkan nama, jenis, tanggal, dan jumlah pengajuan sebelum disetujui sekaligus.
+Pilihan dihapus saat pencarian, filter, atau halaman berubah agar pengajuan di luar
+daftar tidak ikut disetujui. Persetujuan diperiksa ulang oleh server dan disimpan
+dalam satu transaksi; jika salah satu pengajuan sudah diproses atau bukan giliran
+pengguna, seluruh pilihan tidak disimpan. Selama penyimpanan tombol dinonaktifkan.
+Antrean mencakup seluruh periode dan hanya pengajuan yang menjadi giliran pengguna;
+angka pada Inbox menggunakan cakupan yang sama. Pilihan pencarian dan filter
+dipertahankan dalam URL saat memuat ulang atau berpindah halaman.
+
+Ketukan pada push membuka detail pengajuan yang bersangkutan,
 termasuk pengajuan pada bulan sebelumnya. Apabila sesi PWA sudah habis, login
 melanjutkan pembukaan notifikasi. Endpoint selalu memeriksa pemilik notifikasi
 dan hak akses atas pengajuan.

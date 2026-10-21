@@ -7,7 +7,7 @@ import ts from 'typescript';
 const component = await readFile(new URL('../../resources/js/pages/absensi/absensi-mobile/ClockIn.vue', import.meta.url), 'utf8');
 const source = component.split('<script setup lang="ts">')[1].split('</script>')[0];
 const { outputText } = ts.transpileModule(
-    `${source}\nexport { requestLocation, submitClockIn, currentLocation, locationSamples, locating, locationError, currentStep, cameraActive, cameraVideo, checkingLocation, photoError, form };`,
+    `${source}\nexport { requestLocation, submitClockIn, goBack, currentLocation, locationSamples, locating, locationError, currentStep, cameraActive, cameraVideo, cameraStream, outsideDialogOpen, checkingLocation, photoError, form };`,
     {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     },
@@ -103,6 +103,15 @@ function load({
             getAndroidAttendanceLocation: async () => {
                 nativeCalls += 1;
                 return nativeLocation();
+            },
+        },
+        '@/lib/mobile-navigation': {
+            mobileGoBack: (fallback) => {
+                callbacks.fallback = fallback;
+            },
+            registerMobileBackHandler: (handler) => {
+                callbacks.back = handler;
+                return () => { delete callbacks.back; };
             },
         },
     };
@@ -374,4 +383,47 @@ test('leaving during a challenge refresh cannot restart GPS collection', async (
     assert.equal(state.watches.size, 0);
     assert.equal(state.timers.size, 0);
     assert.equal(state.checkingLocation.value, false);
+});
+
+test('Android back leaves the camera step and stops camera tracks for both clock modes', () => {
+    for (const mode of ['in', 'out']) {
+        const state = load({ mode });
+        let stopped = false;
+        state.openCamera();
+        state.cameraStream.value = { getTracks: () => [{ stop: () => { stopped = true; } }] };
+        assert.equal(state.callbacks.back(), true);
+        assert.equal(state.currentStep.value, 1);
+        assert.equal(state.cameraActive.value, false);
+        assert.equal(stopped, true);
+        assert.equal(state.callbacks.back(), false);
+        state.goBack();
+        assert.equal(state.callbacks.fallback, 'absensi.mobile.home');
+    }
+});
+
+test('Android back closes the outside-location dialog before leaving the attendance page', () => {
+    const state = load();
+    state.outsideDialogOpen.value = true;
+    assert.equal(state.callbacks.back(), true);
+    assert.equal(state.outsideDialogOpen.value, false);
+    assert.equal(state.callbacks.back(), false);
+});
+
+test('Android back waits while attendance is checking GPS or submitting', () => {
+    const state = load();
+    state.openCamera();
+    state.checkingLocation.value = true;
+    assert.equal(state.callbacks.back(), true);
+    assert.equal(state.currentStep.value, 2);
+    state.checkingLocation.value = false;
+    state.form.processing = true;
+    assert.equal(state.callbacks.back(), true);
+    assert.equal(state.currentStep.value, 2);
+});
+
+test('leaving attendance removes its screen-specific Android back handler', () => {
+    const state = load();
+    assert.equal(typeof state.callbacks.back, 'function');
+    state.callbacks.unmount();
+    assert.equal(state.callbacks.back, undefined);
 });

@@ -7,6 +7,7 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { initializeTheme } from './composables/useAppearance';
 import { startMobileNotifications } from './composables/useMobileNotifications';
+import { startMobileNavigation } from './lib/mobile-navigation';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -27,6 +28,7 @@ createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
+        startMobileNavigation(props.initialPage);
         createApp({ render: () => h(App, props) })
             .use(plugin)
             .use(ZiggyVue)

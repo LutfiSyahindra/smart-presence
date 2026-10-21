@@ -4,6 +4,7 @@ use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccoun
 use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceController as MobileAttendanceController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClockOutController;
+use App\Http\Controllers\Absensi\AbsensiMobile\CutiApprovalController as MobileCutiApprovalController;
 use App\Http\Controllers\Absensi\AbsensiMobile\CutiController as MobileCutiController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
 use App\Http\Controllers\Absensi\AbsensiMobile\NotificationController as MobileNotificationController;
@@ -45,6 +46,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
         Route::get('cuti', [MobileCutiController::class, 'index'])->name('cuti.index');
         Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->name('cuti.show');
         Route::get('notifikasi', [MobileNotificationController::class, 'index'])->name('notifikasi.index');
+        Route::get('notifikasi/cuti', [MobileCutiApprovalController::class, 'index'])->name('notifikasi.cuti');
+        Route::post('notifikasi/cuti/approve-many', [MobileCutiApprovalController::class, 'approveMany'])->name('notifikasi.cuti.approve-many');
         Route::get('notifikasi/feed', [MobileNotificationController::class, 'feed'])->name('notifikasi.feed');
         Route::get('notifikasi/open/{notification}', [MobileNotificationController::class, 'open'])->name('notifikasi.open');
         Route::post('notifikasi/read-all', [MobileNotificationController::class, 'readAll'])->name('notifikasi.read-all');

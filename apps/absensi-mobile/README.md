@@ -72,6 +72,37 @@ Buka `http://localhost:8600/login`, bukan port Vite, karena halaman membutuhkan 
 Jalankan `android:connect` jika perangkat baru dinyalakan setelah Vite.
 Mode build di atas tidak memerlukan Vite/HMR yang berjalan.
 
+## Navigasi kembali Android, PWA, dan iOS
+
+Frontend utama memakai riwayat Inertia yang sama di semua platform. Tombol kembali
+di header menuju halaman mobile sebelumnya, termasuk filter/query asal. Tautan
+yang dibuka langsung tanpa riwayat mobile kembali ke beranda; halaman persetujuan
+cuti memiliki fallback ke Inbox. Navigasi fallback mengganti halaman agar tidak
+membuat siklus kembali. Riwayat juga dipertahankan saat reload dan direset saat
+logout/pergantian akun.
+
+Wrapper Android menangani tombol kembali serta gestur sistem melalui AndroidX
+`OnBackPressedDispatcher`. Pada Clock In/Out, dialog lokasi ditutup lebih dahulu,
+atau tahap kamera kembali ke tahap lokasi sambil mematikan kamera. Saat verifikasi
+sedang dikirim/diperiksa, tombol kembali menunggu proses tersebut selesai. Setelah
+tidak ada halaman mobile sebelumnya di beranda, tombol kembali memindahkan aplikasi
+ke latar belakang. Perubahan native ini memerlukan pemasangan APK terbaru.
+
+PWA memakai riwayat browser untuk tombol/gestur sistem serta tombol kembali di
+header. Wrapper iOS mengaktifkan gestur geser kembali bawaan `WKWebView`, untuk
+peluncuran melalui scene maupun storyboard. Build dan uji native iOS tetap
+memerlukan macOS/Xcode serta perangkat/simulator Apple.
+
+Tes regresi frontend dari root proyek:
+
+```powershell
+node --test tests/frontend/mobile-navigation.test.mjs
+```
+
+Uji manual: buka Beranda → Presensi → Clock In/Out, lalu kembali bertahap;
+ulangi dari Inbox → persetujuan cuti dengan filter aktif, sesudah reload, dan dari
+tautan langsung. Pada iOS, ulangi dengan geser kembali dari tepi kiri layar.
+
 ## Perlindungan Fake GPS
 
 Clock-in dan clock-out pada wrapper Android menggunakan plugin native

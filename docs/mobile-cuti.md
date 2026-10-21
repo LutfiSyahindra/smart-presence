@@ -6,6 +6,7 @@ Halaman `/absensi/mobile/cuti` menyediakan:
 
 - **Pengajuan saya**: pengajuan milik pengguna yang masuk, dengan filter bulan, tahun, dan status serta paginasi. Pengajuan lintas bulan tampil pada setiap bulan yang dilewatinya.
 - **Delegasi**: pengajuan yang menugaskan pengguna sebagai pemberi persetujuan. Ini menggunakan penugasan approval line yang sudah ada. Hanya approver pada tingkat aktif yang dapat menyetujui atau menolak; penolakan wajib disertai catatan.
+- **Persetujuan sekaligus**: tautan **Tandai & setujui sekaligus** pada Delegasi membuka antrean Persetujuan Cuti. Centang beberapa pengajuan atau pilih semua di halaman yang tampil, lalu ketuk **Setujui pilihan** dan konfirmasi. Berlaku pada mobile, PWA, dan iOS melalui halaman yang sama. Setiap keputusan mengikuti tingkat approval yang sedang aktif.
 - **Saldo saya**: kuota tahunan, hari disetujui, hari menunggu, dan saldo tersedia untuk tahun periode terpilih. Saldo tidak dibuatkan angka contoh ketika alokasi belum tersedia.
 - **Rincian saldo**: hak cuti aktif yang dialokasikan kepada pegawai. Jenis biasa menampilkan batas durasi per pengajuan.
 - **Ajukan cuti**: pilihan jenis dalam modal dengan pencarian berdasarkan nama, tanggal, alasan, durasi kalender, dan pratinjau alur persetujuan. Cuti Tahunan otomatis dipilih saat formulir dibuka jika tersedia untuk tahun berjalan. Modal menampilkan kuota dan langsung menutup setelah jenis dipilih. Tahun kuota mengikuti tanggal mulai pengajuan.

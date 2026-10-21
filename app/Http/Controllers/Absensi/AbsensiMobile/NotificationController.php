@@ -10,15 +10,28 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class NotificationController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        $filters = $request->validate([
+            'tab' => ['nullable', Rule::in(['notifications', 'approvals'])],
+            'category' => ['nullable', Rule::in(['cuti'])],
+        ]);
+        if (($filters['category'] ?? null) === 'cuti') {
+            return to_route('absensi.mobile.notifikasi.cuti');
+        }
+
         return Inertia::render('absensi/absensi-mobile/Notifications', [
-            'notifications' => $this->query($request)->latest()->paginate(20)->through($this->serialize(...)),
+            'activeTab' => $filters['tab'] ?? 'notifications',
+            'unreadCount' => $this->query($request)->whereNull('read_at')->count(),
+            'pendingApprovalCount' => CutiRequest::query()->awaitingApprovalBy($request->user())->count(),
+            'today' => now()->toDateString(),
+            'notifications' => $this->query($request)->latest()->paginate(20)->withQueryString()->through($this->serialize(...)),
         ]);
     }
 

@@ -26,6 +26,7 @@ import { date, days, labels } from '../admin-web/cuti/formatters';
 import type { CutiRow } from '../admin-web/cuti/types';
 import CutiSheet from './components/CutiSheet.vue';
 import CutiTypePicker from './components/CutiTypePicker.vue';
+import MobileBackLink from './components/MobileBackLink.vue';
 import MobileNotificationBell from './components/MobileNotificationBell.vue';
 
 type Scope = 'mine' | 'delegation';
@@ -140,7 +141,7 @@ watch(
     <main class="leave-workspace">
         <div class="leave-shell">
             <header class="leave-header">
-                <Link :href="route('absensi.mobile.home')" class="icon-button" aria-label="Kembali ke beranda"><ArrowLeft /></Link>
+                <MobileBackLink :href="route('absensi.mobile.home')" class="icon-button" aria-label="Kembali"><ArrowLeft /></MobileBackLink>
                 <div>
                     <h1>Cuti</h1>
                     <p>Kelola pengajuan dan saldo cuti</p>
@@ -228,6 +229,9 @@ watch(
                         <span class="request-count">{{ requests.total }} pengajuan</span>
                     </header>
                     <p v-if="filters.scope === 'delegation'" class="delegation-help">Pengajuan yang menugaskan Anda sebagai pemberi persetujuan.</p>
+                    <Link v-if="filters.scope === 'delegation' && delegationCount" href="/absensi/mobile/notifikasi/cuti" class="bulk-approval-link">
+                        <CheckCircle2 /> Tandai &amp; setujui sekaligus <ArrowRight />
+                    </Link>
                     <div class="filter-row">
                         <label class="month-picker"
                             ><CalendarDays /><span>{{ periodLabel }}</span
@@ -1185,6 +1189,22 @@ button:disabled {
     color: #65775f;
     font-size: 13px;
     line-height: 1.6;
+}
+.bulk-approval-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    margin-top: 8px;
+    color: #356c43;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+.bulk-approval-link svg {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
 }
 .request-list {
     display: grid;

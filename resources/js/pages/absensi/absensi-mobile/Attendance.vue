@@ -20,6 +20,7 @@ import {
     TriangleAlert,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import MobileBackLink from './components/MobileBackLink.vue';
 
 type AttendanceEvent = {
     time: string;
@@ -163,9 +164,9 @@ onUnmounted(() => {
     <main class="attendance-workspace">
         <div class="attendance-shell">
             <header class="attendance-header">
-                <Link :href="route('absensi.mobile.home')" class="header-back" aria-label="Kembali ke beranda">
+                <MobileBackLink :href="route('absensi.mobile.home')" class="header-back" aria-label="Kembali">
                     <ArrowLeft />
-                </Link>
+                </MobileBackLink>
                 <div class="header-title">
                     <span class="brand-mark"><TimerReset /></span>
                     <span><small>RSARSY Presence</small><strong>Layanan Presensi</strong></span>

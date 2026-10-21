@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
+import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
 import type { SharedData } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -623,7 +624,7 @@ const goBack = () => {
         return;
     }
 
-    router.visit(route('absensi.mobile.home'));
+    mobileGoBack(route('absensi.mobile.home'));
 };
 
 const returnToLocation = () => {
@@ -722,7 +723,20 @@ const submitClockIn = async () => {
 };
 
 onMounted(() => void requestLocation());
+const removeBackHandler = registerMobileBackHandler(() => {
+    if (form.processing || checkingLocation.value) return true;
+    if (outsideDialogOpen.value) {
+        outsideDialogOpen.value = false;
+        return true;
+    }
+    if (currentStep.value === 2) {
+        goBack();
+        return true;
+    }
+    return false;
+});
 onUnmounted(() => {
+    removeBackHandler();
     locationRequestId += 1;
     stopLocationCollection();
     stopCamera();

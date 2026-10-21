@@ -9,6 +9,7 @@ import android.webkit.PermissionRequest;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 
 public class MainActivity extends BridgeActivity {
     private String presensiUrl;
@@ -20,6 +21,34 @@ public class MainActivity extends BridgeActivity {
         final String origin = bridge.getServerUrl();
         if (origin == null) return;
         presensiUrl = origin + "/absensi/mobile";
+
+        // Android's button and edge gesture must traverse the frontend history.
+        // BridgeActivity alone has no back handler when the App plugin is absent.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView view = bridge.getWebView();
+                String url = view.getUrl();
+                if (url == null || !sameOrigin(url, origin)) {
+                    moveTaskToBack(true);
+                    return;
+                }
+                view.evaluateJavascript(
+                    "!window.dispatchEvent(new Event('rsarsy:back', { cancelable: true }))",
+                    handled -> {
+                        if ("true".equals(handled)) return;
+                        // Also support a cached/older frontend or a page still loading.
+                        String path = Uri.parse(url).getPath();
+                        if (path != null && path.startsWith("/absensi/mobile/")) {
+                            if (view.canGoBack()) view.goBack();
+                            else view.loadUrl(presensiUrl);
+                        } else {
+                            moveTaskToBack(true);
+                        }
+                    }
+                );
+            }
+        });
 
         // Reuse Capacitor's Android runtime permission and file-picker handlers.
         // Only the configured frontend can request camera or GPS access.

@@ -164,6 +164,159 @@ class MobileNotificationTest extends TestCase
         $this->getJson(self::URL.'/feed')->assertJsonCount(0, 'items');
     }
 
+    public function test_inbox_summary_counts_only_the_current_approver_and_the_users_own_notifications(): void
+    {
+        $cuti = $this->submit();
+        $this->actingAs($this->first)->get(self::URL.'?tab=approvals')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('absensi/absensi-mobile/Notifications')
+                ->where('activeTab', 'approvals')->where('pendingApprovalCount', 1));
+        $this->actingAs($this->second)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('activeTab', 'notifications')->where('pendingApprovalCount', 0));
+        $this->actingAs($this->employee)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('unreadCount', 0)->where('pendingApprovalCount', 0));
+
+        $this->service->decide($cuti, $this->first, ['decision' => 'approved']);
+        $this->actingAs($this->first)->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('pendingApprovalCount', 0));
+        $this->actingAs($this->second)->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('pendingApprovalCount', 1));
+        $this->service->decide($cuti, $this->second, ['decision' => 'approved']);
+        $this->actingAs($this->employee)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('unreadCount', 1)->where('pendingApprovalCount', 0));
+        $this->postJson(self::URL.'/read-all')->assertOk();
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('unreadCount', 0));
+    }
+
+    public function test_cuti_approval_has_its_own_page_and_keeps_decisions_in_that_page(): void
+    {
+        $october = $this->submit();
+        $december = $this->service->submit($this->employee, ['master_cuti_id' => $this->master->id,
+            'tanggal_mulai' => '2026-12-07', 'tanggal_selesai' => '2026-12-08', 'alasan' => 'Keperluan keluarga']);
+        $queue = self::URL.'/cuti';
+
+        $this->actingAs($this->first)->get(self::URL.'?tab=approvals&category=cuti')->assertRedirect($queue);
+        $this->get($queue)->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('absensi/absensi-mobile/CutiApprovals')->where('totalPending', 2)
+            ->has('requests.data', 2)->where('requests.data.0.id', $october->id)
+            ->where('requests.data.1.id', $december->id)->where('requests.data.1.tanggal_mulai', '2026-12-07')
+            ->where('requests.data.1.can_decide', true)->where('requests.data.1.alasan', 'Keperluan keluarga')
+            ->has('requests.data.1.approvals', 2)->missing('balance')->missing('delegationCount'));
+        $this->from($queue)->post('/absensi/mobile/cuti/'.$december->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasNoErrors()->assertRedirect($queue);
+        $this->get($queue)->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 1)->has('requests.data', 1)->where('requests.data.0.id', $october->id));
+        $this->actingAs($this->second)->get($queue)->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 1)->has('requests.data', 1)->where('requests.data.0.id', $december->id));
+        $this->actingAs($this->employee)->get($queue)->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 0)->has('requests.data', 0));
+        $stranger = User::factory()->create()->assignRole('pegawai');
+        $this->actingAs($stranger)->get($queue)->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 0)->has('requests.data', 0));
+    }
+
+    public function test_cuti_approval_search_and_period_filters_keep_the_current_approver_scope(): void
+    {
+        $this->submit();
+        $december = $this->service->submit($this->employee, ['master_cuti_id' => $this->master->id,
+            'tanggal_mulai' => '2026-11-30', 'tanggal_selesai' => '2026-12-02', 'alasan' => 'Keperluan keluarga']);
+        $december->update(['nama_pegawai' => 'Pegawai Desember', 'nama_unit' => 'Unit Khusus']);
+        $queue = self::URL.'/cuti';
+        $this->actingAs($this->first)->get($queue.'?search=Desember&month=2026-12&sort=newest')->assertInertia(fn (Assert $page) => $page
+            ->where('filters.search', 'Desember')->where('filters.month', '2026-12')->where('filters.sort', 'newest')
+            ->where('totalPending', 2)->has('requests.data', 1)->where('requests.data.0.id', $december->id));
+        $this->get($queue.'?search=Unit%20Khusus')->assertInertia(fn (Assert $page) => $page->has('requests.data', 1));
+        $this->get($queue.'?search=tidak-ada')->assertInertia(fn (Assert $page) => $page->where('totalPending', 2)->has('requests.data', 0));
+        $this->getJson($queue.'?month=invalid')->assertUnprocessable();
+        $this->getJson($queue.'?sort=invalid')->assertUnprocessable();
+        $this->actingAs($this->second)->get($queue.'?search=Khusus')->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 0)->has('requests.data', 0));
+    }
+
+    public function test_cuti_approval_pagination_preserves_search_and_sort_and_excludes_completed_requests(): void
+    {
+        $original = $this->submit();
+        foreach (range(1, 10) as $index) {
+            $copy = $original->replicate();
+            $copy->save();
+            foreach ($original->approvals as $step) {
+                $copy->approvals()->create($step->only(['user_id', 'approver_name', 'level', 'status']));
+            }
+        }
+        $queue = self::URL.'/cuti?search=Pemohon&sort=newest';
+        $this->actingAs($this->first)->get($queue)->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 11)->has('requests.data', 10)->where('requests.last_page', 2)
+            ->where('requests.next_page_url', fn ($url) => str_contains($url, '/notifikasi/cuti?')
+                && str_contains($url, 'search=Pemohon') && str_contains($url, 'sort=newest') && str_contains($url, 'page=2')));
+        $this->get($queue.'&page=2')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.current_page', 2)->has('requests.data', 1)->where('requests.data.0.id', $original->id));
+        $this->service->decide($original, $this->first, ['decision' => 'rejected', 'note' => 'Jadwal perlu diubah']);
+        $this->get($queue)->assertInertia(fn (Assert $page) => $page
+            ->where('totalPending', 10)->where('requests.last_page', 1)
+            ->where('requests.data', fn ($rows) => collect($rows)->every(fn ($row) => $row['id'] !== $original->id)));
+    }
+
+    public function test_mobile_bulk_approval_is_atomic_and_checks_each_current_approver(): void
+    {
+        $valid = $this->submit();
+        $moved = $this->service->submit($this->employee, ['master_cuti_id' => $this->master->id,
+            'tanggal_mulai' => '2026-12-07', 'tanggal_selesai' => '2026-12-08', 'alasan' => 'Keperluan keluarga']);
+        $queue = self::URL.'/cuti';
+        $endpoint = $queue.'/approve-many';
+        $this->actingAs($this->employee)->from($queue)->post($endpoint, ['request_ids' => [$valid->id]])->assertForbidden();
+        $this->service->decide($moved, $this->first, ['decision' => 'approved']);
+        $this->actingAs($this->first)->from($queue)->post($endpoint, ['request_ids' => [$valid->id, $moved->id]])->assertForbidden();
+        $this->assertSame(1, $valid->fresh()->current_level);
+        $this->assertSame('pending', $valid->approvals()->where('level', 1)->sole()->status);
+        $this->assertSame(2, $moved->fresh()->current_level);
+        $this->postJson($endpoint, ['request_ids' => [$valid->id, $valid->id]])->assertUnprocessable();
+        $this->from($queue)->post($endpoint, ['request_ids' => [$valid->id]])->assertSessionHasNoErrors()->assertRedirect($queue);
+        $this->assertSame(2, $valid->fresh()->current_level);
+        $this->get($queue)->assertInertia(fn (Assert $page) => $page->where('totalPending', 0)->has('requests.data', 0));
+        $this->actingAs($this->second)->get($queue)->assertInertia(fn (Assert $page) => $page->where('totalPending', 2)->has('requests.data', 2));
+    }
+
+    public function test_mobile_bulk_approval_processes_only_marked_requests_at_each_level(): void
+    {
+        $first = $this->submit();
+        $second = $this->service->submit($this->employee, ['master_cuti_id' => $this->master->id,
+            'tanggal_mulai' => '2026-11-09', 'tanggal_selesai' => '2026-11-10', 'alasan' => 'Keperluan keluarga']);
+        $unselected = $this->service->submit($this->employee, ['master_cuti_id' => $this->master->id,
+            'tanggal_mulai' => '2026-12-07', 'tanggal_selesai' => '2026-12-08', 'alasan' => 'Keperluan keluarga']);
+        $queue = self::URL.'/cuti';
+        $payload = ['request_ids' => [$first->id, $second->id]];
+
+        $this->actingAs($this->first)->from($queue)->post($queue.'/approve-many', $payload)
+            ->assertRedirect($queue)->assertSessionHasNoErrors()
+            ->assertSessionHas('success', 'Berhasil menyetujui 2 pengajuan pada tingkat persetujuan Anda.');
+        foreach ([$first, $second] as $cuti) {
+            $this->assertSame('pending', $cuti->fresh()->status);
+            $this->assertSame(2, $cuti->fresh()->current_level);
+            $this->assertSame('approved', $cuti->approvals()->where('level', 1)->sole()->status);
+        }
+        $this->assertSame(0, $this->employee->notifications()->count());
+        $this->actingAs($this->second)->from($queue)->post($queue.'/approve-many', $payload)
+            ->assertRedirect($queue)->assertSessionHasNoErrors();
+        foreach ([$first, $second] as $cuti) {
+            $this->assertSame('approved', $cuti->fresh()->status);
+            $this->assertNull($cuti->fresh()->current_level);
+        }
+        $this->assertSame(2, $this->employee->notifications()->count());
+        $this->assertSame('pending', $unselected->fresh()->status);
+        $this->assertSame(1, $unselected->fresh()->current_level);
+        $this->postJson($queue.'/approve-many', $payload)->assertUnprocessable();
+        $this->assertSame(2, $this->employee->notifications()->count());
+    }
+
+    public function test_cuti_approval_page_and_bulk_endpoint_require_verified_mobile_access(): void
+    {
+        $queue = self::URL.'/cuti';
+        $this->getJson($queue)->assertUnauthorized();
+        $this->postJson($queue.'/approve-many', ['request_ids' => [1]])->assertUnauthorized();
+        $noAccess = User::factory()->create();
+        $this->actingAs($noAccess)->getJson($queue)->assertForbidden();
+        $this->postJson($queue.'/approve-many', ['request_ids' => [1]])->assertForbidden();
+        $unverified = User::factory()->unverified()->create()->assignRole('pegawai');
+        $this->actingAs($unverified)->get($queue)->assertRedirect(route('verification.notice'));
+    }
+
     public function test_rejection_reaches_the_mobile_requester_and_mark_all_read_is_scoped(): void
     {
         $cuti = $this->submit();

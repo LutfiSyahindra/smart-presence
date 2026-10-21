@@ -22,6 +22,10 @@ class ShiftService
             'nama' => $shift->nama,
             'jam_masuk' => substr((string) $shift->jam_masuk, 0, 5),
             'jam_keluar' => substr((string) $shift->jam_keluar, 0, 5),
+            'libur_sabtu' => $shift->libur_sabtu,
+            'libur_minggu' => $shift->libur_minggu,
+            'libur_nasional' => $shift->libur_nasional,
+            'libur_cuti_bersama' => $shift->libur_cuti_bersama,
             'created_at' => $shift->created_at?->format('d M Y'),
             'updated_at' => $shift->updated_at?->format('d M Y, H:i'),
         ]);

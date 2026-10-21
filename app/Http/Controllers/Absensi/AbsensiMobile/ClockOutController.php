@@ -10,6 +10,7 @@ use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
 use App\Services\Absensi\CutiScheduleService;
+use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ClockOutController extends Controller
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly AttendanceSubmissionService $submissionService,
         private readonly CutiScheduleService $cutiSchedule,
+        private readonly ShiftHolidayService $shiftHolidays,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -37,7 +39,7 @@ class ClockOutController extends Controller
         if ($this->cutiSchedule->isOnCuti($pegawai, $attendance)) {
             return to_route('absensi.mobile.home')->with('error', CutiScheduleService::BLOCKED_MESSAGE);
         }
-        if ($attendance?->is_day_off) {
+        if ($this->shiftHolidays->isDayOff($pegawai, $attendance)) {
             return to_route('absensi.mobile.home')->with('error', 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.');
         }
         if (! $attendance?->clock_in_at) {
@@ -61,7 +63,7 @@ class ClockOutController extends Controller
                 : to_route('absensi.mobile.home')->with('error', $message);
         }
 
-        $attendance->loadMissing('shift:id,nama,jam_masuk,jam_keluar');
+        $attendance->loadMissing('shift');
 
         return Inertia::render('absensi/absensi-mobile/ClockOut', [
             'schedule' => [
@@ -94,7 +96,7 @@ class ClockOutController extends Controller
         }
 
         $attendance->loadMissing([
-            'shift:id,nama,jam_masuk,jam_keluar',
+            'shift',
             'clockOutLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
         $location = $attendance->clockOutLocation;
@@ -136,7 +138,7 @@ class ClockOutController extends Controller
     private function pegawai(Request $request): ?Pegawai
     {
         return $request->user()?->pegawai()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
     }
 
@@ -148,7 +150,7 @@ class ClockOutController extends Controller
     private function attendanceForClockOut(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
         if ($today) {
@@ -156,7 +158,7 @@ class ClockOutController extends Controller
         }
 
         $previous = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')
             ->latest('clock_in_at')

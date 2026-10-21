@@ -12,7 +12,21 @@ class Shift extends Model
         'nama',
         'jam_masuk',
         'jam_keluar',
+        'libur_sabtu',
+        'libur_minggu',
+        'libur_nasional',
+        'libur_cuti_bersama',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'libur_sabtu' => 'boolean',
+            'libur_minggu' => 'boolean',
+            'libur_nasional' => 'boolean',
+            'libur_cuti_bersama' => 'boolean',
+        ];
+    }
 
     /** @return HasMany<Presensi, $this> */
     public function presensis(): HasMany

@@ -10,6 +10,7 @@ use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
 use App\Services\Absensi\CutiScheduleService;
+use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ClockInController extends Controller
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly AttendanceSubmissionService $submissionService,
         private readonly CutiScheduleService $cutiSchedule,
+        private readonly ShiftHolidayService $shiftHolidays,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -37,7 +39,7 @@ class ClockInController extends Controller
         if ($this->cutiSchedule->isOnCuti($pegawai, $existing)) {
             return to_route('absensi.mobile.home')->with('error', CutiScheduleService::BLOCKED_MESSAGE);
         }
-        if ($existing?->is_day_off) {
+        if ($this->shiftHolidays->isDayOff($pegawai, $existing)) {
             return to_route('absensi.mobile.home')->with('error', 'Hari ini tercatat sebagai hari libur. Clock-in tidak diperlukan.');
         }
         if ($existing?->clock_in_at) {
@@ -89,7 +91,7 @@ class ClockInController extends Controller
         }
 
         $attendance->loadMissing([
-            'shift:id,nama,jam_masuk,jam_keluar',
+            'shift',
             'clockInLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
         $location = $attendance->clockInLocation;
@@ -131,7 +133,7 @@ class ClockInController extends Controller
     private function pegawai(Request $request): ?Pegawai
     {
         return $request->user()?->pegawai()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
     }
 

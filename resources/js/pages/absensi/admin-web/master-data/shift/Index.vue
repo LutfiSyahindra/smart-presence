@@ -9,8 +9,11 @@ import CrudModal from '../../setting/components/CrudModal.vue';
 import FlashMessage from '../../setting/components/FlashMessage.vue';
 import Pagination from '../../setting/components/Pagination.vue';
 import type { Paginated } from '../../setting/types';
+import HolidayCalendar from './HolidayCalendar.vue';
+import HolidayPolicyFields from './HolidayPolicyFields.vue';
+import { defaultHolidayPolicy, holidayOptions, holidayPolicyLabel, type HolidayPolicy, type HolidayRow, type HolidaySyncInfo } from './types';
 
-interface ShiftRow {
+interface ShiftRow extends HolidayPolicy {
     id: number;
     nama: string;
     jam_masuk: string;
@@ -19,8 +22,8 @@ interface ShiftRow {
     updated_at: string | null;
 }
 
-interface ShiftInput {
-    [key: string]: string | number;
+interface ShiftInput extends HolidayPolicy {
+    [key: string]: string | number | boolean;
     inputKey: number;
     nama: string;
     jam_masuk: string;
@@ -31,7 +34,10 @@ const props = defineProps<{
     shifts: Paginated<ShiftRow>;
     overview: { total: number; morning: number; afternoon: number; night: number };
     filters: { search?: string };
-    can: { create: boolean; update: boolean; delete: boolean };
+    can: { create: boolean; update: boolean; delete: boolean; sync: boolean };
+    holidays: HolidayRow[];
+    holidayYear: number;
+    holidaySync: HolidaySyncInfo;
 }>();
 
 const baseUrl = '/absensi/admin-web/master-data/shift';
@@ -50,18 +56,15 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined;
 let nextInputKey = 0;
 
 const newShiftInput = (): ShiftInput => ({
+    ...defaultHolidayPolicy(),
     inputKey: ++nextInputKey,
     nama: '',
     jam_masuk: '',
     jam_keluar: '',
 });
 
-const form = useForm<{
-    nama: string;
-    jam_masuk: string;
-    jam_keluar: string;
-    shifts: ShiftInput[];
-}>({
+const form = useForm({
+    ...defaultHolidayPolicy(),
     nama: '',
     jam_masuk: '',
     jam_keluar: '',
@@ -81,7 +84,7 @@ const summaryCards = computed(() => [
 ]);
 
 const resetForm = () => {
-    form.defaults({ nama: '', jam_masuk: '', jam_keluar: '', shifts: [newShiftInput()] });
+    form.defaults({ ...defaultHolidayPolicy(), nama: '', jam_masuk: '', jam_keluar: '', shifts: [newShiftInput()] });
     form.reset();
     form.clearErrors();
 };
@@ -97,6 +100,10 @@ const openEdit = (shift: ShiftRow) => {
     editing.value = shift;
     form.clearErrors();
     form.defaults({
+        libur_sabtu: shift.libur_sabtu,
+        libur_minggu: shift.libur_minggu,
+        libur_nasional: shift.libur_nasional,
+        libur_cuti_bersama: shift.libur_cuti_bersama,
         nama: shift.nama,
         jam_masuk: shift.jam_masuk,
         jam_keluar: shift.jam_keluar,
@@ -122,7 +129,7 @@ const removeShiftInput = (index: number) => {
     form.clearErrors();
 };
 
-const inputError = (index: number, field: 'nama' | 'jam_masuk' | 'jam_keluar') =>
+const inputError = (index: number, field: 'nama' | 'jam_masuk' | 'jam_keluar' | keyof HolidayPolicy) =>
     (form.errors as Record<string, string | undefined>)[`shifts.${index}.${field}`];
 
 const submit = () => {
@@ -134,7 +141,11 @@ const submit = () => {
 
 const applyFilters = () => {
     if (searchTimer) clearTimeout(searchTimer);
-    router.get(baseUrl, { search: search.value.trim() || undefined }, { preserveState: true, preserveScroll: true, replace: true });
+    router.get(
+        baseUrl,
+        { search: search.value.trim() || undefined, holiday_year: props.holidayYear },
+        { preserveState: true, preserveScroll: true, replace: true },
+    );
 };
 
 watch(search, (value, previousValue) => {
@@ -228,7 +239,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                 <div class="shift-hero-copy">
                     <span class="shift-eyebrow"><Clock3 /> Pengaturan waktu kerja</span>
                     <h1 id="shift-title">Kelola shift dengan <span>lebih teratur.</span></h1>
-                    <p>Tentukan nama dan rentang waktu setiap shift sebagai dasar penjadwalan kehadiran pegawai.</p>
+                    <p>Tentukan waktu kerja dan kebijakan libur setiap shift sebagai dasar penjadwalan kehadiran pegawai.</p>
                     <div class="shift-hero-points">
                         <span><i></i> Mendukung shift lintas hari</span>
                         <span><i></i> Input banyak data sekaligus</span>
@@ -291,6 +302,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                     <th>Jam masuk</th>
                                     <th>Jam keluar</th>
                                     <th>Durasi</th>
+                                    <th>Hari libur</th>
                                     <th>Diperbarui</th>
                                     <th><span class="visually-hidden">Aksi</span></th>
                                 </tr>
@@ -315,6 +327,9 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                     <td>
                                         <span class="shift-duration">{{ durationLabel(shift.jam_masuk, shift.jam_keluar) }}</span>
                                         <small v-if="crossesMidnight(shift.jam_masuk, shift.jam_keluar)" class="shift-next-day">Lintas hari</small>
+                                    </td>
+                                    <td>
+                                        <span class="shift-holiday-label">{{ holidayPolicyLabel(shift) }}</span>
                                     </td>
                                     <td>
                                         <span class="shift-updated">{{ shift.updated_at ?? '-' }}</span>
@@ -377,6 +392,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                 <span>{{ durationLabel(shift.jam_masuk, shift.jam_keluar) }}</span>
                                 <small v-if="crossesMidnight(shift.jam_masuk, shift.jam_keluar)">Lintas hari</small>
                             </footer>
+                            <p class="shift-holiday-label">Libur: {{ holidayPolicyLabel(shift) }}</p>
                         </article>
                     </div>
                 </template>
@@ -392,12 +408,13 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 
                 <Pagination :links="shifts.links" :from="shifts.from" :to="shifts.to" :total="shifts.total" />
             </section>
+            <HolidayCalendar :holidays="holidays" :year="holidayYear" :search="search" :can="can" :sync-info="holidaySync" />
         </div>
 
         <CrudModal
             :open="creating || Boolean(editing)"
             :title="editing ? `Edit shift: ${editing.nama}` : 'Tambah shift baru'"
-            :description="editing ? 'Perbarui nama dan rentang waktu shift.' : 'Tambahkan hingga 25 shift dalam satu kali penyimpanan.'"
+            :description="editing ? 'Perbarui waktu kerja dan kebijakan libur shift.' : 'Tambahkan hingga 25 shift beserta kebijakan liburnya.'"
             @close="closeForm"
         >
             <form class="shift-form" @submit.prevent="submit">
@@ -475,7 +492,14 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                         </div>
                     </section>
 
-                    <section v-else class="shift-dynamic-section">
+                    <HolidayPolicyFields
+                        v-if="editing"
+                        :policy="form"
+                        :error="holidayOptions.map((option) => form.errors[option.key]).find(Boolean)"
+                        @change="(field, value) => (form[field] = value)"
+                    />
+
+                    <section v-if="!editing" class="shift-dynamic-section">
                         <header>
                             <div>
                                 <small>Daftar input</small>
@@ -556,6 +580,11 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                         <p v-if="inputError(index, 'jam_keluar')">{{ inputError(index, 'jam_keluar') }}</p>
                                     </div>
                                 </div>
+                                <HolidayPolicyFields
+                                    :policy="shiftInput"
+                                    :error="holidayOptions.map((option) => inputError(index, option.key)).find(Boolean)"
+                                    @change="(field, value) => (shiftInput[field] = value)"
+                                />
                                 <footer>
                                     <Clock3 /> {{ durationLabel(shiftInput.jam_masuk, shiftInput.jam_keluar) }}
                                     <span v-if="crossesMidnight(shiftInput.jam_masuk, shiftInput.jam_keluar)">Berakhir hari berikutnya</span>
@@ -594,6 +623,13 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 </template>
 
 <style scoped>
+.shift-holiday-label {
+    display: block;
+    max-width: 240px;
+    color: #697386;
+    font-size: 12px;
+    line-height: 1.6;
+}
 .shift-page,
 .shift-form {
     --shift-ink: #172033;

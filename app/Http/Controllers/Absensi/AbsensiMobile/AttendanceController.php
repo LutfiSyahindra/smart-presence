@@ -7,6 +7,7 @@ use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\CutiScheduleService;
+use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -15,23 +16,28 @@ use Inertia\Response;
 
 class AttendanceController extends Controller
 {
-    public function __construct(private readonly CutiScheduleService $cutiSchedule) {}
+    public function __construct(
+        private readonly CutiScheduleService $cutiSchedule,
+        private readonly ShiftHolidayService $shiftHolidays,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
         $pegawai = $request->user()?->pegawai()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
         $attendance = $pegawai ? $this->attendanceForToday($pegawai) : null;
 
         $attendance?->loadMissing([
-            'shift:id,nama,jam_masuk,jam_keluar',
+            'shift',
             'clockInLocation:id,name,address,latitude,longitude,radius_meters',
             'clockOutLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
 
         $isOnCuti = $this->cutiSchedule->isOnCuti($pegawai, $attendance);
-        $shift = $isOnCuti ? null : ($attendance?->shift ?? $pegawai?->shift);
+        $dayOffReason = $this->shiftHolidays->dayOffReason($pegawai, $attendance);
+        $isDayOff = $dayOffReason !== null;
+        $shift = $isOnCuti || $isDayOff ? null : ($attendance?->shift ?? $pegawai?->shift);
         $office = OfficeLocation::query()->oldest('id')->first(['id', 'name', 'address']);
         $attendanceDate = $isOnCuti ? now() : ($attendance?->tanggal_presensi ?? now());
         $clockIn = $attendance?->clock_in_at;
@@ -42,18 +48,18 @@ class AttendanceController extends Controller
             'today' => [
                 'date' => $attendanceDate->toDateString(),
                 'date_label' => $attendanceDate->locale('id')->translatedFormat('l, d F Y'),
-                'shift_name' => $isOnCuti ? 'CUTI' : $shift?->nama,
+                'shift_name' => $isOnCuti ? 'CUTI' : ($isDayOff ? 'Hari Libur' : $shift?->nama),
                 'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
                 'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
                 'location_name' => $office?->name,
                 'location_address' => $office?->address,
             ],
             'attendance' => [
-                'is_day_off' => $attendance?->is_day_off ?? false,
+                'is_day_off' => $isDayOff,
                 'is_on_leave' => $isOnCuti,
-                'status' => $isOnCuti ? 'on_leave' : $this->status($pegawai, $attendance, $office),
+                'status' => $isOnCuti ? 'on_leave' : ($isDayOff ? 'day_off' : $this->status($pegawai, $attendance, $office)),
                 'duration' => $this->durationLabel($clockIn, $clockOut),
-                'notes' => $attendance?->notes,
+                'notes' => $attendance?->notes ?? $dayOffReason,
                 'clock_in' => $clockIn ? [
                     'time' => $clockIn->format('H:i'),
                     'date_time_label' => $clockIn->locale('id')->translatedFormat('d M Y, H:i').' WIB',
@@ -91,7 +97,7 @@ class AttendanceController extends Controller
     private function attendanceForToday(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
 
@@ -100,7 +106,7 @@ class AttendanceController extends Controller
         }
 
         $previous = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')
             ->latest('clock_in_at')

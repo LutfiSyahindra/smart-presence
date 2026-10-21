@@ -8,6 +8,7 @@ use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\CutiScheduleService;
+use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -19,14 +20,18 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MobileController extends Controller
 {
-    public function __construct(private readonly CutiScheduleService $cutiSchedule) {}
+    public function __construct(
+        private readonly CutiScheduleService $cutiSchedule,
+        private readonly ShiftHolidayService $shiftHolidays,
+    ) {}
 
     public function home(Request $request): JsonResponse
     {
         $pegawai = $this->pegawai($request);
         $attendance = $pegawai ? $this->currentAttendance($pegawai) : null;
         $isOnCuti = $this->cutiSchedule->isOnCuti($pegawai, $attendance);
-        $shift = $isOnCuti ? null : ($attendance?->shift ?? $pegawai?->shift);
+        $isDayOff = $this->shiftHolidays->isDayOff($pegawai, $attendance);
+        $shift = $isOnCuti || $isDayOff ? null : ($attendance?->shift ?? $pegawai?->shift);
         $office = OfficeLocation::query()->oldest('id')->first(['id', 'name', 'address']);
 
         return response()->json([
@@ -42,7 +47,7 @@ class MobileController extends Controller
                     'label' => now()->locale('id')->translatedFormat('l, d F Y'),
                 ],
                 'schedule' => [
-                    'shift_name' => $isOnCuti ? 'CUTI' : $shift?->nama,
+                    'shift_name' => $isOnCuti ? 'CUTI' : ($isDayOff ? 'Hari Libur' : $shift?->nama),
                     'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
                     'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
                     'location_name' => $office?->name,
@@ -57,7 +62,7 @@ class MobileController extends Controller
         $pegawai = $this->pegawai($request);
         $attendance = $pegawai ? $this->currentAttendance($pegawai) : null;
         $attendance?->loadMissing([
-            'shift:id,nama,jam_masuk,jam_keluar',
+            'shift',
             'clockInLocation:id,name,address,latitude,longitude,radius_meters',
             'clockOutLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
@@ -72,7 +77,7 @@ class MobileController extends Controller
     {
         $pegawai = $this->pegawai($request);
         $items = $pegawai?->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->latest('tanggal_presensi')
             ->latest('id')
             ->limit(60)
@@ -154,13 +159,15 @@ class MobileController extends Controller
     /** @return array<string, mixed> */
     private function attendancePayload(?Pegawai $pegawai, ?Presensi $attendance, ?OfficeLocation $office, bool $isOnCuti): array
     {
-        $shift = $isOnCuti ? null : ($attendance?->shift ?? $pegawai?->shift);
+        $dayOffReason = $this->shiftHolidays->dayOffReason($pegawai, $attendance);
+        $isDayOff = $dayOffReason !== null;
+        $shift = $isOnCuti || $isDayOff ? null : ($attendance?->shift ?? $pegawai?->shift);
         $date = $isOnCuti ? now() : ($attendance?->tanggal_presensi ?? now());
         $clockIn = $attendance?->clock_in_at;
         $clockOut = $attendance?->clock_out_at;
         $status = match (true) {
             $isOnCuti => 'on_leave',
-            $attendance?->is_day_off === true => 'day_off',
+            $isDayOff => 'day_off',
             $clockOut !== null => 'complete',
             ! $pegawai || ! $shift || ! $office => 'unavailable',
             $clockIn === null => 'ready_to_clock_in',
@@ -173,11 +180,11 @@ class MobileController extends Controller
             'date_label' => $date->locale('id')->translatedFormat('l, d F Y'),
             'status' => $status,
             'is_on_leave' => $isOnCuti,
-            'is_day_off' => $attendance?->is_day_off ?? false,
+            'is_day_off' => $isDayOff,
             'duration' => $this->durationLabel($clockIn, $clockOut),
-            'notes' => $attendance?->notes,
+            'notes' => $attendance?->notes ?? $dayOffReason,
             'shift' => [
-                'name' => $isOnCuti ? 'CUTI' : $shift?->nama,
+                'name' => $isOnCuti ? 'CUTI' : ($isDayOff ? 'Hari Libur' : $shift?->nama),
                 'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
                 'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
             ],
@@ -223,14 +230,14 @@ class MobileController extends Controller
     private function pegawai(Request $request): ?Pegawai
     {
         return $request->user()?->pegawai()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->first(['id', 'user_id', 'shift_id', 'nama', 'email']);
     }
 
     private function currentAttendance(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
         if ($today) {
@@ -238,7 +245,7 @@ class MobileController extends Controller
         }
 
         $previous = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')
             ->latest('clock_in_at')

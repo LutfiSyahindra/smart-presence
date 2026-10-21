@@ -15,6 +15,7 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Cuti\MasterCutiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
+use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\HariLiburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotificationInboxController;
@@ -119,6 +120,12 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
             Route::delete('pegawai/{pegawai}', [PegawaiController::class, 'destroy'])->middleware('can:'.AccessPermission::PEGAWAI_DELETE)->name('pegawai.destroy');
 
             Route::get('shift', [ShiftController::class, 'index'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.index');
+            Route::post('shift/holidays/sync', [HariLiburController::class, 'sync'])
+                ->middleware(['can:'.AccessPermission::SHIFT_CREATE, 'can:'.AccessPermission::SHIFT_UPDATE, 'can:'.AccessPermission::SHIFT_DELETE, 'throttle:6,1'])
+                ->name('shift.holidays.sync');
+            Route::post('shift/holidays', [HariLiburController::class, 'store'])->middleware('can:'.AccessPermission::SHIFT_CREATE)->name('shift.holidays.store');
+            Route::put('shift/holidays/{hariLibur}', [HariLiburController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.holidays.update');
+            Route::delete('shift/holidays/{hariLibur}', [HariLiburController::class, 'destroy'])->middleware('can:'.AccessPermission::SHIFT_DELETE)->name('shift.holidays.destroy');
             Route::post('shift', [ShiftController::class, 'store'])->middleware('can:'.AccessPermission::SHIFT_CREATE)->name('shift.store');
             Route::get('shift/assign', [ShiftAssignmentController::class, 'index'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.assign.index');
             Route::put('shift/assign', [ShiftAssignmentController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.assign.update');

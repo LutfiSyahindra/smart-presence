@@ -11,6 +11,7 @@ use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
 use App\Services\Absensi\CutiScheduleService;
+use App\Services\Absensi\ShiftHolidayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -23,6 +24,7 @@ class AttendanceActionController extends Controller
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly AttendanceSubmissionService $submissionService,
         private readonly CutiScheduleService $cutiSchedule,
+        private readonly ShiftHolidayService $shiftHolidays,
     ) {}
 
     public function show(Request $request, string $action): JsonResponse
@@ -38,7 +40,7 @@ class AttendanceActionController extends Controller
 
         $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
 
-        if ($attendance?->is_day_off) {
+        if ($this->shiftHolidays->isDayOff($pegawai, $attendance)) {
             $this->fail('Hari ini tercatat sebagai hari libur. Presensi tidak diperlukan.');
         }
         if ($action === 'clock-in' && $attendance?->clock_in_at) {
@@ -106,7 +108,7 @@ class AttendanceActionController extends Controller
     /** @return array<string, mixed> */
     private function successPayload(Presensi $attendance, string $action, bool $outsideRadius): array
     {
-        $attendance->loadMissing('shift:id,nama,jam_masuk,jam_keluar');
+        $attendance->loadMissing('shift');
         $isClockIn = $action === 'clock-in';
         $timestamp = $isClockIn ? $attendance->clock_in_at : $attendance->clock_out_at;
 
@@ -129,14 +131,14 @@ class AttendanceActionController extends Controller
     private function pegawai(Request $request): ?Pegawai
     {
         return $request->user()?->pegawai()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
     }
 
     private function attendanceForClockOut(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
         if ($today) {
@@ -144,7 +146,7 @@ class AttendanceActionController extends Controller
         }
 
         $previous = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')
             ->latest('clock_in_at')

@@ -22,6 +22,10 @@ class StoreShiftRequest extends FormRequest
                 'shifts.*.nama' => ['required', 'string', 'max:100', 'distinct:ignore_case', Rule::unique('shifts', 'nama')],
                 'shifts.*.jam_masuk' => ['required', 'date_format:H:i'],
                 'shifts.*.jam_keluar' => ['required', 'date_format:H:i'],
+                'shifts.*.libur_sabtu' => ['sometimes', 'boolean'],
+                'shifts.*.libur_minggu' => ['sometimes', 'boolean'],
+                'shifts.*.libur_nasional' => ['sometimes', 'boolean'],
+                'shifts.*.libur_cuti_bersama' => ['sometimes', 'boolean'],
             ];
         }
 
@@ -29,6 +33,10 @@ class StoreShiftRequest extends FormRequest
             'nama' => ['required', 'string', 'max:100', Rule::unique('shifts', 'nama')],
             'jam_masuk' => ['required', 'date_format:H:i'],
             'jam_keluar' => ['required', 'date_format:H:i'],
+            'libur_sabtu' => ['sometimes', 'boolean'],
+            'libur_minggu' => ['sometimes', 'boolean'],
+            'libur_nasional' => ['sometimes', 'boolean'],
+            'libur_cuti_bersama' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -61,6 +69,10 @@ class StoreShiftRequest extends FormRequest
                     'nama' => str($shift['nama'] ?? '')->squish()->toString(),
                     'jam_masuk' => trim((string) ($shift['jam_masuk'] ?? '')),
                     'jam_keluar' => trim((string) ($shift['jam_keluar'] ?? '')),
+                    'libur_sabtu' => $shift['libur_sabtu'] ?? false,
+                    'libur_minggu' => $shift['libur_minggu'] ?? false,
+                    'libur_nasional' => $shift['libur_nasional'] ?? false,
+                    'libur_cuti_bersama' => $shift['libur_cuti_bersama'] ?? false,
                 ] : $shift)
                 ->all();
 

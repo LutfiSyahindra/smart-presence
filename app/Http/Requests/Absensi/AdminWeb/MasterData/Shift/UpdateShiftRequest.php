@@ -19,6 +19,10 @@ class UpdateShiftRequest extends FormRequest
             'nama' => ['required', 'string', 'max:100', Rule::unique('shifts', 'nama')->ignore($this->route('shift'))],
             'jam_masuk' => ['required', 'date_format:H:i'],
             'jam_keluar' => ['required', 'date_format:H:i'],
+            'libur_sabtu' => ['sometimes', 'boolean'],
+            'libur_minggu' => ['sometimes', 'boolean'],
+            'libur_nasional' => ['sometimes', 'boolean'],
+            'libur_cuti_bersama' => ['sometimes', 'boolean'],
         ];
     }
 

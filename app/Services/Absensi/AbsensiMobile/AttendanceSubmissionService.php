@@ -10,6 +10,7 @@ use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\CutiScheduleService;
+use App\Services\Absensi\ShiftHolidayService;
 use App\ValueObjects\FaceVerificationResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ class AttendanceSubmissionService
         private readonly FaceVerifier $faceVerifier,
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly CutiScheduleService $cutiSchedule,
+        private readonly ShiftHolidayService $shiftHolidays,
     ) {}
 
     /** @return array{attendance: Presensi, message: string, outside_radius: bool} */
@@ -36,7 +38,7 @@ class AttendanceSubmissionService
 
         $existing = $this->todayPresensi($pegawai);
         $this->cutiSchedule->ensureCanAttend($pegawai, $existing);
-        if ($existing?->is_day_off) {
+        if ($this->shiftHolidays->isDayOff($pegawai, $existing)) {
             $this->fail('attendance', 'Hari ini tercatat sebagai hari libur. Clock-in tidak diperlukan.');
         }
         if ($existing?->clock_in_at) {
@@ -77,6 +79,7 @@ class AttendanceSubmissionService
             $attendance = DB::transaction(function () use ($distance, $existing, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): Presensi {
                 Pegawai::query()->lockForUpdate()->findOrFail($pegawai->id);
                 $this->cutiSchedule->ensureCanAttend($pegawai, $existing);
+                $this->shiftHolidays->ensureCanAttend($pegawai, $existing);
 
                 $presensi = $existing ?? new Presensi;
                 $presensi->fill([
@@ -134,7 +137,7 @@ class AttendanceSubmissionService
 
         $attendance = $this->attendanceForClockOut($pegawai);
         $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
-        if ($attendance?->is_day_off) {
+        if ($this->shiftHolidays->isDayOff($pegawai, $attendance)) {
             $this->fail('attendance', 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.');
         }
         if (! $attendance?->clock_in_at) {
@@ -280,7 +283,7 @@ class AttendanceSubmissionService
     private function pegawai(Request $request): ?Pegawai
     {
         return $request->user()?->pegawai()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
     }
 
@@ -292,7 +295,7 @@ class AttendanceSubmissionService
     private function attendanceForClockOut(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
         if ($today) {
@@ -300,7 +303,7 @@ class AttendanceSubmissionService
         }
 
         $previous = $pegawai->presensis()
-            ->with('shift:id,nama,jam_masuk,jam_keluar')
+            ->with('shift')
             ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')
             ->latest('clock_in_at')

@@ -88,7 +88,7 @@ const liveTime = computed(() =>
 );
 
 const quickActions = computed(() => [
-    { label: 'Riwayat', caption: 'Kehadiran', icon: History, color: '#087f78', background: '#e8f6f2' },
+    { label: 'Riwayat', caption: 'Kehadiran', icon: History, color: '#087f78', background: '#e8f6f2', history: true },
     { label: 'Jadwal', caption: 'Shift kerja', icon: CalendarDays, color: '#5b54a4', background: '#efedfb' },
     { label: 'Pengajuan', caption: 'Izin & cuti', icon: ClipboardList, color: '#b86a37', background: '#fff1e8' },
     props.canAccessAdmin
@@ -263,7 +263,17 @@ onUnmounted(() => {
                     <div class="quick-grid">
                         <template v-for="action in quickActions" :key="action.label">
                             <Link
-                                v-if="action.cuti"
+                                v-if="action.history"
+                                :href="route('absensi.mobile.attendance.log')"
+                                class="quick-action"
+                                :style="{ '--action-color': action.color, '--action-background': action.background }"
+                            >
+                                <span class="quick-icon"><component :is="action.icon" /></span>
+                                <strong>{{ action.label }}</strong>
+                                <small>{{ action.caption }}</small>
+                            </Link>
+                            <Link
+                                v-else-if="action.cuti"
                                 :href="route('absensi.mobile.cuti.index')"
                                 class="quick-action"
                                 :style="{ '--action-color': action.color, '--action-background': action.background }"

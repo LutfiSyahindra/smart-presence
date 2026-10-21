@@ -103,6 +103,33 @@ Uji manual: buka Beranda → Presensi → Clock In/Out, lalu kembali bertahap;
 ulangi dari Inbox → persetujuan cuti dengan filter aktif, sesudah reload, dan dari
 tautan langsung. Pada iOS, ulangi dengan geser kembali dari tepi kiri layar.
 
+## Log Daftar Absensi
+
+Menu **Layanan Presensi → Log Daftar Absensi** membuka rekap kehadiran bulanan
+di `/absensi/mobile/presensi/log`. Akses cepat **Riwayat** di beranda menuju
+halaman yang sama. Fitur ini memakai frontend bersama untuk PWA, Android, dan iOS.
+
+Pilih bulan/tahun untuk melihat sepuluh indikator ringkasan dan seluruh tanggal
+bulan tersebut. Daftar dapat difilter ke Hadir, Perlu perhatian, atau Libur & cuti;
+ketuk tanggal untuk melihat jadwal, clock-in/out, lokasi, durasi, dan catatan.
+Sabtu/Minggu yang diliburkan shift ditandai **Libur**, tanggal libur nasional
+ditandai **Cuti nasional** beserta nama hari rayanya, dan cuti bersama ditandai
+**Cuti bersama**. Kalender memakai data lokal di Master Data → Shift; tidak
+memanggil API luar saat membuka log. Jika libur nasional bertepatan dengan akhir
+pekan, label Cuti nasional didahulukan. Ketiganya masuk rekap Hari libur dan filter
+Libur & cuti tanpa dihitung absen. Pengaturan libur shift tetap berlaku; rekaman
+clock-in/out dan cuti pribadi yang sudah disetujui tetap ditampilkan.
+Header rata tengah berada di luar area isi yang digulir. Tombol kembali Android
+menutup pemilih periode/detail sebelum kembali ke halaman sebelumnya.
+
+Rekap hanya memakai data pegawai yang sedang login. Hari mendatang dan shift
+yang belum selesai tidak dihitung absen/tidak clock-out. Shift malam mengikuti
+tanggal mulai shift; rekaman memakai shift tersimpan, sedangkan tanggal tanpa
+rekaman mengikuti shift saat ini sejak tanggal penugasan dan mulai bekerja.
+Rekap membaca data tanpa membuat atau mengubah catatan presensi.
+
+Pengujian backend: `tests/Feature/Absensi/AbsensiMobile/AttendanceLogTest.php`.
+
 ## Perlindungan Fake GPS
 
 Clock-in dan clock-out pada wrapper Android menggunakan plugin native

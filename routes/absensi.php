@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccountController;
 use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceController as MobileAttendanceController;
+use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceLogController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClockOutController;
 use App\Http\Controllers\Absensi\AbsensiMobile\CutiApprovalController as MobileCutiApprovalController;
@@ -44,6 +45,7 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
         Route::get('presensi', MobileAttendanceController::class)->name('attendance');
+        Route::get('presensi/log', AttendanceLogController::class)->name('attendance.log');
         Route::get('cuti', [MobileCutiController::class, 'index'])->name('cuti.index');
         Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->name('cuti.show');
         Route::get('notifikasi', [MobileNotificationController::class, 'index'])->name('notifikasi.index');

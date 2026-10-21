@@ -7,9 +7,11 @@ import {
     CalendarDays,
     Check,
     ChevronDown,
+    ChevronRight,
     Clock3,
     FileText,
     Fingerprint,
+    History,
     LogIn,
     LogOut,
     MapPin,
@@ -175,6 +177,11 @@ onUnmounted(() => {
             </header>
 
             <section class="attendance-content">
+                <Link :href="route('absensi.mobile.attendance.log')" class="attendance-log-link">
+                    <span class="log-link-icon"><History /></span>
+                    <span><strong>Log Daftar Absensi</strong><small>Ringkasan bulanan & riwayat kehadiran</small></span>
+                    <ChevronRight />
+                </Link>
                 <article class="status-hero" :class="`tone-${statusMeta.tone}`">
                     <span class="hero-orb hero-orb-one" aria-hidden="true"></span>
                     <span class="hero-orb hero-orb-two" aria-hidden="true"></span>
@@ -540,6 +547,7 @@ onUnmounted(() => {
     min-width: 0;
     display: flex;
     flex-direction: column;
+    text-align: center;
 }
 
 .header-title small {
@@ -563,6 +571,56 @@ onUnmounted(() => {
 .attendance-content {
     padding: 3px 16px calc(28px + env(safe-area-inset-bottom));
     flex: 1;
+}
+
+.attendance-log-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 14px 0;
+    padding: 15px;
+    border: 1px solid #dedfcd;
+    border-radius: 20px;
+    background: linear-gradient(115deg, #fffdf6, #f2f7f1);
+    color: #244a43;
+    box-shadow: 0 5px 18px #183d3210;
+}
+.attendance-log-link:hover {
+    border-color: #9ebbb0;
+}
+.log-link-icon {
+    display: grid;
+    place-items: center;
+    width: 43px;
+    height: 43px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    color: #8a713e;
+    background: #f1ead6;
+}
+.log-link-icon svg {
+    width: 21px;
+    height: 21px;
+}
+.attendance-log-link > span:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+}
+.attendance-log-link strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 800;
+}
+.attendance-log-link small {
+    display: block;
+    margin-top: 4px;
+    color: #647b73;
+    font-size: 10px;
+}
+.attendance-log-link > svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
 }
 
 .status-hero {

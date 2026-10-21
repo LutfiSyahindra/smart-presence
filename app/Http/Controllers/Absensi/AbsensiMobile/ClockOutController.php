@@ -9,6 +9,7 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
+use App\Services\Absensi\CutiScheduleService;
 use App\Support\AccessPermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class ClockOutController extends Controller
     public function __construct(
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly AttendanceSubmissionService $submissionService,
+        private readonly CutiScheduleService $cutiSchedule,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -32,6 +34,9 @@ class ClockOutController extends Controller
         }
 
         $attendance = $this->attendanceForClockOut($pegawai);
+        if ($this->cutiSchedule->isOnCuti($pegawai, $attendance)) {
+            return to_route('absensi.mobile.home')->with('error', CutiScheduleService::BLOCKED_MESSAGE);
+        }
         if ($attendance?->is_day_off) {
             return to_route('absensi.mobile.home')->with('error', 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.');
         }

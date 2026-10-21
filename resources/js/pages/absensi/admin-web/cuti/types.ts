@@ -12,5 +12,6 @@ export interface CutiRow {
     current_level: number | null;
     created_at: string;
     can_decide: boolean;
+    can_cancel?: boolean;
     approvals: { level: number; name: string; status: string; note: string | null; decided_at: string | null }[];
 }

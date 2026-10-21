@@ -16,7 +16,12 @@ const config: CapacitorConfig = {
     appId: 'id.rsarsy.presensi',
     appName: 'RSARSY Presence',
     webDir: 'wrapper',
-    includePlugins: [],
+    includePlugins: ['@capacitor/push-notifications'],
+    plugins: {
+        PushNotifications: {
+            presentationOptions: ['alert', 'sound'],
+        },
+    },
     android: {
         allowMixedContent: false,
     },

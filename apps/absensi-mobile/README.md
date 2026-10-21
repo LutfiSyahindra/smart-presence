@@ -145,6 +145,10 @@ Opsi `-Software` menonaktifkan akselerasi CPU dan jauh lebih lambat.
 
 ## Produksi dan iOS
 
+Notifikasi persetujuan sudah terhubung ke Web Push untuk PWA, FCM untuk Android,
+dan APNs untuk iOS. Konfigurasi kredensial, izin perangkat, serta langkah uji ada
+di [panduan notifikasi mobile](../../docs/mobile-notifications.md).
+
 Wrapper saat ini adalah **development Android**. `server.url` Capacitor ditujukan
 untuk development, sehingga Gradle memblokir release APK/AAB yang masih memakai
 konfigurasi ini. Untuk distribusi, siapkan frontend di HTTPS dan wrapper produksi

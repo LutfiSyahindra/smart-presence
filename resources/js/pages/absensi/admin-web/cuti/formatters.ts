@@ -3,6 +3,7 @@ export const labels: Record<string, string> = {
     waiting: 'Belum mendapat giliran',
     approved: 'Disetujui',
     rejected: 'Ditolak',
+    cancelled: 'Dibatalkan',
     skipped: 'Tidak dilanjutkan',
 };
 

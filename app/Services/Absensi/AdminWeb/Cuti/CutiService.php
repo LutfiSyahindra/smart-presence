@@ -6,14 +6,18 @@ use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Models\Jabatan;
 use App\Models\MasterCuti;
+use App\Models\Pegawai;
 use App\Models\PegawaiCuti;
 use App\Models\User;
+use App\Services\Notifications\CutiNotificationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CutiService
 {
+    public function __construct(private readonly CutiNotificationService $notifications) {}
+
     public function submit(User $user, array $data): CutiRequest
     {
         return DB::transaction(function () use ($user, $data) {
@@ -89,6 +93,27 @@ class CutiService
                 ]);
             }
 
+            $this->notifications->send($cuti, 'submitted', $user);
+
+            return $cuti->load('approvals');
+        });
+    }
+
+    public function cancel(CutiRequest $cuti, User $actor): CutiRequest
+    {
+        return DB::transaction(function () use ($cuti, $actor) {
+            $cuti = CutiRequest::query()->lockForUpdate()->findOrFail($cuti->id);
+            abort_unless((int) $cuti->user_id === (int) $actor->id, 403);
+
+            if (! $cuti->canBeCancelledBy($actor)) {
+                throw ValidationException::withMessages(['cancel' => 'Hanya pengajuan yang masih menunggu persetujuan yang dapat dibatalkan.']);
+            }
+
+            $cuti->approvals()->whereIn('status', ['pending', 'waiting'])->update(['status' => 'skipped']);
+            $cuti->update(['status' => 'cancelled', 'current_level' => null, 'decided_at' => now()]);
+
+            $this->notifications->send($cuti, 'cancelled', $actor);
+
             return $cuti->load('approvals');
         });
     }
@@ -119,9 +144,13 @@ class CutiService
                     $next->update(['status' => 'pending']);
                     $cuti->update(['current_level' => $next->level]);
                 } else {
+                    // Serialize final approval with attendance submissions for this employee.
+                    Pegawai::query()->lockForUpdate()->find($cuti->pegawai_id);
                     $cuti->update(['status' => 'approved', 'current_level' => null, 'decided_at' => now()]);
                 }
             }
+
+            $this->notifications->send($cuti, $cuti->status === 'pending' ? 'approval_required' : $cuti->status, $actor);
 
             return $cuti->load('approvals');
         });

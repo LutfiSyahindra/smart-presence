@@ -19,6 +19,7 @@ const action = computed(() => {
 });
 const statusCopy = computed(() => {
     switch (data.value?.attendance.status) {
+        case 'on_leave': return ['Cuti Anda telah disetujui', 'Clock-in dan clock-out dinonaktifkan selama cuti.'];
         case 'ready_to_clock_in': return ['Siap untuk clock-in', 'Pastikan lokasi dan kamera perangkat aktif.'];
         case 'ready_to_clock_out': return ['Sedang bertugas', `Durasi kerja ${data.value.attendance.duration || 'sedang dihitung'}.`];
         case 'complete': return ['Presensi hari ini lengkap', 'Terima kasih atas kerja keras Anda hari ini.'];

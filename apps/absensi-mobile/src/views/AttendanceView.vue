@@ -37,6 +37,8 @@ onMounted(load);
                 <span class="chip">{{ attendance.shift.name || 'Tanpa shift' }}</span>
             </section>
 
+            <p v-if="attendance.is_on_leave" class="notes-card">Cuti Anda telah disetujui. Clock-in dan clock-out dinonaktifkan selama cuti.</p>
+
             <section class="timeline-card">
                 <article class="timeline-item" :class="{ complete: attendance.clock_in }">
                     <span class="timeline-marker"><LogIn :size="19" /></span>

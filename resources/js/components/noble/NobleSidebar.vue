@@ -84,6 +84,7 @@ const navigation = computed<NavigationGroup[]>(() => {
             title: 'Notifikasi',
             icon: Bell,
             children: [
+                { title: 'Semua Notifikasi', href: '/absensi/admin-web/notifikasi/semua', icon: Bell },
                 { title: 'Pengajuan Butuh Approval', href: '/absensi/admin-web/notifikasi/butuh-approval', icon: Inbox },
                 { title: 'Pengajuan Disetujui', href: '/absensi/admin-web/notifikasi/disetujui', icon: CheckCircle2 },
             ],

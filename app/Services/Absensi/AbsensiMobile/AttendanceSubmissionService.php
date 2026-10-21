@@ -9,6 +9,7 @@ use App\Http\Requests\Absensi\AbsensiMobile\StoreClockOutRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\CutiScheduleService;
 use App\ValueObjects\FaceVerificationResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ class AttendanceSubmissionService
     public function __construct(
         private readonly FaceVerifier $faceVerifier,
         private readonly AttendanceLocationVerifier $locationVerifier,
+        private readonly CutiScheduleService $cutiSchedule,
     ) {}
 
     /** @return array{attendance: Presensi, message: string, outside_radius: bool} */
@@ -33,6 +35,7 @@ class AttendanceSubmissionService
         }
 
         $existing = $this->todayPresensi($pegawai);
+        $this->cutiSchedule->ensureCanAttend($pegawai, $existing);
         if ($existing?->is_day_off) {
             $this->fail('attendance', 'Hari ini tercatat sebagai hari libur. Clock-in tidak diperlukan.');
         }
@@ -72,6 +75,9 @@ class AttendanceSubmissionService
 
         try {
             $attendance = DB::transaction(function () use ($distance, $existing, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): Presensi {
+                Pegawai::query()->lockForUpdate()->findOrFail($pegawai->id);
+                $this->cutiSchedule->ensureCanAttend($pegawai, $existing);
+
                 $presensi = $existing ?? new Presensi;
                 $presensi->fill([
                     'pegawai_id' => $pegawai->id,
@@ -98,6 +104,9 @@ class AttendanceSubmissionService
 
                 return $presensi->refresh();
             });
+        } catch (ValidationException $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($path);
             report($exception);
@@ -124,6 +133,7 @@ class AttendanceSubmissionService
         }
 
         $attendance = $this->attendanceForClockOut($pegawai);
+        $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
         if ($attendance?->is_day_off) {
             $this->fail('attendance', 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.');
         }
@@ -168,7 +178,10 @@ class AttendanceSubmissionService
         }
 
         try {
-            $attendance = DB::transaction(function () use ($attendance, $distance, $notes, $office, $outsideRadius, $path, $request, $verification, $verifiedLocation): Presensi {
+            $attendance = DB::transaction(function () use ($attendance, $distance, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): Presensi {
+                Pegawai::query()->lockForUpdate()->findOrFail($pegawai->id);
+                $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
+
                 $lockedAttendance = Presensi::query()->lockForUpdate()->findOrFail($attendance->id);
                 if ($lockedAttendance->clock_out_at) {
                     $this->fail('attendance', 'Clock-out sudah tercatat dan tidak dapat dikirim ulang.');

@@ -43,3 +43,5 @@ yarn-error.log
 /apps/absensi-mobile/android/.gradle
 /apps/absensi-mobile/android/.idea
 /apps/absensi-mobile/android/local.properties
+/apps/absensi-mobile/android/app/google-services.json
+/storage/app/private/push/

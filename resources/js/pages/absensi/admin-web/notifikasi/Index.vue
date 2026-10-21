@@ -77,6 +77,7 @@ onBeforeUnmount(() => {
             </section>
             <section class="al-panel">
                 <nav class="al-tabs" aria-label="Kategori notifikasi">
+                    <Link :href="`${baseUrl}/semua`" class="notification-tab"><Bell /> Semua notifikasi</Link>
                     <Link
                         v-for="item in categories"
                         :key="item.key"

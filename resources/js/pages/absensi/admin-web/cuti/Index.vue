@@ -165,6 +165,7 @@ const submit = () => form.post(baseUrl, { preserveScroll: true, onSuccess: () =>
                             <option value="pending">Menunggu</option>
                             <option value="approved">Disetujui</option>
                             <option value="rejected">Ditolak</option>
+                            <option value="cancelled">Dibatalkan</option>
                         </select>
                     </div>
                 </header>

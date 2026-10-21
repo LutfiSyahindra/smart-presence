@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\CutiScheduleService;
 use App\Support\AccessPermission;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Inertia\Response;
 
 class AttendanceController extends Controller
 {
+    public function __construct(private readonly CutiScheduleService $cutiSchedule) {}
+
     public function __invoke(Request $request): Response
     {
         $pegawai = $request->user()?->pegawai()
@@ -27,9 +30,10 @@ class AttendanceController extends Controller
             'clockOutLocation:id,name,address,latitude,longitude,radius_meters',
         ]);
 
-        $shift = $attendance?->shift ?? $pegawai?->shift;
+        $isOnCuti = $this->cutiSchedule->isOnCuti($pegawai, $attendance);
+        $shift = $isOnCuti ? null : ($attendance?->shift ?? $pegawai?->shift);
         $office = OfficeLocation::query()->oldest('id')->first(['id', 'name', 'address']);
-        $attendanceDate = $attendance?->tanggal_presensi ?? now();
+        $attendanceDate = $isOnCuti ? now() : ($attendance?->tanggal_presensi ?? now());
         $clockIn = $attendance?->clock_in_at;
         $clockOut = $attendance?->clock_out_at;
 
@@ -38,7 +42,7 @@ class AttendanceController extends Controller
             'today' => [
                 'date' => $attendanceDate->toDateString(),
                 'date_label' => $attendanceDate->locale('id')->translatedFormat('l, d F Y'),
-                'shift_name' => $shift?->nama,
+                'shift_name' => $isOnCuti ? 'CUTI' : $shift?->nama,
                 'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
                 'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
                 'location_name' => $office?->name,
@@ -46,7 +50,8 @@ class AttendanceController extends Controller
             ],
             'attendance' => [
                 'is_day_off' => $attendance?->is_day_off ?? false,
-                'status' => $this->status($pegawai, $attendance, $office),
+                'is_on_leave' => $isOnCuti,
+                'status' => $isOnCuti ? 'on_leave' : $this->status($pegawai, $attendance, $office),
                 'duration' => $this->durationLabel($clockIn, $clockOut),
                 'notes' => $attendance?->notes,
                 'clock_in' => $clockIn ? [
@@ -101,7 +106,8 @@ class AttendanceController extends Controller
             ->latest('clock_in_at')
             ->first();
 
-        if (! $previous?->shift || (string) $previous->shift->jam_keluar > (string) $previous->shift->jam_masuk) {
+        if (! $previous?->shift || (string) $previous->shift->jam_keluar > (string) $previous->shift->jam_masuk
+            || $this->cutiSchedule->isOnCuti($pegawai, $previous)) {
             return null;
         }
 

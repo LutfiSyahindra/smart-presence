@@ -10,6 +10,7 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
+use App\Services\Absensi\CutiScheduleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +22,7 @@ class AttendanceActionController extends Controller
     public function __construct(
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly AttendanceSubmissionService $submissionService,
+        private readonly CutiScheduleService $cutiSchedule,
     ) {}
 
     public function show(Request $request, string $action): JsonResponse
@@ -33,6 +35,8 @@ class AttendanceActionController extends Controller
         $attendance = $action === 'clock-in'
             ? $pegawai->presensis()->whereDate('tanggal_presensi', now()->toDateString())->first()
             : $this->attendanceForClockOut($pegawai);
+
+        $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
 
         if ($attendance?->is_day_off) {
             $this->fail('Hari ini tercatat sebagai hari libur. Presensi tidak diperlukan.');

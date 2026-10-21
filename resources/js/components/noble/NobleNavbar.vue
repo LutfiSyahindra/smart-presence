@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NotificationBell from '@/components/noble/NotificationBell.vue';
 import { getInitials } from '@/composables/useInitials';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
@@ -64,6 +65,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeWhenClickingOut
                     <CalendarDays />
                     <span>{{ currentDate }}</span>
                 </li>
+                <NotificationBell v-if="page.props.portal.can_access_cuti" />
                 <li ref="profileMenu" class="nav-item dropdown">
                     <button
                         type="button"

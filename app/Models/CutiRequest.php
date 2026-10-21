@@ -23,4 +23,9 @@ class CutiRequest extends Model
     {
         return $this->hasMany(CutiApproval::class)->orderBy('level');
     }
+
+    public function canBeCancelledBy(User $user): bool
+    {
+        return $this->status === 'pending' && (int) $this->user_id === (int) $user->id;
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\OfficeLocation;
+use App\Services\Absensi\CutiScheduleService;
 use App\Support\AccessPermission;
 use App\Support\Portal;
 use Carbon\Carbon;
@@ -15,6 +16,8 @@ use Inertia\Response;
 
 class HomeController extends Controller
 {
+    public function __construct(private readonly CutiScheduleService $cutiSchedule) {}
+
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
@@ -37,6 +40,7 @@ class HomeController extends Controller
             if (
                 $previousPresensi?->shift
                 && (string) $previousPresensi->shift->jam_keluar <= (string) $previousPresensi->shift->jam_masuk
+                && ! $this->cutiSchedule->isOnCuti($pegawai, $previousPresensi)
             ) {
                 $scheduledEnd = Carbon::createFromFormat(
                     'Y-m-d H:i',
@@ -49,7 +53,8 @@ class HomeController extends Controller
             }
         }
 
-        $shift = $todayPresensi?->shift ?? $pegawai?->shift;
+        $isOnCuti = $this->cutiSchedule->isOnCuti($pegawai, $todayPresensi);
+        $shift = $isOnCuti ? null : ($todayPresensi?->shift ?? $pegawai?->shift);
         $workLocation = OfficeLocation::query()
             ->oldest('id')
             ->first(['id', 'name']);
@@ -69,12 +74,13 @@ class HomeController extends Controller
                 ? route('absensi.mobile.account.photo.show', absolute: false).'?v='.$user->profile_photo_updated_at?->timestamp
                 : null,
             'todaySchedule' => [
-                'shift_name' => $shift?->nama,
+                'shift_name' => $isOnCuti ? 'CUTI' : $shift?->nama,
                 'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
                 'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
                 'location_name' => $workLocation?->name,
             ],
             'todayAttendance' => [
+                'is_on_leave' => $isOnCuti,
                 'clocked_in_at' => $todayPresensi?->clock_in_at?->format('H:i'),
                 'clocked_out_at' => $todayPresensi?->clock_out_at?->format('H:i'),
                 'is_day_off' => $todayPresensi?->is_day_off ?? false,

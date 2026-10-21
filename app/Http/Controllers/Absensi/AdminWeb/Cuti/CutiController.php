@@ -28,7 +28,7 @@ class CutiController extends Controller
         $canSubmit = $user->can(AccessPermission::ADMIN_ACCESS);
         $filters = $request->validate([
             'scope' => ['nullable', Rule::in($isAdmin ? ['mine', 'inbox', 'history', 'all'] : ['mine', 'inbox', 'history'])],
-            'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected'])],
+            'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'cancelled'])],
             'search' => ['nullable', 'string', 'max:150'],
         ]);
         $scope = $filters['scope'] ?? ($canSubmit ? 'mine' : 'inbox');

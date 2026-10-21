@@ -6,6 +6,7 @@ import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { initializeTheme } from './composables/useAppearance';
+import { startMobileNotifications } from './composables/useMobileNotifications';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -30,6 +31,7 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .mount(el);
+        startMobileNotifications(props.initialPage);
     },
     progress: {
         color: '#6366f1',

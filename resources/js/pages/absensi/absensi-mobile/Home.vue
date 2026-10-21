@@ -2,8 +2,8 @@
 import type { SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
-    Bell,
     CalendarDays,
+    CalendarRange,
     ChevronRight,
     CircleUserRound,
     ClipboardList,
@@ -21,6 +21,7 @@ import {
     TimerReset,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import MobileNotificationBell from './components/MobileNotificationBell.vue';
 
 const props = defineProps<{
     canAccessAdmin: boolean;
@@ -33,6 +34,7 @@ const props = defineProps<{
         location_name: string | null;
     };
     todayAttendance: {
+        is_on_leave: boolean;
         clocked_in_at: string | null;
         clocked_out_at: string | null;
         is_day_off: boolean;
@@ -92,6 +94,7 @@ const quickActions = computed(() => [
     props.canAccessAdmin
         ? { label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }
         : { label: 'Dokumen', caption: 'Slip & surat', icon: FileText, color: '#a66b22', background: '#fff5dc' },
+    { label: 'Cuti', caption: 'Saldo cuti', icon: CalendarRange, color: '#8e7544', background: '#f4eddb', cuti: true },
 ]);
 
 const showFeedback = (message: string) => {
@@ -133,10 +136,7 @@ onUnmounted(() => {
                 </div>
 
                 <div class="header-actions">
-                    <button type="button" aria-label="Buka notifikasi" @click="showFeedback('Belum ada notifikasi baru untuk Anda.')">
-                        <Bell />
-                        <i aria-hidden="true"></i>
-                    </button>
+                    <MobileNotificationBell />
                     <Link :href="route('logout')" method="post" as="button" aria-label="Keluar dari akun">
                         <LogOut />
                     </Link>
@@ -171,7 +171,7 @@ onUnmounted(() => {
 
                     <div class="attendance-panel">
                         <Link
-                            v-if="!todayAttendance.clocked_in_at && !todayAttendance.is_day_off"
+                            v-if="!todayAttendance.clocked_in_at && !todayAttendance.is_day_off && !todayAttendance.is_on_leave"
                             :href="route('absensi.mobile.clock-in.create')"
                             as="button"
                             class="attendance-action check-in"
@@ -182,13 +182,24 @@ onUnmounted(() => {
                         <button v-else type="button" class="attendance-action check-in completed" disabled>
                             <span><LogIn /></span>
                             <span>
-                                <small>{{ todayAttendance.is_day_off ? 'Tidak perlu presensi' : `Tercatat ${todayAttendance.clocked_in_at}` }}</small>
-                                <strong>{{ todayAttendance.is_day_off ? 'Hari Libur' : 'Sudah Clock In' }}</strong>
+                                <small>{{
+                                    todayAttendance.is_on_leave || todayAttendance.is_day_off
+                                        ? 'Tidak perlu presensi'
+                                        : `Tercatat ${todayAttendance.clocked_in_at}`
+                                }}</small>
+                                <strong>{{
+                                    todayAttendance.is_on_leave ? 'CUTI' : todayAttendance.is_day_off ? 'Hari Libur' : 'Sudah Clock In'
+                                }}</strong>
                             </span>
                         </button>
                         <span class="attendance-divider" aria-hidden="true"></span>
                         <Link
-                            v-if="todayAttendance.clocked_in_at && !todayAttendance.clocked_out_at && !todayAttendance.is_day_off"
+                            v-if="
+                                todayAttendance.clocked_in_at &&
+                                !todayAttendance.clocked_out_at &&
+                                !todayAttendance.is_day_off &&
+                                !todayAttendance.is_on_leave
+                            "
                             :href="route('absensi.mobile.clock-out.create')"
                             as="button"
                             class="attendance-action check-out"
@@ -200,14 +211,20 @@ onUnmounted(() => {
                             <span><LogOut /></span>
                             <span>
                                 <small>{{
-                                    todayAttendance.is_day_off
+                                    todayAttendance.is_on_leave || todayAttendance.is_day_off
                                         ? 'Tidak perlu presensi'
                                         : todayAttendance.clocked_out_at
                                           ? `Tercatat ${todayAttendance.clocked_out_at}`
                                           : 'Clock in terlebih dahulu'
                                 }}</small>
                                 <strong>{{
-                                    todayAttendance.is_day_off ? 'Hari Libur' : todayAttendance.clocked_out_at ? 'Sudah Clock Out' : 'Clock Out'
+                                    todayAttendance.is_on_leave
+                                        ? 'CUTI'
+                                        : todayAttendance.is_day_off
+                                          ? 'Hari Libur'
+                                          : todayAttendance.clocked_out_at
+                                            ? 'Sudah Clock Out'
+                                            : 'Clock Out'
                                 }}</strong>
                             </span>
                         </button>
@@ -217,13 +234,15 @@ onUnmounted(() => {
                         <span>
                             <i></i>
                             {{
-                                todayAttendance.is_day_off
-                                    ? 'Hari ini tercatat sebagai hari libur'
-                                    : todayAttendance.clocked_out_at
-                                      ? `Clock-out tercatat ${todayAttendance.clocked_out_at} WIB`
-                                      : todayAttendance.clocked_in_at
-                                        ? `Clock-in tercatat ${todayAttendance.clocked_in_at} WIB`
-                                        : 'Siap untuk presensi'
+                                todayAttendance.is_on_leave
+                                    ? 'Cuti disetujui. Clock-in dan clock-out dinonaktifkan.'
+                                    : todayAttendance.is_day_off
+                                      ? 'Hari ini tercatat sebagai hari libur'
+                                      : todayAttendance.clocked_out_at
+                                        ? `Clock-out tercatat ${todayAttendance.clocked_out_at} WIB`
+                                        : todayAttendance.clocked_in_at
+                                          ? `Clock-in tercatat ${todayAttendance.clocked_in_at} WIB`
+                                          : 'Siap untuk presensi'
                             }}
                         </span>
                         <span><Clock3 /> {{ liveTime }} WIB</span>
@@ -244,7 +263,17 @@ onUnmounted(() => {
                     <div class="quick-grid">
                         <template v-for="action in quickActions" :key="action.label">
                             <Link
-                                v-if="action.admin"
+                                v-if="action.cuti"
+                                :href="route('absensi.mobile.cuti.index')"
+                                class="quick-action"
+                                :style="{ '--action-color': action.color, '--action-background': action.background }"
+                            >
+                                <span class="quick-icon"><component :is="action.icon" /></span>
+                                <strong>{{ action.label }}</strong>
+                                <small>{{ action.caption }}</small>
+                            </Link>
+                            <Link
+                                v-else-if="action.admin"
                                 :href="route('portal.switch', { portal: 'admin' })"
                                 method="post"
                                 as="button"

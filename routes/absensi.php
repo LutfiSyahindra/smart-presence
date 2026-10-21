@@ -4,7 +4,10 @@ use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccoun
 use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceController as MobileAttendanceController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClockOutController;
+use App\Http\Controllers\Absensi\AbsensiMobile\CutiController as MobileCutiController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
+use App\Http\Controllers\Absensi\AbsensiMobile\NotificationController as MobileNotificationController;
+use App\Http\Controllers\Absensi\AbsensiMobile\PushDeviceController;
 use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
 use App\Http\Controllers\Absensi\AdminWeb\Cuti\CutiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Cuti\MasterCutiController;
@@ -13,7 +16,9 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
+use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotificationInboxController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotifikasiController;
+use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\WebPushSubscriptionController;
 use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
@@ -37,6 +42,17 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
         Route::get('presensi', MobileAttendanceController::class)->name('attendance');
+        Route::get('cuti', [MobileCutiController::class, 'index'])->name('cuti.index');
+        Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->name('cuti.show');
+        Route::get('notifikasi', [MobileNotificationController::class, 'index'])->name('notifikasi.index');
+        Route::get('notifikasi/feed', [MobileNotificationController::class, 'feed'])->name('notifikasi.feed');
+        Route::get('notifikasi/open/{notification}', [MobileNotificationController::class, 'open'])->name('notifikasi.open');
+        Route::post('notifikasi/read-all', [MobileNotificationController::class, 'readAll'])->name('notifikasi.read-all');
+        Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.push.store');
+        Route::post('notifikasi/devices', [PushDeviceController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.devices.store');
+        Route::post('cuti', [MobileCutiController::class, 'store'])->name('cuti.store');
+        Route::post('cuti/{cutiRequest}/cancel', [MobileCutiController::class, 'cancel'])->name('cuti.cancel');
+        Route::post('cuti/{cutiRequest}/decision', [MobileCutiController::class, 'decide'])->name('cuti.decide');
         Route::get('clock-in', [MobileClockInController::class, 'create'])->name('clock-in.create');
         Route::post('clock-in', [MobileClockInController::class, 'store'])->name('clock-in.store');
         Route::get('clock-in/berhasil', [MobileClockInController::class, 'success'])->name('clock-in.success');
@@ -143,6 +159,12 @@ Route::middleware(['auth', 'verified', 'can:cuti.access'])
     ->name('absensi.admin-web.')
     ->group(function () {
         Route::redirect('notifikasi', '/absensi/admin-web/notifikasi/butuh-approval');
+        Route::get('notifikasi/semua', [NotificationInboxController::class, 'index'])->name('notifikasi.all');
+        Route::get('notifikasi/feed', [NotificationInboxController::class, 'feed'])->name('notifikasi.feed');
+        Route::post('notifikasi/read-all', [NotificationInboxController::class, 'readAll'])->name('notifikasi.read-all');
+        Route::get('notifikasi/open/{notification}', [NotificationInboxController::class, 'open'])->name('notifikasi.open');
+        Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->name('notifikasi.cuti');
+        Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.push.store');
         Route::get('notifikasi/butuh-approval', [NotifikasiController::class, 'index'])->name('notifikasi.index');
         Route::get('notifikasi/disetujui', [NotifikasiController::class, 'index'])->defaults('category', 'disetujui')->name('notifikasi.approved');
         Route::get('cuti', [CutiController::class, 'index'])->name('cuti.index');

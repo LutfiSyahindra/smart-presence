@@ -46,7 +46,8 @@ const props = defineProps<{
     };
     attendance: {
         is_day_off: boolean;
-        status: 'unavailable' | 'day_off' | 'ready_to_clock_in' | 'ready_to_clock_out' | 'complete';
+        is_on_leave: boolean;
+        status: 'unavailable' | 'on_leave' | 'day_off' | 'ready_to_clock_in' | 'ready_to_clock_out' | 'complete';
         duration: string | null;
         notes: string | null;
         clock_in: AttendanceEvent | null;
@@ -72,6 +73,13 @@ const liveTime = computed(() =>
 
 const statusMeta = computed(() => {
     const statuses = {
+        on_leave: {
+            eyebrow: 'CUTI',
+            title: 'Cuti Anda telah disetujui',
+            description: 'Clock-in dan clock-out dinonaktifkan selama tanggal cuti yang disetujui.',
+            badge: 'Tidak perlu presensi',
+            tone: 'rest',
+        },
         unavailable: {
             eyebrow: 'Konfigurasi diperlukan',
             title: 'Layanan belum siap',
@@ -254,7 +262,7 @@ onUnmounted(() => {
                             <span v-if="attendance.clock_in" class="event-badge" :class="attendance.clock_in.schedule_status_tone">
                                 {{ attendance.clock_in.schedule_status }}
                             </span>
-                            <span v-else class="event-badge pending">Menunggu</span>
+                            <span v-else class="event-badge pending">{{ attendance.is_on_leave ? 'CUTI' : 'Menunggu' }}</span>
                             <ChevronDown class="record-chevron" />
                         </button>
 
@@ -294,7 +302,11 @@ onUnmounted(() => {
                                     <span><LogIn /></span>
                                     <p>
                                         <strong>Belum ada rekaman clock-in</strong
-                                        ><small>Lakukan clock-in untuk menampilkan waktu, lokasi, dan hasil verifikasi.</small>
+                                        ><small>{{
+                                            attendance.is_on_leave
+                                                ? 'Clock-in dinonaktifkan selama cuti.'
+                                                : 'Lakukan clock-in untuk menampilkan waktu, lokasi, dan hasil verifikasi.'
+                                        }}</small>
                                     </p>
                                 </div>
                             </div>
@@ -311,7 +323,7 @@ onUnmounted(() => {
                             <span v-if="attendance.clock_out" class="event-badge" :class="attendance.clock_out.schedule_status_tone">
                                 {{ attendance.clock_out.schedule_status }}
                             </span>
-                            <span v-else class="event-badge pending">Menunggu</span>
+                            <span v-else class="event-badge pending">{{ attendance.is_on_leave ? 'CUTI' : 'Menunggu' }}</span>
                             <ChevronDown class="record-chevron" />
                         </button>
 
@@ -351,7 +363,11 @@ onUnmounted(() => {
                                     <span><LogOut /></span>
                                     <p>
                                         <strong>Belum ada rekaman clock-out</strong
-                                        ><small>Detail akan tersedia setelah Anda menyelesaikan clock-out.</small>
+                                        ><small>{{
+                                            attendance.is_on_leave
+                                                ? 'Clock-out dinonaktifkan selama cuti.'
+                                                : 'Detail akan tersedia setelah Anda menyelesaikan clock-out.'
+                                        }}</small>
                                     </p>
                                 </div>
                             </div>
@@ -390,6 +406,13 @@ onUnmounted(() => {
                         <div>
                             <small>Presensi hari ini</small><strong>Sudah lengkap</strong>
                             <p>Semua rekaman telah tersimpan.</p>
+                        </div>
+                    </template>
+                    <template v-else-if="attendance.status === 'on_leave'">
+                        <span class="complete-icon rest"><CalendarDays /></span>
+                        <div>
+                            <small>Status hari ini</small><strong>CUTI</strong>
+                            <p>Clock-in dan clock-out dinonaktifkan selama cuti.</p>
                         </div>
                     </template>
                     <template v-else-if="attendance.status === 'day_off'">

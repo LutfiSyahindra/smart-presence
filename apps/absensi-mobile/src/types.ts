@@ -20,7 +20,7 @@ export interface AttendanceEntry {
     early_departure_minutes?: number;
 }
 
-export type AttendanceStatus = 'day_off' | 'complete' | 'unavailable' | 'ready_to_clock_in' | 'ready_to_clock_out';
+export type AttendanceStatus = 'on_leave' | 'day_off' | 'complete' | 'unavailable' | 'ready_to_clock_in' | 'ready_to_clock_out';
 
 export interface Attendance {
     id: number | null;
@@ -28,6 +28,7 @@ export interface Attendance {
     date_label: string;
     status: AttendanceStatus;
     is_day_off: boolean;
+    is_on_leave: boolean;
     duration: string | null;
     notes: string | null;
     shift: {

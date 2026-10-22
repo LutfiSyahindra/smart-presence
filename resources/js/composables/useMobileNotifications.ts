@@ -172,10 +172,11 @@ export function startMobileNotifications(initialPage: { url: string; props: Reco
     // Register native tap listeners on every page, including a cold start at login.
     if (nativePushPlatform()) void listenNative().catch(() => {});
     const navigate = async (page: typeof initialPage) => {
-        const auth = page.props.auth as { user?: { id: number } } | undefined;
-        authenticatedUserId = auth?.user?.id ?? null;
+        const auth = page.props.auth as { user?: { id: number }; roles?: string[]; permissions?: string[] } | undefined;
+        const canNotify = auth?.roles?.includes('super-admin') || auth?.permissions?.includes('mobile.notifications');
+        authenticatedUserId = canNotify ? (auth?.user?.id ?? null) : null;
         const path = new URL(page.url, window.location.origin).pathname;
-        const next = path === '/absensi/mobile' || path.startsWith('/absensi/mobile/') ? authenticatedUserId : null;
+        const next = canNotify && (path === '/absensi/mobile' || path.startsWith('/absensi/mobile/')) ? authenticatedUserId : null;
         if (next === userId) {
             openPending();
             return;

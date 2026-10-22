@@ -5,6 +5,7 @@ export interface SelectOption {
 
 export interface PermissionGroup {
     group: string;
+    platform: 'web' | 'mobile';
     permissions: SelectOption[];
 }
 

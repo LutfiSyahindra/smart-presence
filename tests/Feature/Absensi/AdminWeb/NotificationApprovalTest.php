@@ -11,6 +11,7 @@ use App\Models\PegawaiCuti;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
+use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,9 @@ class NotificationApprovalTest extends TestCase
         $this->employee->assignRole('pegawai');
         $this->first = User::factory()->create();
         $this->second = User::factory()->create();
+        foreach ([$this->first, $this->second] as $approver) {
+            $approver->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE, AccessPermission::NOTIFICATIONS_VIEW]);
+        }
         $unit = UnitKerja::query()->create(['kode' => 'TEST', 'nama' => 'Unit Test', 'aktif' => true]);
         $jabatan = Jabatan::query()->create(['unit_kerja_id' => $unit->id, 'kode' => 'STF', 'nama' => 'Staf', 'aktif' => true]);
         $pegawai = Pegawai::query()->create(['nama' => 'Pemohon', 'jabatan_id' => $jabatan->id, 'unit_kerja_id' => $unit->id]);
@@ -67,6 +71,18 @@ class NotificationApprovalTest extends TestCase
             'master_cuti_id' => $this->master->id,
             'tanggal_mulai' => $date, 'tanggal_selesai' => $date, 'alasan' => 'Keperluan keluarga',
         ]);
+    }
+
+    public function test_revoked_approval_permission_blocks_assigned_approver_without_hiding_the_queue(): void
+    {
+        $cuti = $this->submit();
+        $this->first->revokePermissionTo(AccessPermission::CUTI_APPROVE);
+
+        $this->actingAs($this->first)->get(self::URL.'/butuh-approval')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('requests.data.0.can_decide', false));
+        $this->post(self::URL.'/approve-many', ['request_ids' => [$cuti->id]])->assertForbidden();
+        $this->post('/absensi/admin-web/cuti/'.$cuti->id.'/decision', ['decision' => 'approved'])->assertForbidden();
+        $this->assertSame('pending', $cuti->fresh()->status);
     }
 
     public function test_sidebar_counts_are_scoped_to_current_approver_and_ignore_search_filters(): void

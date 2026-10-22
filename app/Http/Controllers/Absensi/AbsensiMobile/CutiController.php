@@ -9,6 +9,7 @@ use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use App\Services\Absensi\AdminWeb\MasterData\Cuti\MasterCutiService;
+use App\Support\AccessPermission;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -39,8 +40,8 @@ class CutiController extends Controller
             'nama_cuti' => $cuti->nama_cuti, 'jumlah_hari' => $cuti->jumlah_hari,
             'tanggal_mulai' => $cuti->tanggal_mulai->format('Y-m-d'), 'tanggal_selesai' => $cuti->tanggal_selesai->format('Y-m-d'),
             'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
-            'created_at' => $cuti->created_at->format('d M Y, H:i'), 'can_cancel' => $cuti->canBeCancelledBy($user),
-            'can_decide' => $cuti->status === 'pending' && (int) $cuti->user_id !== (int) $user->id
+            'created_at' => $cuti->created_at->format('d M Y, H:i'), 'can_cancel' => $user->can(AccessPermission::MOBILE_CUTI_CANCEL) && $cuti->canBeCancelledBy($user),
+            'can_decide' => $user->can(AccessPermission::MOBILE_CUTI_APPROVE) && $cuti->status === 'pending' && (int) $cuti->user_id !== (int) $user->id
                 && $cuti->approvals->contains(fn ($step) => $step->level === $cuti->current_level && $step->status === 'pending' && (int) $step->user_id === (int) $user->id),
             'approvals' => $cuti->approvals->map(fn ($step) => [
                 'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,

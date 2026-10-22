@@ -1,13 +1,14 @@
+import { ApiError, apiRequest } from '@/lib/api';
+import { getToken, removeToken, setToken } from '@/lib/token-storage';
 import { Device } from '@capacitor/device';
 import { computed, reactive } from 'vue';
-import { apiRequest } from '@/lib/api';
-import { getToken, removeToken, setToken } from '@/lib/token-storage';
 
 interface AuthUser {
     id: number;
     name: string;
     email: string;
     can_access_account: boolean;
+    permissions: string[];
 }
 
 const state = reactive({
@@ -24,6 +25,16 @@ async function restore(): Promise<void> {
 
     restorePromise = (async () => {
         state.token = await getToken();
+        if (state.token) {
+            try {
+                state.user = (await apiRequest<{ user: AuthUser }>('/auth/user')).user;
+            } catch (error) {
+                if (error instanceof ApiError && [401, 403].includes(error.status)) {
+                    await removeToken();
+                    state.token = null;
+                }
+            }
+        }
         state.ready = true;
     })();
 
@@ -60,6 +71,7 @@ export function useAuth() {
     return {
         state,
         isAuthenticated: computed(() => Boolean(state.token)),
+        can: (permission: string) => state.user?.permissions.includes(permission) ?? false,
         restore,
         login,
         logout,

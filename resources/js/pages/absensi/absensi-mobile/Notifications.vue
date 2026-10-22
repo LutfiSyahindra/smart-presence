@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { mobileCsrfHeaders, useMobileNotifications } from '@/composables/useMobileNotifications';
+import { usePermission } from '@/composables/usePermission';
 import type { AdminNotification } from '@/types/notifications';
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
@@ -43,9 +44,10 @@ const { feedback, pushActive, busy, available, supported, enablePush, refresh } 
 const saving = ref(false);
 const base = '/absensi/mobile/notifikasi';
 const compactCount = (count: number) => (count > 99 ? '99+' : count);
+const { can } = usePermission();
 const categories = [
     { name: 'Reimbursement', icon: ReceiptText, tone: 'teal' },
-    { name: 'Cuti', icon: CalendarDays, tone: 'green', active: true },
+    { name: 'Cuti', icon: CalendarDays, tone: 'green', active: can('mobile.cuti.view') },
     { name: 'Presensi', icon: MapPin, tone: 'amber' },
     { name: 'Lembur', icon: Timer, tone: 'orange' },
     { name: 'Perubahan shift', icon: ArrowRightLeft, tone: 'cyan' },
@@ -138,6 +140,7 @@ async function readAll() {
                     <Bell /><span>Notifikasi</span><span v-if="unreadCount" class="tab-count">{{ compactCount(unreadCount) }}</span>
                 </Link>
                 <Link
+                    v-if="can('mobile.cuti.view')"
                     :href="`${base}?tab=approvals`"
                     :class="{ active: activeTab === 'approvals' }"
                     :aria-current="activeTab === 'approvals' ? 'page' : undefined"

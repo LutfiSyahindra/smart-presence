@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Absensi\AdminWeb\Notifikasi;
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
+use App\Support\AccessPermission;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class NotifikasiController extends Controller
                     'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
                     'nama_cuti' => $cuti->nama_cuti, 'jumlah_hari' => $cuti->jumlah_hari,
                     'created_at' => $cuti->created_at->format('d M Y, H:i'),
-                    'can_decide' => $category === 'butuh-approval',
+                    'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $category === 'butuh-approval',
                     'approvals' => $cuti->approvals->map(fn ($step) => [
                         'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,
                         'note' => $step->note, 'decided_at' => $step->decided_at?->format('d M Y, H:i'),

@@ -44,27 +44,27 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
-        Route::get('presensi', MobileAttendanceController::class)->name('attendance');
-        Route::get('presensi/log', AttendanceLogController::class)->name('attendance.log');
-        Route::get('cuti', [MobileCutiController::class, 'index'])->name('cuti.index');
-        Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->name('cuti.show');
-        Route::get('notifikasi', [MobileNotificationController::class, 'index'])->name('notifikasi.index');
-        Route::get('notifikasi/cuti', [MobileCutiApprovalController::class, 'index'])->name('notifikasi.cuti');
-        Route::post('notifikasi/cuti/approve-many', [MobileCutiApprovalController::class, 'approveMany'])->name('notifikasi.cuti.approve-many');
-        Route::get('notifikasi/feed', [MobileNotificationController::class, 'feed'])->name('notifikasi.feed');
-        Route::get('notifikasi/open/{notification}', [MobileNotificationController::class, 'open'])->name('notifikasi.open');
-        Route::post('notifikasi/read-all', [MobileNotificationController::class, 'readAll'])->name('notifikasi.read-all');
-        Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.push.store');
-        Route::post('notifikasi/devices', [PushDeviceController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.devices.store');
-        Route::post('cuti', [MobileCutiController::class, 'store'])->name('cuti.store');
-        Route::post('cuti/{cutiRequest}/cancel', [MobileCutiController::class, 'cancel'])->name('cuti.cancel');
-        Route::post('cuti/{cutiRequest}/decision', [MobileCutiController::class, 'decide'])->name('cuti.decide');
-        Route::get('clock-in', [MobileClockInController::class, 'create'])->name('clock-in.create');
-        Route::post('clock-in', [MobileClockInController::class, 'store'])->name('clock-in.store');
-        Route::get('clock-in/berhasil', [MobileClockInController::class, 'success'])->name('clock-in.success');
-        Route::get('clock-out', [MobileClockOutController::class, 'create'])->name('clock-out.create');
-        Route::post('clock-out', [MobileClockOutController::class, 'store'])->name('clock-out.store');
-        Route::get('clock-out/berhasil', [MobileClockOutController::class, 'success'])->name('clock-out.success');
+        Route::get('presensi', MobileAttendanceController::class)->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance');
+        Route::get('presensi/log', AttendanceLogController::class)->middleware('can:'.AccessPermission::MOBILE_HISTORY)->name('attendance.log');
+        Route::get('cuti', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.index');
+        Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.show');
+        Route::get('notifikasi', [MobileNotificationController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.index');
+        Route::get('notifikasi/cuti', [MobileCutiApprovalController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('notifikasi.cuti');
+        Route::post('notifikasi/cuti/approve-many', [MobileCutiApprovalController::class, 'approveMany'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->middleware('can:'.AccessPermission::MOBILE_CUTI_APPROVE)->name('notifikasi.cuti.approve-many');
+        Route::get('notifikasi/feed', [MobileNotificationController::class, 'feed'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.feed');
+        Route::get('notifikasi/open/{notification}', [MobileNotificationController::class, 'open'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.open');
+        Route::post('notifikasi/read-all', [MobileNotificationController::class, 'readAll'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.read-all');
+        Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.push.store');
+        Route::post('notifikasi/devices', [PushDeviceController::class, 'store'])->middleware('throttle:30,1')->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.devices.store');
+        Route::post('cuti', [MobileCutiController::class, 'store'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->middleware('can:'.AccessPermission::MOBILE_CUTI_CREATE)->name('cuti.store');
+        Route::post('cuti/{cutiRequest}/cancel', [MobileCutiController::class, 'cancel'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->middleware('can:'.AccessPermission::MOBILE_CUTI_CANCEL)->name('cuti.cancel');
+        Route::post('cuti/{cutiRequest}/decision', [MobileCutiController::class, 'decide'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->middleware('can:'.AccessPermission::MOBILE_CUTI_APPROVE)->name('cuti.decide');
+        Route::get('clock-in', [MobileClockInController::class, 'create'])->middleware(['can:'.AccessPermission::MOBILE_ATTENDANCE, 'can:'.AccessPermission::MOBILE_CLOCK_IN])->name('clock-in.create');
+        Route::post('clock-in', [MobileClockInController::class, 'store'])->middleware(['can:'.AccessPermission::MOBILE_ATTENDANCE, 'can:'.AccessPermission::MOBILE_CLOCK_IN])->name('clock-in.store');
+        Route::get('clock-in/berhasil', [MobileClockInController::class, 'success'])->middleware(['can:'.AccessPermission::MOBILE_ATTENDANCE, 'can:'.AccessPermission::MOBILE_CLOCK_IN])->name('clock-in.success');
+        Route::get('clock-out', [MobileClockOutController::class, 'create'])->middleware(['can:'.AccessPermission::MOBILE_ATTENDANCE, 'can:'.AccessPermission::MOBILE_CLOCK_OUT])->name('clock-out.create');
+        Route::post('clock-out', [MobileClockOutController::class, 'store'])->middleware(['can:'.AccessPermission::MOBILE_ATTENDANCE, 'can:'.AccessPermission::MOBILE_CLOCK_OUT])->name('clock-out.store');
+        Route::get('clock-out/berhasil', [MobileClockOutController::class, 'success'])->middleware(['can:'.AccessPermission::MOBILE_ATTENDANCE, 'can:'.AccessPermission::MOBILE_CLOCK_OUT])->name('clock-out.success');
 
         Route::middleware('can:'.AccessPermission::MOBILE_ACCOUNT)->group(function () {
             Route::get('akun', [MobileAccountController::class, 'show'])->name('account.show');
@@ -77,14 +77,14 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
     ->prefix('absensi/admin-web')
     ->name('absensi.admin-web.')
     ->group(function () {
-        Route::get('dashboard', DashboardController::class)->name('dashboard');
+        Route::get('dashboard', DashboardController::class)->middleware('can:'.AccessPermission::DASHBOARD_VIEW)->name('dashboard');
 
         Route::get('approval-line', [ApprovalLineController::class, 'index'])->middleware('can:'.AccessPermission::APPROVAL_LINE_VIEW)->name('approval-line.index');
         Route::post('approval-line', [ApprovalLineController::class, 'store'])->middleware('can:'.AccessPermission::APPROVAL_LINE_CREATE)->name('approval-line.store');
         Route::put('approval-line/{approvalLine}', [ApprovalLineController::class, 'update'])->middleware('can:'.AccessPermission::APPROVAL_LINE_UPDATE)->name('approval-line.update');
         Route::delete('approval-line/{approvalLine}', [ApprovalLineController::class, 'destroy'])->middleware('can:'.AccessPermission::APPROVAL_LINE_DELETE)->name('approval-line.destroy');
 
-        Route::post('cuti', [CutiController::class, 'store'])->name('cuti.store');
+        Route::post('cuti', [CutiController::class, 'store'])->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_CREATE)->name('cuti.store');
 
         Route::prefix('presensi')->name('presensi.')->group(function () {
             Route::get('pegawai', [PresensiController::class, 'index'])->middleware('can:'.AccessPermission::PRESENSI_VIEW)->name('index');
@@ -95,8 +95,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
         });
 
         Route::prefix('master-data')->name('master-data.')->group(function () {
-            Route::get('cuti', [MasterCutiController::class, 'index'])->middleware('can:'.AccessPermission::MASTER_CUTI_VIEW)->name('cuti.index');
-            Route::post('cuti', [MasterCutiController::class, 'store'])->middleware('can:'.AccessPermission::MASTER_CUTI_CREATE)->name('cuti.store');
+            Route::get('cuti', [MasterCutiController::class, 'index'])->middleware('can:'.AccessPermission::MASTER_CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_VIEW)->name('cuti.index');
+            Route::post('cuti', [MasterCutiController::class, 'store'])->middleware('can:'.AccessPermission::MASTER_CUTI_CREATE)->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_CREATE)->name('cuti.store');
             Route::get('cuti/template', [MasterCutiController::class, 'template'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.template');
             Route::post('cuti/import', [MasterCutiController::class, 'import'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.import');
             Route::put('cuti/tahunan', [MasterCutiController::class, 'setAnnual'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.annual');
@@ -170,16 +170,16 @@ Route::middleware(['auth', 'verified', 'can:cuti.access'])
     ->prefix('absensi/admin-web')
     ->name('absensi.admin-web.')
     ->group(function () {
-        Route::redirect('notifikasi', '/absensi/admin-web/notifikasi/butuh-approval');
-        Route::get('notifikasi/semua', [NotificationInboxController::class, 'index'])->name('notifikasi.all');
-        Route::get('notifikasi/feed', [NotificationInboxController::class, 'feed'])->name('notifikasi.feed');
-        Route::post('notifikasi/read-all', [NotificationInboxController::class, 'readAll'])->name('notifikasi.read-all');
-        Route::get('notifikasi/open/{notification}', [NotificationInboxController::class, 'open'])->name('notifikasi.open');
-        Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->name('notifikasi.cuti');
-        Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->name('notifikasi.push.store');
-        Route::get('notifikasi/butuh-approval', [NotifikasiController::class, 'index'])->name('notifikasi.index');
-        Route::post('notifikasi/approve-many', [NotifikasiController::class, 'approveMany'])->name('notifikasi.approve-many');
-        Route::get('notifikasi/disetujui', [NotifikasiController::class, 'index'])->defaults('category', 'disetujui')->name('notifikasi.approved');
-        Route::get('cuti', [CutiController::class, 'index'])->name('cuti.index');
-        Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->name('cuti.decide');
+        Route::redirect('notifikasi', '/absensi/admin-web/notifikasi/butuh-approval')->middleware('can:'.AccessPermission::CUTI_VIEW);
+        Route::get('notifikasi/semua', [NotificationInboxController::class, 'index'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.all');
+        Route::get('notifikasi/feed', [NotificationInboxController::class, 'feed'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.feed');
+        Route::post('notifikasi/read-all', [NotificationInboxController::class, 'readAll'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.read-all');
+        Route::get('notifikasi/open/{notification}', [NotificationInboxController::class, 'open'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.open');
+        Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.cuti');
+        Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.push.store');
+        Route::get('notifikasi/butuh-approval', [NotifikasiController::class, 'index'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.index');
+        Route::post('notifikasi/approve-many', [NotifikasiController::class, 'approveMany'])->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_APPROVE)->name('notifikasi.approve-many');
+        Route::get('notifikasi/disetujui', [NotifikasiController::class, 'index'])->defaults('category', 'disetujui')->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.approved');
+        Route::get('cuti', [CutiController::class, 'index'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('cuti.index');
+        Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_APPROVE)->name('cuti.decide');
     });

@@ -60,7 +60,7 @@ class ApprovalLineCutiTest extends TestCase
     private function webUser(): User
     {
         $user = User::factory()->create();
-        $user->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $user->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE, AccessPermission::CUTI_APPROVE, AccessPermission::NOTIFICATIONS_VIEW]);
 
         return $user;
     }
@@ -134,8 +134,10 @@ class ApprovalLineCutiTest extends TestCase
     public function test_all_users_can_be_selected_without_role_portal_or_verification_restrictions(): void
     {
         $ordinary = User::factory()->create();
+        $ordinary->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE]);
         $mobileOnly = User::factory()->unverified()->create();
         $mobileOnly->assignRole('pegawai');
+        $mobileOnly->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE]);
         $this->actingAs($this->admin)->get(self::LINES)->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('userOptions', 7)
                 ->where('userOptions', fn ($users) => collect($users)->pluck('id')->contains($ordinary->id)
@@ -399,6 +401,7 @@ class ApprovalLineCutiTest extends TestCase
     {
         $this->get(self::NOTIFICATIONS.'/butuh-approval')->assertRedirect(route('absensi.admin-web.login'));
         $ordinary = User::factory()->create();
+        $ordinary->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE]);
         foreach (['butuh-approval', 'disetujui'] as $category) {
             $this->actingAs($ordinary)->get(self::NOTIFICATIONS.'/'.$category)->assertForbidden();
         }
@@ -500,6 +503,7 @@ class ApprovalLineCutiTest extends TestCase
     public function test_assigned_users_can_login_to_their_tasks_and_keep_access_to_snapshot_history(): void
     {
         $ordinary = User::factory()->create();
+        $ordinary->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE]);
         $this->actingAs($this->admin)->post(self::LINES, [
             'jabatan_ids' => [$this->jabatan->id], 'approver_ids' => [$ordinary->id],
         ])->assertSessionHasNoErrors();
@@ -528,6 +532,7 @@ class ApprovalLineCutiTest extends TestCase
         $cuti = $this->submit();
         $mobileOnly = User::factory()->create();
         $mobileOnly->assignRole('pegawai');
+        $mobileOnly->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE]);
         $this->actingAs($mobileOnly)->get(self::CUTI)->assertForbidden();
         $this->post(self::CUTI, $this->payload())->assertForbidden();
         $this->post($this->decisionUrl($cuti), ['decision' => 'approved'])->assertForbidden();

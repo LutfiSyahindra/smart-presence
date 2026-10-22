@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Services\Notifications\MobilePushService;
 use App\Services\Notifications\WebPushService;
+use App\Support\AccessPermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,9 +28,10 @@ class NotificationController extends Controller
         }
 
         return Inertia::render('absensi/absensi-mobile/Notifications', [
-            'activeTab' => $filters['tab'] ?? 'notifications',
+            'activeTab' => $request->user()->can(AccessPermission::MOBILE_CUTI_VIEW) ? ($filters['tab'] ?? 'notifications') : 'notifications',
             'unreadCount' => $this->query($request)->whereNull('read_at')->count(),
-            'pendingApprovalCount' => CutiRequest::query()->awaitingApprovalBy($request->user())->count(),
+            'pendingApprovalCount' => $request->user()->can(AccessPermission::MOBILE_CUTI_VIEW)
+                ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
             'today' => now()->toDateString(),
             'notifications' => $this->query($request)->latest()->paginate(20)->withQueryString()->through($this->serialize(...)),
         ]);

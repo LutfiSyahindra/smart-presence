@@ -14,6 +14,7 @@ use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class CutiPageTest extends TestCase
@@ -79,6 +80,22 @@ class CutiPageTest extends TestCase
         $this->get(self::URL)->assertOk()->assertInertia(fn (Assert $page) => $page
             ->has('requests.data', 1)->where('balance.available', 10)->where('balance.pending', 2)
             ->where('requests.data.0.can_decide', false));
+    }
+
+    public function test_revoking_action_permissions_keeps_leave_readable_but_blocks_decisions_and_cancellation(): void
+    {
+        $cuti = $this->submit();
+        $role = Role::findByName('pegawai');
+        $role->revokePermissionTo([AccessPermission::MOBILE_CUTI_APPROVE, AccessPermission::MOBILE_CUTI_CANCEL]);
+
+        $this->actingAs($this->employee)->get(self::URL.'/'.$cuti->id)->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('initialRequest.can_cancel', false));
+        $this->post(self::URL.'/'.$cuti->id.'/cancel')->assertForbidden();
+        $this->actingAs($this->approver)->get(self::URL.'?scope=delegation')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('requests.data.0.can_decide', false));
+        $this->post(self::URL.'/'.$cuti->id.'/decision', ['decision' => 'approved'])->assertForbidden();
+        $this->post('/absensi/mobile/notifikasi/cuti/approve-many', ['request_ids' => [$cuti->id]])->assertForbidden();
+        $this->assertSame('pending', $cuti->fresh()->status);
     }
 
     public function test_balance_reserves_pending_days_and_releases_them_after_rejection(): void

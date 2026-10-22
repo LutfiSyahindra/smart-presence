@@ -17,17 +17,17 @@ const emit = defineEmits<{
 }>();
 
 const query = ref('');
+const platform = ref<'web' | 'mobile'>('web');
 const selected = computed(() => new Set(props.modelValue));
 const permissionTotal = computed(() => props.groups.reduce((total, group) => total + group.permissions.length, 0));
 const filteredGroups = computed(() => {
     const term = query.value.trim().toLowerCase();
-    if (!term) return props.groups;
-
     return props.groups
+        .filter((group) => group.platform === platform.value)
         .map((group) => ({
             ...group,
             permissions: group.permissions.filter(
-                (permission) => permission.name.toLowerCase().includes(term) || group.group.toLowerCase().includes(term),
+                (permission) => !term || permission.name.toLowerCase().includes(term) || group.group.toLowerCase().includes(term),
             ),
         }))
         .filter((group) => group.permissions.length);
@@ -53,6 +53,20 @@ const toggleGroup = (ids: number[]) => {
 
 <template>
     <div v-if="groups.length" class="permission-checklist">
+        <div class="d-flex mb-3 gap-2" role="group" aria-label="Platform permission">
+            <button
+                v-for="item in ['web', 'mobile'] as const"
+                :key="item"
+                type="button"
+                class="btn btn-sm"
+                :class="platform === item ? 'btn-primary' : 'btn-outline-primary'"
+                :aria-pressed="platform === item"
+                @click="platform = item"
+            >
+                {{ item === 'web' ? 'Admin Web' : 'Absensi Mobile' }}
+                ({{ groups.filter((group) => group.platform === item).reduce((total, group) => total + group.permissions.length, 0) }})
+            </button>
+        </div>
         <div class="permission-checklist-toolbar">
             <div>
                 <span><KeyRound /></span>

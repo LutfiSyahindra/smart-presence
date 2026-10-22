@@ -21,7 +21,7 @@ class PengajuanNotificationService
 
             // The inbox is saved in the submission transaction. Push starts only after commit.
             SendWebPushNotification::dispatch($notification->id)->afterCommit();
-            if (isset($payload['mobile_url']) && $user->can(AccessPermission::MOBILE_ACCESS)) {
+            if (isset($payload['mobile_url']) && $user->can(AccessPermission::MOBILE_ACCESS) && $user->can(AccessPermission::MOBILE_NOTIFICATIONS)) {
                 SendMobilePushNotification::dispatch($notification->id)->afterCommit();
             }
         }

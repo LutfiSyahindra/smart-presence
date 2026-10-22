@@ -1,5 +1,5 @@
-import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
+import { createRouter, createWebHashHistory } from 'vue-router';
 
 const router = createRouter({
     history: createWebHashHistory(),
@@ -19,6 +19,13 @@ router.beforeEach(async (to) => {
     await auth.restore();
     if (!auth.isAuthenticated.value && !to.meta.guest) return { name: 'login' };
     if (auth.isAuthenticated.value && to.meta.guest) return { name: 'home' };
+    const required: Record<string, string[]> = {
+        attendance: ['mobile.attendance'],
+        history: ['mobile.history'],
+        account: ['mobile.account'],
+        'attendance-action': ['mobile.attendance', to.params.action === 'clock-in' ? 'mobile.clock-in' : 'mobile.clock-out'],
+    };
+    if (auth.isAuthenticated.value && required[String(to.name)]?.some((permission) => !auth.can(permission))) return { name: 'home' };
 });
 
 export default router;

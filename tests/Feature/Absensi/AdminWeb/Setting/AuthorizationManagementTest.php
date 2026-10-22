@@ -50,7 +50,8 @@ class AuthorizationManagementTest extends TestCase
                     $mobile = collect($groups)->firstWhere('group', 'Mobile');
                     $cuti = collect($groups)->firstWhere('group', 'Master Cuti');
 
-                    return collect($mobile['permissions'])->pluck('name')->all() === [AccessPermission::MOBILE_ACCESS, AccessPermission::MOBILE_ACCOUNT]
+                    return collect($mobile['permissions'])->pluck('name')->sort()->values()->all() === collect(AccessPermission::mobile())->sort()->values()->all()
+                        && $mobile['platform'] === 'mobile' && $cuti['platform'] === 'web'
                         && collect($cuti['permissions'])->pluck('name')->contains(AccessPermission::MASTER_CUTI_ASSIGN);
                 }));
 
@@ -163,17 +164,17 @@ class AuthorizationManagementTest extends TestCase
     {
         $this->actingAs($this->admin)->post('/absensi/admin-web/setting/permissions', [
             'name' => 'attendance.approve',
-        ])->assertRedirect('/absensi/admin-web/setting/permissions');
+        ])->assertRedirect('/absensi/admin-web/setting/permissions?platform=web');
 
         $permission = Permission::findByName('attendance.approve');
         $this->assertTrue(Role::findByName('super-admin')->hasPermissionTo($permission));
 
         $this->put("/absensi/admin-web/setting/permissions/{$permission->id}", [
             'name' => 'attendance.validate',
-        ])->assertRedirect('/absensi/admin-web/setting/permissions');
+        ])->assertRedirect('/absensi/admin-web/setting/permissions?platform=web');
 
         $this->delete("/absensi/admin-web/setting/permissions/{$permission->id}")
-            ->assertRedirect('/absensi/admin-web/setting/permissions');
+            ->assertRedirect('/absensi/admin-web/setting/permissions?platform=web');
         $this->assertDatabaseMissing('permissions', ['id' => $permission->id]);
 
         $systemPermission = Permission::findByName(AccessPermission::USERS_VIEW);

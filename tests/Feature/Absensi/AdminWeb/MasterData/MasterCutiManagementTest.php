@@ -45,6 +45,7 @@ class MasterCutiManagementTest extends TestCase
         $this->admin = User::factory()->create();
         $this->admin->assignRole('super-admin');
         $this->approver = User::factory()->create();
+        $this->approver->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE]);
         $unit = UnitKerja::query()->create(['kode' => 'SIRS', 'nama' => 'SIRS', 'aktif' => true]);
         $position = Jabatan::query()->create(['unit_kerja_id' => $unit->id, 'kode' => 'STAFF', 'nama' => 'Staff', 'aktif' => true]);
         $this->employee = $this->employee('001.01', 'Aminah', $position);
@@ -63,7 +64,7 @@ class MasterCutiManagementTest extends TestCase
     private function employee(string $nik, string $name, Jabatan $position): Pegawai
     {
         $user = User::factory()->create();
-        $user->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $user->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE, AccessPermission::CUTI_APPROVE, AccessPermission::NOTIFICATIONS_VIEW]);
         $employee = Pegawai::query()->create(['nik' => $nik, 'nama' => $name, 'unit_kerja_id' => $position->unit_kerja_id, 'jabatan_id' => $position->id]);
         $employee->forceFill(['user_id' => $user->id])->save();
 
@@ -126,7 +127,7 @@ class MasterCutiManagementTest extends TestCase
     public function test_permissions_protect_each_management_endpoint(): void
     {
         $user = User::factory()->create();
-        $user->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $user->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE, AccessPermission::CUTI_APPROVE, AccessPermission::NOTIFICATIONS_VIEW]);
         $this->actingAs($user);
         $this->get(self::URL)->assertForbidden();
         $this->post(self::URL, [])->assertForbidden();

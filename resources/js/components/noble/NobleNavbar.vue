@@ -12,9 +12,7 @@ const emit = defineEmits<{
 
 const page = usePage<SharedData>();
 const user = computed(() => page.props.auth.user);
-const homeUrl = computed(() =>
-    page.props.portal.can_access_admin ? '/absensi/admin-web/dashboard' : '/absensi/admin-web/notifikasi/butuh-approval',
-);
+const homeUrl = computed(() => page.props.portal.admin_home_url);
 const roleLabel = computed(() => page.props.auth.roles[0]?.replaceAll('-', ' ') ?? 'Pengguna');
 const profileOpen = ref(false);
 const profileMenu = ref<HTMLElement | null>(null);
@@ -65,7 +63,12 @@ onBeforeUnmount(() => document.removeEventListener('click', closeWhenClickingOut
                     <CalendarDays />
                     <span>{{ currentDate }}</span>
                 </li>
-                <NotificationBell v-if="page.props.portal.can_access_cuti" />
+                <NotificationBell
+                    v-if="
+                        page.props.portal.can_access_cuti &&
+                        (page.props.auth.roles.includes('super-admin') || page.props.auth.permissions.includes('notifications.view'))
+                    "
+                />
                 <li ref="profileMenu" class="nav-item dropdown">
                     <button
                         type="button"

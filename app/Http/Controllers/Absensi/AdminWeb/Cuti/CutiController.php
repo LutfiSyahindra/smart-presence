@@ -25,7 +25,7 @@ class CutiController extends Controller
     {
         $user = $request->user();
         $isAdmin = $user->hasRole('super-admin');
-        $canSubmit = $user->can(AccessPermission::ADMIN_ACCESS);
+        $canSubmit = $user->can(AccessPermission::ADMIN_ACCESS) && $user->can(AccessPermission::CUTI_CREATE);
         $filters = $request->validate([
             'scope' => ['nullable', Rule::in($isAdmin ? ['mine', 'inbox', 'history', 'all'] : ['mine', 'inbox', 'history'])],
             'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'cancelled'])],
@@ -68,7 +68,7 @@ class CutiController extends Controller
                     'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
                     'nama_cuti' => $cuti->nama_cuti, 'jumlah_hari' => $cuti->jumlah_hari,
                     'created_at' => $cuti->created_at->format('d M Y, H:i'),
-                    'can_decide' => $cuti->status === 'pending' && (int) $cuti->user_id !== (int) $user->id
+                    'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $cuti->status === 'pending' && (int) $cuti->user_id !== (int) $user->id
                         && $cuti->approvals->contains(fn ($step) => $step->level === $cuti->current_level && $step->status === 'pending' && (int) $step->user_id === (int) $user->id),
                     'approvals' => $cuti->approvals->map(fn ($step) => [
                         'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,

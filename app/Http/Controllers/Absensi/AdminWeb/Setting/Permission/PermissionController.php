@@ -19,10 +19,16 @@ class PermissionController extends Controller
 
     public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'platform' => ['nullable', 'in:web,mobile'],
+        ]);
+        $filters['platform'] = $filters['platform'] ?? 'web';
+
         return Inertia::render('absensi/admin-web/setting/permission/Index', [
-            'permissions' => $this->service->paginate($request->only('search')),
+            'permissions' => $this->service->paginate($filters),
             'overview' => $this->service->overview(),
-            'filters' => $request->only('search'),
+            'filters' => $filters,
             'can' => [
                 'create' => $request->user()->can(AccessPermission::PERMISSIONS_CREATE),
                 'update' => $request->user()->can(AccessPermission::PERMISSIONS_UPDATE),
@@ -38,9 +44,9 @@ class PermissionController extends Controller
 
     public function store(StorePermissionRequest $request): RedirectResponse
     {
-        $this->service->create($request->validated());
+        $permission = $this->service->create($request->validated());
 
-        return to_route('absensi.admin-web.setting.permissions.index')->with('success', 'Permission berhasil ditambahkan.');
+        return to_route('absensi.admin-web.setting.permissions.index', ['platform' => AccessPermission::platform($permission->name)])->with('success', 'Permission berhasil ditambahkan.');
     }
 
     public function edit(Permission $permission): Response
@@ -58,13 +64,13 @@ class PermissionController extends Controller
     {
         $this->service->update($permission, $request->validated());
 
-        return to_route('absensi.admin-web.setting.permissions.index')->with('success', 'Permission berhasil diperbarui.');
+        return to_route('absensi.admin-web.setting.permissions.index', ['platform' => AccessPermission::platform($permission->name)])->with('success', 'Permission berhasil diperbarui.');
     }
 
     public function destroy(Permission $permission): RedirectResponse
     {
         $this->service->delete($permission);
 
-        return to_route('absensi.admin-web.setting.permissions.index')->with('success', 'Permission berhasil dihapus.');
+        return to_route('absensi.admin-web.setting.permissions.index', ['platform' => AccessPermission::platform($permission->name)])->with('success', 'Permission berhasil dihapus.');
     }
 }

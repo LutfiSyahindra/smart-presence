@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowRight, Building2, CalendarDays, Check, Clock3, Home, MapPin, ShieldCheck, Sparkles, X } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -30,6 +31,7 @@ const faceVerificationLabel = computed(() => {
 
     return `Kecocokan ${Math.round(props.attendance.face_similarity)}%`;
 });
+const { can } = usePermission();
 </script>
 
 <template>
@@ -130,7 +132,9 @@ const faceVerificationLabel = computed(() => {
 
             <footer class="success-actions">
                 <Link :href="route('absensi.mobile.home')" class="home-action"> <Home /> <span>Kembali ke beranda</span> <ArrowRight /> </Link>
-                <Link :href="route('absensi.mobile.attendance')" class="summary-action">Lihat ringkasan presensi</Link>
+                <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" class="summary-action"
+                    >Lihat ringkasan presensi</Link
+                >
             </footer>
         </div>
     </main>

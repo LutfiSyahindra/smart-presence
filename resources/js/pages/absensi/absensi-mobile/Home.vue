@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
@@ -87,15 +88,33 @@ const liveTime = computed(() =>
         .replace('.', ':'),
 );
 
-const quickActions = computed(() => [
-    { label: 'Riwayat', caption: 'Kehadiran', icon: History, color: '#087f78', background: '#e8f6f2', history: true },
-    { label: 'Jadwal', caption: 'Shift kerja', icon: CalendarDays, color: '#5b54a4', background: '#efedfb' },
-    { label: 'Pengajuan', caption: 'Izin & cuti', icon: ClipboardList, color: '#b86a37', background: '#fff1e8' },
-    props.canAccessAdmin
-        ? { label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }
-        : { label: 'Dokumen', caption: 'Slip & surat', icon: FileText, color: '#a66b22', background: '#fff5dc' },
-    { label: 'Cuti', caption: 'Saldo cuti', icon: CalendarRange, color: '#8e7544', background: '#f4eddb', cuti: true },
-]);
+const quickActions = computed(() =>
+    [
+        {
+            label: 'Riwayat',
+            caption: 'Kehadiran',
+            icon: History,
+            color: '#087f78',
+            background: '#e8f6f2',
+            history: true,
+            permission: 'mobile.history',
+        },
+        { label: 'Jadwal', caption: 'Shift kerja', icon: CalendarDays, color: '#5b54a4', background: '#efedfb' },
+        { label: 'Pengajuan', caption: 'Izin & cuti', icon: ClipboardList, color: '#b86a37', background: '#fff1e8' },
+        props.canAccessAdmin
+            ? { label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }
+            : { label: 'Dokumen', caption: 'Slip & surat', icon: FileText, color: '#a66b22', background: '#fff5dc' },
+        {
+            label: 'Cuti',
+            caption: 'Saldo cuti',
+            icon: CalendarRange,
+            color: '#8e7544',
+            background: '#f4eddb',
+            cuti: true,
+            permission: 'mobile.cuti.view',
+        },
+    ].filter((action) => !('permission' in action) || can(action.permission as string)),
+);
 
 const showFeedback = (message: string) => {
     feedback.value = message;
@@ -114,6 +133,7 @@ onUnmounted(() => {
     if (clockTimer) window.clearInterval(clockTimer);
     if (feedbackTimer) window.clearTimeout(feedbackTimer);
 });
+const { can } = usePermission();
 </script>
 
 <template>
@@ -169,9 +189,15 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <div class="attendance-panel">
+                    <div v-if="can('mobile.attendance') && (can('mobile.clock-in') || can('mobile.clock-out'))" class="attendance-panel">
                         <Link
-                            v-if="!todayAttendance.clocked_in_at && !todayAttendance.is_day_off && !todayAttendance.is_on_leave"
+                            v-if="
+                                can('mobile.attendance') &&
+                                can('mobile.clock-in') &&
+                                !todayAttendance.clocked_in_at &&
+                                !todayAttendance.is_day_off &&
+                                !todayAttendance.is_on_leave
+                            "
                             :href="route('absensi.mobile.clock-in.create')"
                             as="button"
                             class="attendance-action check-in"
@@ -179,7 +205,7 @@ onUnmounted(() => {
                             <span><LogIn /></span>
                             <span><small>Mulai kerja</small><strong>Clock In</strong></span>
                         </Link>
-                        <button v-else type="button" class="attendance-action check-in completed" disabled>
+                        <button v-else-if="can('mobile.clock-in')" type="button" class="attendance-action check-in completed" disabled>
                             <span><LogIn /></span>
                             <span>
                                 <small>{{
@@ -192,9 +218,11 @@ onUnmounted(() => {
                                 }}</strong>
                             </span>
                         </button>
-                        <span class="attendance-divider" aria-hidden="true"></span>
+                        <span v-if="can('mobile.clock-in') && can('mobile.clock-out')" class="attendance-divider" aria-hidden="true"></span>
                         <Link
                             v-if="
+                                can('mobile.attendance') &&
+                                can('mobile.clock-out') &&
                                 todayAttendance.clocked_in_at &&
                                 !todayAttendance.clocked_out_at &&
                                 !todayAttendance.is_day_off &&
@@ -207,7 +235,7 @@ onUnmounted(() => {
                             <span><LogOut /></span>
                             <span><small>Selesai kerja</small><strong>Clock Out</strong></span>
                         </Link>
-                        <button v-else type="button" class="attendance-action check-out completed" disabled>
+                        <button v-else-if="can('mobile.clock-out')" type="button" class="attendance-action check-out completed" disabled>
                             <span><LogOut /></span>
                             <span>
                                 <small>{{
@@ -263,7 +291,7 @@ onUnmounted(() => {
                     <div class="quick-grid">
                         <template v-for="action in quickActions" :key="action.label">
                             <Link
-                                v-if="action.history"
+                                v-if="can('mobile.history') && action.history"
                                 :href="route('absensi.mobile.attendance.log')"
                                 class="quick-action"
                                 :style="{ '--action-color': action.color, '--action-background': action.background }"
@@ -273,7 +301,7 @@ onUnmounted(() => {
                                 <small>{{ action.caption }}</small>
                             </Link>
                             <Link
-                                v-else-if="action.cuti"
+                                v-else-if="can('mobile.cuti.view') && action.cuti"
                                 :href="route('absensi.mobile.cuti.index')"
                                 class="quick-action"
                                 :style="{ '--action-color': action.color, '--action-background': action.background }"
@@ -322,7 +350,11 @@ onUnmounted(() => {
                 </section>
             </section>
 
-            <nav class="bottom-navigation" :class="{ 'without-account': !canAccessAccount }" aria-label="Navigasi utama">
+            <nav
+                class="bottom-navigation"
+                :style="{ gridTemplateColumns: `repeat(${3 + Number(canAccessAccount) + Number(can('mobile.attendance'))}, 1fr)` }"
+                aria-label="Navigasi utama"
+            >
                 <button type="button" class="bottom-item active" aria-current="page">
                     <span><Home /></span>
                     <small>Beranda</small>
@@ -331,7 +363,7 @@ onUnmounted(() => {
                     <span><CalendarDays /></span>
                     <small>Jadwal</small>
                 </button>
-                <Link :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
+                <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
                     <span><TimerReset /></span>
                     <small>Presensi</small>
                 </Link>
@@ -1049,10 +1081,6 @@ onUnmounted(() => {
     background: rgba(255, 255, 255, 0.94);
     box-shadow: 0 -14px 35px rgba(28, 61, 59, 0.06);
     backdrop-filter: blur(18px);
-}
-
-.bottom-navigation.without-account {
-    grid-template-columns: repeat(4, 1fr);
 }
 
 .bottom-item {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
 import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { Head, router } from '@inertiajs/vue3';
 import {
@@ -153,6 +154,7 @@ onMounted(() => {
     });
 });
 onUnmounted(() => removeBackHandler?.());
+const { can } = usePermission();
 </script>
 
 <template>
@@ -160,7 +162,11 @@ onUnmounted(() => removeBackHandler?.());
     <main class="log-workspace">
         <div class="log-shell">
             <header class="log-header">
-                <MobileBackLink :href="route('absensi.mobile.attendance')" class="icon-button" aria-label="Kembali ke layanan presensi">
+                <MobileBackLink
+                    :href="route(can('mobile.attendance') ? 'absensi.mobile.attendance' : 'absensi.mobile.home')"
+                    class="icon-button"
+                    aria-label="Kembali ke layanan presensi"
+                >
                     <ArrowLeft />
                 </MobileBackLink>
                 <div class="header-copy">

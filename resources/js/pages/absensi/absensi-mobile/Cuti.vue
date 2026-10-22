@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -134,6 +135,7 @@ watch(
     },
     { immediate: true },
 );
+const { can } = usePermission();
 </script>
 
 <template>
@@ -229,7 +231,11 @@ watch(
                         <span class="request-count">{{ requests.total }} pengajuan</span>
                     </header>
                     <p v-if="filters.scope === 'delegation'" class="delegation-help">Pengajuan yang menugaskan Anda sebagai pemberi persetujuan.</p>
-                    <Link v-if="filters.scope === 'delegation' && delegationCount" href="/absensi/mobile/notifikasi/cuti" class="bulk-approval-link">
+                    <Link
+                        v-if="can('mobile.cuti.approve') && filters.scope === 'delegation' && delegationCount"
+                        href="/absensi/mobile/notifikasi/cuti"
+                        class="bulk-approval-link"
+                    >
                         <CheckCircle2 /> Tandai &amp; setujui sekaligus <ArrowRight />
                     </Link>
                     <div class="filter-row">
@@ -316,7 +322,7 @@ watch(
                 </section>
             </div>
             <footer class="leave-action-bar">
-                <button type="button" class="primary-button" :disabled="!!unavailableReason" @click="create">
+                <button v-if="can('mobile.cuti.create')" type="button" class="primary-button" :disabled="!!unavailableReason" @click="create">
                     <Plus /><span>Ajukan cuti</span><ArrowUpRight />
                 </button>
             </footer>

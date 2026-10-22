@@ -51,6 +51,7 @@ class MobileAuthController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'can_access_account' => $user->can(AccessPermission::MOBILE_ACCOUNT),
+                'permissions' => array_values(array_filter(AccessPermission::mobile(), fn (string $permission) => $user->can($permission))),
             ],
         ]);
     }
@@ -60,5 +61,18 @@ class MobileAuthController extends Controller
         $request->user()?->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Anda telah keluar dari aplikasi.']);
+    }
+
+    public function user(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        return response()->json(['user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'can_access_account' => $user->can(AccessPermission::MOBILE_ACCOUNT),
+            'permissions' => array_values(array_filter(AccessPermission::mobile(), fn (string $permission) => $user->can($permission))),
+        ]]);
     }
 }

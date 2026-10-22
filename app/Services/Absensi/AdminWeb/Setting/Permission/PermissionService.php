@@ -17,7 +17,7 @@ class PermissionService
         private readonly RoleRepositoryInterface $roles,
     ) {}
 
-    /** @param array{search?: string|null} $filters */
+    /** @param array{search?: string|null, platform?: string|null} $filters */
     public function paginate(array $filters): LengthAwarePaginator
     {
         $filters['search'] = trim((string) ($filters['search'] ?? '')) ?: null;
@@ -25,6 +25,7 @@ class PermissionService
         return $this->permissions->paginate($filters)->through(fn (Permission $permission) => [
             'id' => $permission->id,
             'name' => $permission->name,
+            'platform' => AccessPermission::platform($permission->name),
             'group' => str($permission->name)->before('.')->headline()->toString(),
             'roles_count' => $permission->roles_count,
             'users_count' => $permission->users_count,

@@ -9,6 +9,7 @@ const props = defineProps<{
     initial?: { name: string; is_system?: boolean };
     editing?: boolean;
     embedded?: boolean;
+    platform?: 'web' | 'mobile';
 }>();
 
 const emit = defineEmits<{
@@ -16,7 +17,7 @@ const emit = defineEmits<{
     saved: [];
 }>();
 
-const form = useForm({ name: props.initial?.name ?? '' });
+const form = useForm({ name: props.initial?.name ?? (props.platform === 'mobile' ? 'mobile.' : '') });
 const formattedPermissionName = computed(() => form.name.trim().replaceAll('-', ' ').replaceAll('.', ' / ') || 'Nama permission');
 const permissionGroup = computed(() => form.name.trim().split('.')[0] || 'resource');
 const hasValidPattern = computed(() => /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(form.name.trim()));

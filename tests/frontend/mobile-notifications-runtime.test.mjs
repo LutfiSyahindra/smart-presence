@@ -9,7 +9,7 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { module: t
 const flush = async () => {
     for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
 };
-const page = (id = 1, url = '/absensi/mobile') => ({ url, props: { auth: { user: id ? { id } : null } } });
+const page = (id = 1, url = '/absensi/mobile') => ({ url, props: { auth: { user: id ? { id } : null, permissions: ['mobile.notifications'] } } });
 
 function runtime({ native = true, permission = 'granted', pluginAvailable = true } = {}) {
     const listeners = {};
@@ -115,6 +115,26 @@ function runtime({ native = true, permission = 'granted', pluginAvailable = true
         navigate: (next) => onNavigate({ detail: { page: next } }),
     };
 }
+
+test('revoking mobile notification access stops polling, registration, and native tap navigation', async () => {
+    const app = runtime();
+    app.exports.startMobileNotifications(page());
+    await flush();
+    assert.equal(app.state.pushActive.value, true);
+    const restricted = page();
+    restricted.props.auth.permissions = [];
+    app.navigate(restricted);
+    await flush();
+    const before = app.requests.length;
+    await app.state.refresh();
+    await app.listeners.pushNotificationReceived();
+    app.listeners.pushNotificationActionPerformed({ notification: { data: { url: '/absensi/mobile/notifikasi/open/notice-1' } } });
+    await flush();
+    assert.equal(app.state.feed.value.unread_count, 0);
+    assert.equal(app.state.pushActive.value, false);
+    assert.equal(app.requests.length, before);
+    assert.equal(app.visited.length, 0);
+});
 
 test('granted native permission registers silently and a tap from the admin portal opens mobile', async () => {
     const app = runtime();

@@ -49,7 +49,7 @@ interface PermissionOverview {
 const props = defineProps<{
     permissions: Paginated<PermissionRow>;
     overview: PermissionOverview;
-    filters: { search?: string };
+    filters: { search?: string; platform: 'web' | 'mobile' };
     can: { create: boolean; update: boolean; delete: boolean };
 }>();
 
@@ -61,6 +61,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const search = ref(props.filters.search ?? '');
+const platform = ref(props.filters.platform);
 const selected = ref<PermissionRow | null>(null);
 const deleting = ref(false);
 const creating = ref(false);
@@ -135,7 +136,7 @@ const applyFilters = () => {
     if (searchTimer) clearTimeout(searchTimer);
     router.get(
         '/absensi/admin-web/setting/permissions',
-        { search: search.value.trim() || undefined },
+        { search: search.value.trim() || undefined, platform: platform.value },
         { preserveState: true, preserveScroll: true, replace: true },
     );
 };
@@ -144,6 +145,19 @@ const clearSearch = () => {
     search.value = '';
     applyFilters();
 };
+
+const selectPlatform = (value: 'web' | 'mobile') => {
+    platform.value = value;
+    applyFilters();
+};
+
+watch(
+    () => props.filters,
+    (filters) => {
+        search.value = filters.search ?? '';
+        platform.value = filters.platform;
+    },
+);
 
 watch(search, (value, previousValue) => {
     if (value === previousValue) return;
@@ -255,6 +269,19 @@ const destroy = () => {
                 </header>
 
                 <form class="user-filter-bar permission-filter-bar" role="search" @submit.prevent="applyFilters">
+                    <div class="d-flex gap-2" role="group" aria-label="Platform permission">
+                        <button
+                            v-for="item in ['web', 'mobile'] as const"
+                            :key="item"
+                            type="button"
+                            class="btn"
+                            :class="platform === item ? 'btn-primary' : 'btn-outline-primary'"
+                            :aria-pressed="platform === item"
+                            @click="selectPlatform(item)"
+                        >
+                            {{ item === 'web' ? 'Admin Web' : 'Absensi Mobile' }}
+                        </button>
+                    </div>
                     <label class="user-search-field">
                         <Search />
                         <span class="visually-hidden">Cari permission</span>
@@ -447,6 +474,7 @@ const destroy = () => {
                 v-if="creating || editing"
                 :key="editing ? `edit-permission-${editing.id}` : 'create-permission'"
                 :submit-url="permissionSubmitUrl"
+                :platform="platform"
                 :initial="editing ?? undefined"
                 :editing="Boolean(editing)"
                 embedded

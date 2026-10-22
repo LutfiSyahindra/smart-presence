@@ -65,6 +65,9 @@ class PengajuanNotificationTest extends TestCase
         $this->employee->assignRole('pegawai');
         $this->first = User::factory()->create();
         $this->second = User::factory()->create();
+        foreach ([$this->first, $this->second] as $approver) {
+            $approver->givePermissionTo([AccessPermission::CUTI_VIEW, AccessPermission::CUTI_APPROVE, AccessPermission::NOTIFICATIONS_VIEW]);
+        }
         $unit = UnitKerja::query()->create(['kode' => 'TEST', 'nama' => 'Unit Test', 'aktif' => true]);
         $jabatan = Jabatan::query()->create(['unit_kerja_id' => $unit->id, 'kode' => 'STF', 'nama' => 'Staf', 'aktif' => true]);
         $pegawai = Pegawai::query()->create(['nama' => 'Pemohon Mobile', 'jabatan_id' => $jabatan->id, 'unit_kerja_id' => $unit->id]);
@@ -137,7 +140,7 @@ class PengajuanNotificationTest extends TestCase
     {
         $this->master->update(['nama' => 'Cuti Tahunan', 'jenis' => 'tahunan']);
         PegawaiCuti::query()->update(['tahun' => 2026]);
-        $this->employee->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $this->employee->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE, AccessPermission::NOTIFICATIONS_VIEW]);
         $this->actingAs($this->employee)->post('/absensi/admin-web/cuti', [
             'master_cuti_id' => $this->master->id, 'tanggal_mulai' => '2026-10-26',
             'tanggal_selesai' => '2026-10-27', 'alasan' => 'Cuti tahunan',
@@ -219,7 +222,7 @@ class PengajuanNotificationTest extends TestCase
         $this->actingAs($this->second)->get($mine->data['url'])->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('cuti.can_decide', false));
         $stranger = User::factory()->create();
-        $stranger->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $stranger->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE, AccessPermission::NOTIFICATIONS_VIEW]);
         $this->actingAs($stranger)->get($mine->data['url'])->assertForbidden();
         $this->getJson(self::URL.'/feed')->assertJsonCount(0, 'items');
     }

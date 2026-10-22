@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
 import { Head, Link } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -124,7 +125,7 @@ const statusMeta = computed(() => {
 });
 
 const primaryAction = computed(() => {
-    if (props.attendance.status === 'ready_to_clock_in') {
+    if (props.attendance.status === 'ready_to_clock_in' && can('mobile.clock-in')) {
         return {
             label: 'Clock In Sekarang',
             caption: 'Verifikasi lokasi & wajah',
@@ -133,7 +134,7 @@ const primaryAction = computed(() => {
         };
     }
 
-    if (props.attendance.status === 'ready_to_clock_out') {
+    if (props.attendance.status === 'ready_to_clock_out' && can('mobile.clock-out')) {
         return {
             label: 'Clock Out Sekarang',
             caption: 'Akhiri shift dengan aman',
@@ -158,6 +159,7 @@ onMounted(() => {
 onUnmounted(() => {
     if (timer) window.clearInterval(timer);
 });
+const { can } = usePermission();
 </script>
 
 <template>
@@ -177,7 +179,7 @@ onUnmounted(() => {
             </header>
 
             <section class="attendance-content">
-                <Link :href="route('absensi.mobile.attendance.log')" class="attendance-log-link">
+                <Link v-if="can('mobile.history')" :href="route('absensi.mobile.attendance.log')" class="attendance-log-link">
                     <span class="log-link-icon"><History /></span>
                     <span><strong>Log Daftar Absensi</strong><small>Ringkasan bulanan & riwayat kehadiran</small></span>
                     <ChevronRight />

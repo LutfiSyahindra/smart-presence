@@ -15,14 +15,15 @@ Route::prefix('mobile/v1')
 
         Route::middleware(['auth:sanctum', 'can:'.AccessPermission::MOBILE_ACCESS])->group(function () {
             Route::post('auth/logout', [MobileAuthController::class, 'destroy'])->name('logout');
+            Route::get('auth/user', [MobileAuthController::class, 'user'])->name('user');
             Route::get('home', [MobileController::class, 'home'])->name('home');
-            Route::get('attendance', [MobileController::class, 'attendance'])->name('attendance');
-            Route::get('attendance/history', [MobileController::class, 'history'])->name('attendance.history');
+            Route::get('attendance', [MobileController::class, 'attendance'])->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance');
+            Route::get('attendance/history', [MobileController::class, 'history'])->middleware('can:'.AccessPermission::MOBILE_HISTORY)->name('attendance.history');
             Route::get('attendance/{action}', [AttendanceActionController::class, 'show'])
                 ->whereIn('action', ['clock-in', 'clock-out'])
-                ->name('attendance.action.show');
-            Route::post('attendance/clock-in', [AttendanceActionController::class, 'clockIn'])->name('clock-in');
-            Route::post('attendance/clock-out', [AttendanceActionController::class, 'clockOut'])->name('clock-out');
+                ->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance.action.show');
+            Route::post('attendance/clock-in', [AttendanceActionController::class, 'clockIn'])->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->middleware('can:'.AccessPermission::MOBILE_CLOCK_IN)->name('clock-in');
+            Route::post('attendance/clock-out', [AttendanceActionController::class, 'clockOut'])->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->middleware('can:'.AccessPermission::MOBILE_CLOCK_OUT)->name('clock-out');
 
             Route::middleware('can:'.AccessPermission::MOBILE_ACCOUNT)->group(function () {
                 Route::get('account', [MobileController::class, 'account'])->name('account');

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
 import { CalendarDays, CircleUserRound, History, House } from '@lucide/vue';
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 withDefaults(defineProps<{ title?: string; subtitle?: string; showHeader?: boolean }>(), {
@@ -9,12 +11,15 @@ withDefaults(defineProps<{ title?: string; subtitle?: string; showHeader?: boole
 });
 
 const route = useRoute();
-const items = [
-    { name: 'home', label: 'Beranda', icon: House },
-    { name: 'attendance', label: 'Presensi', icon: CalendarDays },
-    { name: 'history', label: 'Riwayat', icon: History },
-    { name: 'account', label: 'Akun', icon: CircleUserRound },
-];
+const { can } = useAuth();
+const items = computed(() =>
+    [
+        { name: 'home', label: 'Beranda', icon: House },
+        { name: 'attendance', label: 'Presensi', icon: CalendarDays, permission: 'mobile.attendance' },
+        { name: 'history', label: 'Riwayat', icon: History, permission: 'mobile.history' },
+        { name: 'account', label: 'Akun', icon: CircleUserRound, permission: 'mobile.account' },
+    ].filter((item) => !item.permission || can(item.permission)),
+);
 </script>
 
 <template>
@@ -32,7 +37,7 @@ const items = [
             <slot />
         </main>
 
-        <nav class="bottom-nav" aria-label="Navigasi utama">
+        <nav class="bottom-nav" :style="{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }" aria-label="Navigasi utama">
             <RouterLink
                 v-for="item in items"
                 :key="item.name"

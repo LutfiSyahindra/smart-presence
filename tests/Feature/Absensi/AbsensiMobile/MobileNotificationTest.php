@@ -38,6 +38,7 @@ use Minishlink\WebPush\MessageSentReport;
 use Minishlink\WebPush\WebPush;
 use Mockery;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class MobileNotificationTest extends TestCase
@@ -349,7 +350,7 @@ class MobileNotificationTest extends TestCase
         $subscription = WebPushSubscription::query()->sole();
         $this->assertSame('mobile', $subscription->audience);
         $this->assertSame($this->employee->id, $subscription->user_id);
-        $this->employee->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $this->employee->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::NOTIFICATIONS_VIEW]);
         $this->postJson('/absensi/admin-web/notifikasi/push-subscriptions', [
             ...$payload, 'endpoint' => 'https://web.push.apple.com/test/admin',
         ])->assertOk();
@@ -485,6 +486,20 @@ class MobileNotificationTest extends TestCase
         Http::fake();
         app(MobilePushService::class)->send($notice);
         Http::assertNothingSent();
+    }
+
+    public function test_revoked_notification_permission_suppresses_native_delivery(): void
+    {
+        $this->nativeConfig();
+        $this->approve();
+        $notice = $this->employee->notifications()->sole();
+        $this->device('android');
+        Role::findByName('pegawai')->revokePermissionTo(AccessPermission::MOBILE_NOTIFICATIONS);
+        $notice->unsetRelation('notifiable');
+        Http::fake();
+        app(MobilePushService::class)->send($notice);
+        Http::assertNothingSent();
+        $this->actingAs($this->employee)->getJson(self::URL.'/feed')->assertForbidden();
     }
 
     public function test_mobile_web_push_uses_mobile_open_route_for_a_requester_without_admin_access(): void

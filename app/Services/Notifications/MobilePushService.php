@@ -33,7 +33,7 @@ class MobilePushService
     {
         $user = $notification->notifiable;
         if (! $user instanceof User || ! $user->hasVerifiedEmail() || ! $user->can(AccessPermission::MOBILE_ACCESS)
-            || ! isset($notification->data['mobile_url'])) {
+            || ! $user->can(AccessPermission::MOBILE_NOTIFICATIONS) || ! isset($notification->data['mobile_url'])) {
             return;
         }
         $data = [

@@ -12,6 +12,7 @@ use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
+use App\Support\AccessPermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -29,6 +30,7 @@ class AttendanceActionController extends Controller
 
     public function show(Request $request, string $action): JsonResponse
     {
+        abort_unless($request->user()->can($action === 'clock-in' ? AccessPermission::MOBILE_CLOCK_IN : AccessPermission::MOBILE_CLOCK_OUT), 403);
         $pegawai = $this->pegawai($request);
         if (! $pegawai) {
             $this->fail('Profil pegawai belum terhubung. Hubungi administrator.');

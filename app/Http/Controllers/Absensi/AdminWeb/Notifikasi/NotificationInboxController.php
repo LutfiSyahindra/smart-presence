@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Absensi\AdminWeb\Notifikasi;
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Services\Notifications\WebPushService;
+use App\Support\AccessPermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,7 +29,8 @@ class NotificationInboxController extends Controller
         return response()->json([
             'items' => $request->user()->notifications()->latest()->limit(8)->get()->map(fn ($item) => $this->serialize($item)),
             'unread_count' => $request->user()->unreadNotifications()->count(),
-            'pending_approval_count' => CutiRequest::query()->awaitingApprovalBy($request->user())->count(),
+            'pending_approval_count' => $request->user()->can(AccessPermission::CUTI_VIEW)
+                ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
             'push_public_key' => $push->configured() ? config('webpush.public_key') : null,
         ])->header('Cache-Control', 'no-store, private');
     }
@@ -66,7 +68,7 @@ class NotificationInboxController extends Controller
                 'alasan' => $cutiRequest->alasan, 'status' => $cutiRequest->status,
                 'current_level' => $cutiRequest->current_level, 'nama_cuti' => $cutiRequest->nama_cuti,
                 'jumlah_hari' => $cutiRequest->jumlah_hari, 'created_at' => $cutiRequest->created_at->format('d M Y, H:i'),
-                'can_decide' => $cutiRequest->status === 'pending' && (int) $cutiRequest->user_id !== (int) $user->id
+                'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $cutiRequest->status === 'pending' && (int) $cutiRequest->user_id !== (int) $user->id
                     && $cutiRequest->approvals->contains(fn ($step) => (int) $step->user_id === (int) $user->id
                         && $step->level === $cutiRequest->current_level && $step->status === 'pending'),
                 'approvals' => $cutiRequest->approvals->map(fn ($step) => [

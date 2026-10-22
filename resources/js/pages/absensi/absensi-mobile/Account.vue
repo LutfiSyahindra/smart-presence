@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -147,6 +148,7 @@ const uploadPhoto = () => {
 onUnmounted(() => {
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
 });
+const { can } = usePermission();
 </script>
 
 <template>
@@ -318,7 +320,11 @@ onUnmounted(() => {
                 <p class="privacy-note"><ShieldCheck /> Foto wajah tersimpan privat dan hanya digunakan untuk layanan presensi RSARSY.</p>
             </section>
 
-            <nav class="bottom-navigation" aria-label="Navigasi utama">
+            <nav
+                class="bottom-navigation"
+                :style="{ gridTemplateColumns: `repeat(${4 + Number(can('mobile.attendance'))}, 1fr)` }"
+                aria-label="Navigasi utama"
+            >
                 <Link :href="route('absensi.mobile.home')" class="bottom-item">
                     <span><Home /></span>
                     <small>Beranda</small>
@@ -327,7 +333,7 @@ onUnmounted(() => {
                     <span><CalendarDays /></span>
                     <small>Jadwal</small>
                 </button>
-                <Link :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
+                <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
                     <span><TimerReset /></span>
                     <small>Presensi</small>
                 </Link>

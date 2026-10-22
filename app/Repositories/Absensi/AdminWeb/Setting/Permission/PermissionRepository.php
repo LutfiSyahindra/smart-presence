@@ -14,6 +14,8 @@ class PermissionRepository implements PermissionRepositoryInterface
         return Permission::query()
             ->where('guard_name', 'web')
             ->withCount(['roles', 'users'])
+            ->when(($filters['platform'] ?? null) === 'mobile', fn ($query) => $query->where('name', 'like', 'mobile.%'))
+            ->when(($filters['platform'] ?? null) === 'web', fn ($query) => $query->where('name', 'not like', 'mobile.%'))
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where('name', 'like', "%{$search}%"))
             ->orderBy('name')
             ->paginate($perPage)

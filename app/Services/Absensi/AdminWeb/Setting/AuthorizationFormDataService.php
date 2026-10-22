@@ -4,6 +4,7 @@ namespace App\Services\Absensi\AdminWeb\Setting;
 
 use App\Repositories\Absensi\AdminWeb\Setting\Permission\PermissionRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepositoryInterface;
+use App\Support\AccessPermission;
 
 class AuthorizationFormDataService
 {
@@ -29,9 +30,10 @@ class AuthorizationFormDataService
     public function permissionGroups(): array
     {
         return $this->permissions->all()
-            ->groupBy(fn ($permission) => str($permission->name)->before('.')->toString())
-            ->map(fn ($permissions, string $group) => [
-                'group' => str($group)->headline()->toString(),
+            ->groupBy(fn ($permission) => AccessPermission::platform($permission->name).':'.str($permission->name)->before('.')->toString())
+            ->map(fn ($permissions) => [
+                'group' => str($permissions->first()->name)->before('.')->headline()->toString(),
+                'platform' => AccessPermission::platform($permissions->first()->name),
                 'permissions' => $permissions
                     ->map(fn ($permission) => ['id' => (int) $permission->id, 'name' => $permission->name])
                     ->values()

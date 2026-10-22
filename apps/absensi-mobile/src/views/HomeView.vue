@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ArrowRight, Building2, CheckCircle2, Clock3, LogIn, LogOut, MapPin, RefreshCw, ShieldCheck, UserRound } from '@lucide/vue';
-import { computed, onMounted, ref } from 'vue';
-import MobileShell from '@/components/MobileShell.vue';
-import LoadingState from '@/components/LoadingState.vue';
 import ErrorState from '@/components/ErrorState.vue';
+import LoadingState from '@/components/LoadingState.vue';
+import MobileShell from '@/components/MobileShell.vue';
+import { useAuth } from '@/composables/useAuth';
 import { ApiError, apiRequest } from '@/lib/api';
 import type { ApiEnvelope, HomeData } from '@/types';
+import { ArrowRight, Building2, CheckCircle2, Clock3, LogIn, LogOut, MapPin, RefreshCw, ShieldCheck, UserRound } from '@lucide/vue';
+import { computed, onMounted, ref } from 'vue';
+
+const { can } = useAuth();
 
 const data = ref<HomeData | null>(null);
 const loading = ref(true);
@@ -19,12 +22,18 @@ const action = computed(() => {
 });
 const statusCopy = computed(() => {
     switch (data.value?.attendance.status) {
-        case 'on_leave': return ['Cuti Anda telah disetujui', 'Clock-in dan clock-out dinonaktifkan selama cuti.'];
-        case 'ready_to_clock_in': return ['Siap untuk clock-in', 'Pastikan lokasi dan kamera perangkat aktif.'];
-        case 'ready_to_clock_out': return ['Sedang bertugas', `Durasi kerja ${data.value.attendance.duration || 'sedang dihitung'}.`];
-        case 'complete': return ['Presensi hari ini lengkap', 'Terima kasih atas kerja keras Anda hari ini.'];
-        case 'day_off': return ['Hari libur', 'Tidak ada kewajiban presensi hari ini.'];
-        default: return ['Presensi belum tersedia', 'Hubungi administrator untuk memeriksa konfigurasi akun.'];
+        case 'on_leave':
+            return ['Cuti Anda telah disetujui', 'Clock-in dan clock-out dinonaktifkan selama cuti.'];
+        case 'ready_to_clock_in':
+            return ['Siap untuk clock-in', 'Pastikan lokasi dan kamera perangkat aktif.'];
+        case 'ready_to_clock_out':
+            return ['Sedang bertugas', `Durasi kerja ${data.value.attendance.duration || 'sedang dihitung'}.`];
+        case 'complete':
+            return ['Presensi hari ini lengkap', 'Terima kasih atas kerja keras Anda hari ini.'];
+        case 'day_off':
+            return ['Hari libur', 'Tidak ada kewajiban presensi hari ini.'];
+        default:
+            return ['Presensi belum tersedia', 'Hubungi administrator untuk memeriksa konfigurasi akun.'];
     }
 });
 
@@ -69,7 +78,7 @@ onMounted(load);
             </section>
 
             <RouterLink
-                v-if="action"
+                v-if="action && can('mobile.attendance') && can(`mobile.${action.slug}`)"
                 :to="{ name: 'attendance-action', params: { action: action.slug } }"
                 class="primary-action-card"
             >
@@ -87,23 +96,33 @@ onMounted(load);
                         <span>Jadwal</span>
                         <h2>Shift hari ini</h2>
                     </div>
-                    <RouterLink :to="{ name: 'attendance' }">Detail</RouterLink>
+                    <RouterLink v-if="can('mobile.attendance')" :to="{ name: 'attendance' }">Detail</RouterLink>
                 </div>
                 <div class="schedule-card">
                     <div class="schedule-row">
                         <span class="soft-icon"><Clock3 :size="20" /></span>
-                        <div><small>Jam kerja</small><strong>{{ data.schedule.start_time || '--:--' }} – {{ data.schedule.end_time || '--:--' }}</strong></div>
+                        <div>
+                            <small>Jam kerja</small
+                            ><strong>{{ data.schedule.start_time || '--:--' }} – {{ data.schedule.end_time || '--:--' }}</strong>
+                        </div>
                         <span class="chip">{{ data.schedule.shift_name || 'Belum diatur' }}</span>
                     </div>
                     <div class="schedule-row">
                         <span class="soft-icon"><Building2 :size="20" /></span>
-                        <div><small>Lokasi kerja</small><strong>{{ data.schedule.location_name || 'Belum diatur' }}</strong></div>
+                        <div>
+                            <small>Lokasi kerja</small><strong>{{ data.schedule.location_name || 'Belum diatur' }}</strong>
+                        </div>
                     </div>
                 </div>
             </section>
 
             <section class="section-block">
-                <div class="section-title"><div><span>Ringkasan</span><h2>Aktivitas presensi</h2></div></div>
+                <div class="section-title">
+                    <div>
+                        <span>Ringkasan</span>
+                        <h2>Aktivitas presensi</h2>
+                    </div>
+                </div>
                 <div class="time-grid">
                     <article class="time-card">
                         <span><LogIn :size="18" /> Masuk</span>
@@ -120,12 +139,18 @@ onMounted(load);
 
             <section v-if="!data.user.has_profile_photo" class="notice-card warning">
                 <UserRound :size="24" />
-                <div><strong>Foto profil diperlukan</strong><p>Tambahkan foto wajah sebelum melakukan presensi.</p></div>
+                <div>
+                    <strong>Foto profil diperlukan</strong>
+                    <p>Tambahkan foto wajah sebelum melakukan presensi.</p>
+                </div>
                 <RouterLink v-if="data.user.can_access_account" :to="{ name: 'account' }">Atur</RouterLink>
             </section>
             <section v-else class="notice-card secure">
                 <ShieldCheck :size="24" />
-                <div><strong>Perangkat siap</strong><p>Lokasi dan wajah akan diverifikasi saat presensi.</p></div>
+                <div>
+                    <strong>Perangkat siap</strong>
+                    <p>Lokasi dan wajah akan diverifikasi saat presensi.</p>
+                </div>
                 <MapPin :size="20" />
             </section>
         </template>

@@ -10,6 +10,34 @@ final class AccessPermission
 
     public const MOBILE_ACCOUNT = 'mobile.account';
 
+    public const DASHBOARD_VIEW = 'dashboard.view';
+
+    public const NOTIFICATIONS_VIEW = 'notifications.view';
+
+    public const CUTI_VIEW = 'cuti.view';
+
+    public const CUTI_CREATE = 'cuti.create';
+
+    public const CUTI_APPROVE = 'cuti.approve';
+
+    public const MOBILE_ATTENDANCE = 'mobile.attendance';
+
+    public const MOBILE_CLOCK_IN = 'mobile.clock-in';
+
+    public const MOBILE_CLOCK_OUT = 'mobile.clock-out';
+
+    public const MOBILE_HISTORY = 'mobile.history';
+
+    public const MOBILE_CUTI_VIEW = 'mobile.cuti.view';
+
+    public const MOBILE_CUTI_CREATE = 'mobile.cuti.create';
+
+    public const MOBILE_CUTI_CANCEL = 'mobile.cuti.cancel';
+
+    public const MOBILE_CUTI_APPROVE = 'mobile.cuti.approve';
+
+    public const MOBILE_NOTIFICATIONS = 'mobile.notifications';
+
     public const JABATAN_VIEW = 'jabatan.view';
 
     public const JABATAN_CREATE = 'jabatan.create';
@@ -97,6 +125,7 @@ final class AccessPermission
             self::ADMIN_ACCESS,
             self::MOBILE_ACCESS,
             self::MOBILE_ACCOUNT,
+            ...self::additional(),
             self::JABATAN_VIEW,
             self::JABATAN_CREATE,
             self::JABATAN_UPDATE,
@@ -142,5 +171,37 @@ final class AccessPermission
     public static function isSystem(string $permission): bool
     {
         return in_array($permission, self::all(), true);
+    }
+
+    /** @return list<string> */
+    public static function additional(): array
+    {
+        return [
+            self::DASHBOARD_VIEW,
+            self::NOTIFICATIONS_VIEW,
+            self::CUTI_VIEW,
+            self::CUTI_CREATE,
+            self::CUTI_APPROVE,
+            self::MOBILE_ATTENDANCE,
+            self::MOBILE_CLOCK_IN,
+            self::MOBILE_CLOCK_OUT,
+            self::MOBILE_HISTORY,
+            self::MOBILE_CUTI_VIEW,
+            self::MOBILE_CUTI_CREATE,
+            self::MOBILE_CUTI_CANCEL,
+            self::MOBILE_CUTI_APPROVE,
+            self::MOBILE_NOTIFICATIONS,
+        ];
+    }
+
+    public static function platform(string $permission): string
+    {
+        return str_starts_with($permission, 'mobile.') ? 'mobile' : 'web';
+    }
+
+    /** @return list<string> */
+    public static function mobile(): array
+    {
+        return array_values(array_filter(self::all(), fn (string $permission) => self::platform($permission) === 'mobile'));
     }
 }

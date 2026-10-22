@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { useMobileNotifications } from '@/composables/useMobileNotifications';
+import { usePermission } from '@/composables/usePermission';
 import { Link } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 
 const { feed } = useMobileNotifications();
+const { can } = usePermission();
 </script>
 
 <template>
-    <Link class="mobile-bell" href="/absensi/mobile/notifikasi" :aria-label="`Buka Inbox, ${feed.unread_count} notifikasi belum dibaca`">
+    <Link
+        v-if="can('mobile.notifications')"
+        class="mobile-bell"
+        href="/absensi/mobile/notifikasi"
+        :aria-label="`Buka Inbox, ${feed.unread_count} notifikasi belum dibaca`"
+    >
         <Bell /><span v-if="feed.unread_count">{{ feed.unread_count > 99 ? '99+' : feed.unread_count }}</span>
     </Link>
 </template>

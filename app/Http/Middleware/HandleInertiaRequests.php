@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\CutiRequest;
+use App\Support\AccessPermission;
 use App\Support\Portal;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
@@ -53,10 +54,13 @@ class HandleInertiaRequests extends Middleware
                 'active' => fn () => Portal::current($request),
                 'can_access_admin' => fn () => Portal::canAccessAdmin($request),
                 'can_access_cuti' => fn () => Portal::canAccessCuti($request),
+                'admin_home_url' => fn () => route(Portal::adminHomeRouteName($request) ?? 'absensi.mobile.home', absolute: false),
             ],
             'adminNotificationCounts' => fn () => Portal::canAccessCuti($request) ? [
-                'unread_count' => $request->user()->unreadNotifications()->count(),
-                'pending_approval_count' => CutiRequest::query()->awaitingApprovalBy($request->user())->count(),
+                'unread_count' => $request->user()->can(AccessPermission::NOTIFICATIONS_VIEW)
+                    ? $request->user()->unreadNotifications()->count() : 0,
+                'pending_approval_count' => $request->user()->can(AccessPermission::CUTI_VIEW)
+                    ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
             ] : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

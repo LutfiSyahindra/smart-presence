@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
+use App\Support\AccessPermission;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -48,7 +49,7 @@ class CutiApprovalController extends Controller
                     'nama_cuti' => $cuti->nama_cuti, 'jumlah_hari' => $cuti->jumlah_hari,
                     'tanggal_mulai' => $cuti->tanggal_mulai->toDateString(), 'tanggal_selesai' => $cuti->tanggal_selesai->toDateString(),
                     'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
-                    'created_at' => $cuti->created_at->format('d M Y, H:i'), 'can_decide' => true,
+                    'created_at' => $cuti->created_at->format('d M Y, H:i'), 'can_decide' => $request->user()->can(AccessPermission::MOBILE_CUTI_APPROVE),
                     'approvals' => $cuti->approvals->map(fn ($step) => [
                         'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,
                         'note' => $step->note, 'decided_at' => $step->decided_at?->format('d M Y, H:i'),

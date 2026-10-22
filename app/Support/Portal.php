@@ -63,18 +63,49 @@ final class Portal
 
     public static function canAccessCuti(Request $request): bool
     {
-        return $request->user() !== null && CutiAccess::allows($request->user());
+        $user = $request->user();
+
+        return $user !== null && CutiAccess::allows($user)
+            && ($user->can(AccessPermission::CUTI_VIEW) || $user->can(AccessPermission::NOTIFICATIONS_VIEW));
+    }
+
+    public static function adminHomeRouteName(Request $request): ?string
+    {
+        if (self::canAccessAdmin($request)) {
+            foreach ([
+                AccessPermission::DASHBOARD_VIEW => 'dashboard',
+                AccessPermission::PRESENSI_VIEW => 'presensi.index',
+                AccessPermission::PRESENSI_MANAGE => 'presensi.manage',
+                AccessPermission::APPROVAL_LINE_VIEW => 'approval-line.index',
+                AccessPermission::PEGAWAI_VIEW => 'master-data.pegawai.index',
+                AccessPermission::JABATAN_VIEW => 'master-data.jabatan.index',
+                AccessPermission::MASTER_CUTI_VIEW => 'master-data.cuti.index',
+                AccessPermission::SHIFT_VIEW => 'master-data.shift.index',
+                AccessPermission::GEOLOCATION_VIEW => 'master-data.geolocation.index',
+                AccessPermission::USERS_VIEW => 'setting.users.index',
+                AccessPermission::ROLES_VIEW => 'setting.roles.index',
+                AccessPermission::PERMISSIONS_VIEW => 'setting.permissions.index',
+            ] as $permission => $route) {
+                if ($request->user()->can($permission)) {
+                    return 'absensi.admin-web.'.$route;
+                }
+            }
+        }
+
+        if (self::canAccessCuti($request)) {
+            return $request->user()->can(AccessPermission::CUTI_VIEW)
+                ? 'absensi.admin-web.notifikasi.index'
+                : 'absensi.admin-web.notifikasi.all';
+        }
+
+        return null;
     }
 
     public static function homeRouteName(Request $request): string
     {
         if (self::current($request) === self::ADMIN) {
-            if (self::canAccessAdmin($request)) {
-                return 'absensi.admin-web.dashboard';
-            }
-
-            if (self::canAccessCuti($request)) {
-                return 'absensi.admin-web.notifikasi.index';
+            if ($route = self::adminHomeRouteName($request)) {
+                return $route;
             }
 
             self::remember($request, self::PRESENSI);

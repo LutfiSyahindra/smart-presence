@@ -28,6 +28,7 @@ export interface SharedData extends Record<string, unknown> {
         active: 'presensi' | 'admin';
         can_access_admin: boolean;
         can_access_cuti: boolean;
+        admin_home_url: string;
     };
     flash: {
         success?: string;

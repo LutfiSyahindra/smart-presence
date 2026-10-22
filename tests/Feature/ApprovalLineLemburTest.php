@@ -168,7 +168,7 @@ class ApprovalLineLemburTest extends TestCase
     {
         $line = $this->configure();
         $user = User::factory()->create();
-        $user->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $user->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE]);
         $this->actingAs($user)->get(self::LINES.'?type=lembur')->assertForbidden();
         $this->post(self::LINES, $this->payload())->assertForbidden();
         $this->put(self::LINES."/{$line->id}", $this->payload())->assertForbidden();
@@ -213,7 +213,7 @@ class ApprovalLineLemburTest extends TestCase
         $this->actingAs($approver)->get('/absensi/admin-web/cuti')->assertForbidden();
 
         $applicant = User::factory()->create();
-        $applicant->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $applicant->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE]);
         $employee = Pegawai::query()->create([
             'nama' => 'Pemohon', 'jabatan_id' => $this->jabatan->id, 'unit_kerja_id' => $this->jabatan->unit_kerja_id,
         ]);
@@ -235,7 +235,7 @@ class ApprovalLineLemburTest extends TestCase
         $this->assertTrue(CutiAccess::allows($this->approvers[0]));
         $this->assertFalse(CutiAccess::allows($this->approvers[1]));
         $applicant = User::factory()->create();
-        $applicant->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $applicant->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::CUTI_VIEW, AccessPermission::CUTI_CREATE]);
         $employee = Pegawai::query()->create([
             'nama' => 'Pemohon', 'jabatan_id' => $this->jabatan->id, 'unit_kerja_id' => $this->jabatan->unit_kerja_id,
         ]);

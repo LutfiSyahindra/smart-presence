@@ -27,8 +27,8 @@ class WebPushService
 
         $subscriptions = WebPushSubscription::query()->where('user_id', $user->id)->get()
             ->filter(fn (WebPushSubscription $subscription) => $subscription->audience === 'mobile'
-                ? isset($notification->data['mobile_url']) && $user->can(AccessPermission::MOBILE_ACCESS)
-                : CutiAccess::allows($user));
+                ? isset($notification->data['mobile_url']) && $user->can(AccessPermission::MOBILE_ACCESS) && $user->can(AccessPermission::MOBILE_NOTIFICATIONS)
+                : CutiAccess::allows($user) && $user->can(AccessPermission::NOTIFICATIONS_VIEW));
         if ($subscriptions->isEmpty()) {
             return;
         }

@@ -36,7 +36,7 @@ const submit = () => {
         :title="invitation ? 'Aktifkan akun pegawai' : 'Atur ulang kata sandi'"
         :description="
             invitation
-                ? 'Buat password untuk mengaktifkan akun. Email Anda akan langsung terverifikasi.'
+                ? 'Buat password untuk mengaktifkan akun dan memverifikasi email. Setelah itu, lanjutkan ke halaman instalasi aplikasi.'
                 : 'Buat kata sandi baru yang kuat untuk melindungi akun Anda.'
         "
     >

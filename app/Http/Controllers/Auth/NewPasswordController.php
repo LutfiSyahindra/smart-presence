@@ -74,14 +74,11 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
         if ($status == Password::PasswordReset) {
-            return to_route('login')->with(
+            return to_route($activated ? 'home' : 'login')->with(
                 'status',
                 $activated
-                    ? 'Akun berhasil diaktifkan dan email telah terverifikasi. Silakan masuk dengan password baru Anda.'
+                    ? 'Akun berhasil diaktifkan dan email telah terverifikasi. Pasang aplikasi sesuai perangkat Anda, lalu masuk dengan password yang baru dibuat.'
                     : __($status),
             );
         }

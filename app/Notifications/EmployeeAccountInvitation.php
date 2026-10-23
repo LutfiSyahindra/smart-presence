@@ -34,6 +34,7 @@ class EmployeeAccountInvitation extends Notification
             ->line('Anda telah didaftarkan sebagai pengguna aplikasi presensi RSARSY dengan role pegawai.')
             ->line('Klik tombol berikut untuk membuat password. Email Anda akan otomatis terverifikasi setelah password berhasil disimpan.')
             ->action('Aktifkan akun & buat password', $url)
+            ->line('Setelah akun aktif, Anda akan diarahkan ke halaman instalasi aplikasi. Unduh APK untuk Android atau ikuti panduan pemasangan PWA untuk iPhone, lalu masuk dengan akun Anda.')
             ->line("Tautan aktivasi ini berlaku selama {$expires} menit dan hanya dapat digunakan satu kali.")
             ->line('Jika Anda tidak merasa menerima undangan ini, abaikan email ini atau hubungi administrator.');
     }

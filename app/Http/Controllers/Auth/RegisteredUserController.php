@@ -51,6 +51,6 @@ class RegisteredUserController extends Controller
         Auth::login($user);
         Portal::remember($request, Portal::PRESENSI);
 
-        return to_route(Portal::homeRouteName($request));
+        return to_route('home')->with('status', 'Akun berhasil dibuat. Pasang aplikasi sesuai perangkat Anda untuk mulai menggunakan presensi.');
     }
 }

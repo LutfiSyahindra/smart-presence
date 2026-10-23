@@ -542,6 +542,7 @@ class PegawaiManagementTest extends TestCase
                 'invitation' => 1,
             ], absolute: false))
                 ->assertOk()
+                ->assertSee('rel="manifest"', escape: false)
                 ->assertInertia(fn (Assert $page) => $page
                     ->component('auth/ResetPassword')
                     ->where('invitation', true));
@@ -553,8 +554,22 @@ class PegawaiManagementTest extends TestCase
                 'password_confirmation' => 'PasswordBaru123!',
             ])
                 ->assertSessionHasNoErrors()
-                ->assertRedirect('/login')
-                ->assertSessionHas('status', 'Akun berhasil diaktifkan dan email telah terverifikasi. Silakan masuk dengan password baru Anda.');
+                ->assertRedirect('/')
+                ->assertSessionHas('status', 'Akun berhasil diaktifkan dan email telah terverifikasi. Pasang aplikasi sesuai perangkat Anda, lalu masuk dengan password yang baru dibuat.');
+
+            $this->assertGuest();
+            $this->get('/')
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->component('Welcome')
+                    ->where('status', 'Akun berhasil diaktifkan dan email telah terverifikasi. Pasang aplikasi sesuai perangkat Anda, lalu masuk dengan password yang baru dibuat.'));
+
+            $this->post('/reset-password', [
+                'token' => $notification->token,
+                'email' => $user->email,
+                'password' => 'PasswordLain123!',
+                'password_confirmation' => 'PasswordLain123!',
+            ])->assertSessionHasErrors('email');
 
             $this->post('/login', [
                 'email' => $user->email,

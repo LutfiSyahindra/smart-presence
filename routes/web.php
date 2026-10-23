@@ -6,8 +6,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Welcome');
+Route::get('/', function (Request $request) {
+    return Inertia::render('Welcome', [
+        'androidApkUrl' => config('mobile.android_apk_url')
+            ?: (is_file(public_path('downloads/arsy-presensi.apk')) ? asset('downloads/arsy-presensi.apk') : null),
+        'status' => $request->session()->get('status'),
+    ]);
 })->name('home');
 
 Route::get('dashboard', function (Request $request) {

@@ -16,7 +16,7 @@
         <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/arsy-presensi-32.png') }}">
         <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
         <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon.png') }}">
-        @if (request()->is('absensi/mobile', 'absensi/mobile/*', 'login'))
+        @if (request()->routeIs('home', 'register', 'password.reset') || request()->is('absensi/mobile', 'absensi/mobile/*', 'login'))
             <link rel="manifest" href="{{ asset('absensi-mobile.webmanifest') }}">
             <meta name="theme-color" content="#187f68">
             <meta name="apple-mobile-web-app-capable" content="yes">

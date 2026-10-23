@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -69,5 +70,23 @@ class PasswordResetTest extends TestCase
 
             return true;
         });
+    }
+
+    public function test_active_employees_return_to_login_when_resetting_their_password(): void
+    {
+        $user = User::factory()->create();
+        $user->pegawai()->create(['nama' => $user->name, 'email' => $user->email]);
+
+        $this->post('/reset-password', [
+            'token' => Password::createToken($user),
+            'email' => $user->email,
+            'password' => 'PasswordBaru123!',
+            'password_confirmation' => 'PasswordBaru123!',
+            'invitation' => 1,
+        ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
+
+        $this->assertGuest();
     }
 }

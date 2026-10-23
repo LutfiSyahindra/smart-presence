@@ -6,13 +6,17 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
 use App\Repositories\Absensi\AdminWeb\Presensi\PresensiRepositoryInterface;
+use App\Services\Absensi\AttendanceScheduleService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 
 class PresensiService
 {
-    public function __construct(private readonly PresensiRepositoryInterface $presensis) {}
+    public function __construct(
+        private readonly PresensiRepositoryInterface $presensis,
+        private readonly AttendanceScheduleService $schedules,
+    ) {}
 
     /** @param array<string, mixed> $filters */
     public function normalizeFilters(array $filters): array
@@ -115,6 +119,7 @@ class PresensiService
         $lateMinutes = $presensi ? $this->lateMinutes($presensi) : 0;
         $earlyDepartureMinutes = $presensi?->earlyDepartureMinutes() ?? 0;
         $date = $presensi?->tanggal_presensi?->format('Y-m-d') ?? $fallbackDate;
+        $schedule = $this->schedules->resolve($pegawai->id, $presensi?->shift, $presensi?->tanggal_presensi ?? Carbon::parse($fallbackDate));
 
         return [
             'id' => $presensi?->id,
@@ -131,8 +136,8 @@ class PresensiService
             'shift_id' => $presensi?->shift_id,
             'shift' => $presensi?->shift ? [
                 'nama' => $presensi->shift->nama,
-                'jam_masuk' => substr((string) $presensi->shift->jam_masuk, 0, 5),
-                'jam_keluar' => substr((string) $presensi->shift->jam_keluar, 0, 5),
+                'jam_masuk' => $schedule['start_time'],
+                'jam_keluar' => $schedule['end_time'],
             ] : null,
             'clock_in' => [
                 'time' => $presensi?->clock_in_at?->format('H:i'),

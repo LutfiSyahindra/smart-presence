@@ -45,6 +45,7 @@ const props = defineProps<{
         shift_name: string | null;
         start_time: string | null;
         end_time: string | null;
+        schedule_note?: string | null;
         location_name: string | null;
         location_address: string | null;
     };
@@ -216,6 +217,8 @@ const { can } = usePermission();
                         </div>
                     </div>
                 </article>
+
+                <p v-if="today.schedule_note" class="schedule-adjustment">{{ today.schedule_note }}</p>
 
                 <section class="day-summary" aria-labelledby="today-attendance-title">
                     <div class="section-heading">
@@ -446,6 +449,12 @@ const { can } = usePermission();
 </template>
 
 <style scoped>
+.schedule-adjustment {
+    margin: 12px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
 .attendance-workspace {
     --ink: #183438;
     --muted: #78898c;

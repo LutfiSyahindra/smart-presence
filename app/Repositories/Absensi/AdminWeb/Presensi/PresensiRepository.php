@@ -93,20 +93,8 @@ class PresensiRepository implements PresensiRepositoryInterface
     {
         return match ($status) {
             'present' => $query->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at'),
-            'late' => $query->where('presensis.is_day_off', false)
-                ->whereNotNull('presensis.clock_in_at')
-                ->whereExists(fn ($query) => $query
-                    ->selectRaw('1')
-                    ->from('shifts')
-                    ->whereColumn('shifts.id', 'presensis.shift_id')
-                    ->whereRaw('(date(presensis.clock_in_at) > presensis.tanggal_presensi or (date(presensis.clock_in_at) = presensis.tanggal_presensi and time(presensis.clock_in_at) > shifts.jam_masuk))')),
-            'on-time' => $query->where('presensis.is_day_off', false)
-                ->whereNotNull('presensis.clock_in_at')
-                ->whereExists(fn ($query) => $query
-                    ->selectRaw('1')
-                    ->from('shifts')
-                    ->whereColumn('shifts.id', 'presensis.shift_id')
-                    ->whereRaw('(date(presensis.clock_in_at) < presensis.tanggal_presensi or (date(presensis.clock_in_at) = presensis.tanggal_presensi and time(presensis.clock_in_at) <= shifts.jam_masuk))')),
+            'late' => Presensi::constrainArrivalStatus($query, true),
+            'on-time' => Presensi::constrainArrivalStatus($query, false),
             'incomplete' => $query->where('presensis.is_day_off', false)
                 ->where(fn (Builder $query) => $query
                     ->whereNull('presensis.clock_in_at')
@@ -121,14 +109,8 @@ class PresensiRepository implements PresensiRepositoryInterface
     {
         return match ($status) {
             'present' => $query->where('is_day_off', false)->whereNotNull('clock_in_at'),
-            'late' => $query->where('is_day_off', false)
-                ->whereNotNull('clock_in_at')
-                ->whereHas('shift', fn (Builder $query) => $query
-                    ->whereRaw('(date(presensis.clock_in_at) > presensis.tanggal_presensi or (date(presensis.clock_in_at) = presensis.tanggal_presensi and time(presensis.clock_in_at) > shifts.jam_masuk))')),
-            'on-time' => $query->where('is_day_off', false)
-                ->whereNotNull('clock_in_at')
-                ->whereHas('shift', fn (Builder $query) => $query
-                    ->whereRaw('(date(presensis.clock_in_at) < presensis.tanggal_presensi or (date(presensis.clock_in_at) = presensis.tanggal_presensi and time(presensis.clock_in_at) <= shifts.jam_masuk))')),
+            'late' => Presensi::constrainArrivalStatus($query, true),
+            'on-time' => Presensi::constrainArrivalStatus($query, false),
             'incomplete' => $query->where('is_day_off', false)
                 ->where(fn (Builder $query) => $query->whereNull('clock_in_at')->orWhereNull('clock_out_at')),
             'overtime' => $query->where('overtime_minutes', '>', 0),

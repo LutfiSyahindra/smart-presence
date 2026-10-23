@@ -130,6 +130,100 @@ Rekap membaca data tanpa membuat atau mengubah catatan presensi.
 
 Pengujian backend: `tests/Feature/Absensi/AbsensiMobile/AttendanceLogTest.php`.
 
+## Halaman Lembur
+
+Akses cepat **Lembur** di beranda membuka `/absensi/mobile/lembur` pada frontend
+bersama PWA, Android, dan iOS. Halaman memakai ringkasan durasi, pemilih bulan/tahun,
+filter status, dan ilustrasi saat belum ada pengajuan. Header rata tengah dan tombol
+Ajukan berada di luar area konten yang digulir. Tombol kembali Android menutup
+dialog aktif sebelum kembali ke halaman sebelumnya.
+
+Tombol **Ajukan** membuka `/absensi/mobile/lembur/ajukan`. Formulir berisi tanggal,
+shift, durasi sebelum/setelah shift, istirahat masing-masing bagian, preferensi
+kompensasi (uang lembur/cuti pengganti), alasan maksimal 200 karakter, serta maksimal
+5 lampiran berukuran 10 MB per file. Format lampiran: PDF, JPG, JPEG, PNG, XLSX, XLS,
+DOCX, DOC, CSV, TXT, PPT, dan PPTX. Waktu mengikuti WIB; tanggal mengacu pada awal
+shift. Ringkasan langsung memperlihatkan durasi bersih setelah dikurangi istirahat.
+Jumlah durasi shift dan lembur dibatasi 24 jam. Slot yang bertumpang tindih dengan
+pengajuan menunggu/disetujui ditolak, termasuk slot yang melewati tengah malam.
+
+Pengajuan tersimpan di database. Server mengambil **approval line bertipe lembur**
+untuk jabatan pegawai dan menyimpan salinan nama serta urutan approver. Perubahan
+approval line berikutnya tidak mengubah pengajuan lama. Approver harus memiliki
+email terverifikasi dan akses `mobile.access`; unit/jabatan pemohon harus aktif.
+Pemohon tidak dapat menjadi approver pengajuannya sendiri. Keputusan hanya dapat
+diambil oleh approver pada tingkat berjalan, termasuk jika aktornya super-admin.
+Penolakan memerlukan catatan; pembatalan hanya untuk pemohon saat status menunggu.
+
+Approver membuka **Inbox → Butuh persetujuan → Lembur** atau tab **Persetujuan**
+di halaman lembur. Delegasi menampilkan seluruh periode secara default. Notifikasi
+dikirim kepada approver yang sedang mendapat giliran; hasil akhir dikirim kepada
+pemohon dan approver terkait. Lampiran tersimpan di disk privat, dibuka melalui
+endpoint yang memeriksa akses pemohon/approver. Tombol pratinjau tersedia pada form
+pengajuan dan detail pengajuan/persetujuan untuk PDF, JPG, JPEG, PNG, TXT, dan CSV.
+PDF dirender di aplikasi dengan navigasi halaman, termasuk pada WebView ponsel.
+Pratinjau file yang belum dikirim menggunakan file lokal tanpa mengunggahnya.
+Format Office tetap dapat dilampirkan dan diunduh, tetapi belum mendukung pratinjau.
+Unduhan merupakan tindakan terpisah pada panel pratinjau. Total ringkasan tidak dipengaruhi
+filter status atau pagination. Pilihan kompensasi tersimpan untuk persetujuan;
+pengajuan lembur tidak otomatis menghitung payroll atau mengubah saldo cuti tahunan.
+
+### Penggunaan waktu lembur
+
+Kartu **Saldo waktu lembur → Gunakan** membuka `/absensi/mobile/lembur/gunakan`
+pada frontend bersama PWA, Android, dan iOS. Saldo berasal dari durasi bersih
+lembur berkompensasi **Cuti pengganti** yang sudah disetujui seluruh approver dan
+waktu lemburnya sudah selesai. Lembur dengan kompensasi uang tidak dikreditkan.
+Saldo mencakup seluruh periode dan terpisah dari ringkasan lembur bulanan.
+
+Pilih **Telat masuk** atau **Pulang cepat**, tanggal hari ini/mendatang, durasi
+dalam menit (tersedia pilihan cepat 30/60/90/120 menit), serta alasan. Shift
+mengikuti penugasan pegawai; server memeriksa ulang jadwal. Form menampilkan batas
+jam masuk/pulang dalam WIB, termasuk shift malam yang berakhir esok hari.
+Penggunaan tidak boleh mencakup seluruh shift, jatuh pada hari libur/cuti yang
+disetujui, atau menggandakan keperluan yang sama pada tanggal yang sama.
+
+Server memakai **approval line lembur** untuk jabatan pegawai dan menyimpan
+salinan urutan approver saat pengajuan. Persetujuan, notifikasi, penolakan, dan
+pembatalan mengikuti alur lembur, tersedia melalui mobile maupun inbox admin web.
+Sumber saldo dialokasikan dari lembur tertua dan ditampilkan dalam detail.
+Transaksi serta penguncian pegawai/sumber saldo mencegah pengajuan bersamaan
+menghabiskan saldo yang sama. Pengajuan menunggu mencadangkan saldo; persetujuan
+akhir mengubahnya menjadi terpakai. Penolakan atau pembatalan mengembalikan saldo
+tanpa menghapus riwayat alokasi. Penggunaan yang sudah disetujui tidak dapat dibatalkan.
+
+Hanya penggunaan **disetujui** yang menggeser batas keterlambatan/pulang cepat di
+presensi, log mobile, dan rekap/filter admin, sesuai tanggal dan jadwal shift yang
+diajukan. Contoh shift 08.00–16.00: izin telat 60 menit memberi batas 09.00;
+clock-in 09.15 tetap dihitung terlambat 15 menit. Izin pulang cepat 60 menit memberi
+batas 15.00. Rekaman jam clock-in/out asli tetap tersimpan. Saldo dipakai sesuai
+durasi yang disetujui, tanpa pengembalian otomatis berdasarkan jam clock aktual.
+
+Jadwal pegawai di Beranda, Presensi, Clock In/Out, halaman berhasil, log bulanan,
+rekap admin, serta API mobile menampilkan jam yang telah disesuaikan. Telat masuk
+60 menit mengubah shift 08.00–16.00 menjadi 09.00–16.00 pada tanggal pengajuan;
+pulang cepat 60 menit mengubahnya menjadi 08.00–15.00. Catatan penggunaan lembur
+yang disetujui ditampilkan bersama jadwal. Approval sebagian/menunggu belum
+mengubah jadwal. Penyesuaian hanya berlaku untuk pegawai dan tanggal pengajuan,
+tanpa mengubah master shift atau jadwal pegawai lain.
+
+Jika izin telat pada shift malam melewati tengah malam (misalnya 22.00 ditambah
+180 menit menjadi 01.00 esok hari), clock-in tetap mengikuti tanggal awal shift.
+Jam aktual saat clock-in tetap dicatat; keterlambatan dihitung dari jam masuk baru.
+
+Migrasi tambahan: `2026_10_23_000001_add_lembur_time_usage.php`. Pengujian:
+`tests/Feature/Absensi/AbsensiMobile/LemburUsageTest.php` dan
+`node --test tests/frontend/lembur-usage.test.mjs`.
+
+Migrasi: `php artisan migrate`. PHP/server perlu menerima unggahan gabungan minimal
+50 MB agar lima file 10 MB dapat dikirim sekaligus. Frontend digunakan bersama oleh
+PWA, Android, dan iOS; perubahan ini tidak memerlukan APK baru.
+
+Tes halaman/alur: `tests/Feature/Absensi/AbsensiMobile/LemburPageTest.php` dan
+`tests/Feature/Absensi/AbsensiMobile/LemburRequestTest.php`. Pada PHP CLI lokal yang
+belum mengaktifkan SQLite, jalankan PHPUnit langsung dengan
+`php -d extension=pdo_sqlite -d extension=sqlite3 vendor/phpunit/phpunit/phpunit`.
+
 ## Perlindungan Fake GPS
 
 Clock-in dan clock-out pada wrapper Android menggunakan plugin native

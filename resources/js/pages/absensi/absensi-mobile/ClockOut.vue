@@ -8,6 +8,7 @@ defineProps<{
         shift_name: string | null;
         start_time: string | null;
         end_time: string | null;
+        schedule_note?: string | null;
     };
     office: {
         id: number;

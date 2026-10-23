@@ -9,6 +9,7 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
@@ -26,6 +27,7 @@ class ClockOutController extends Controller
         private readonly AttendanceSubmissionService $submissionService,
         private readonly CutiScheduleService $cutiSchedule,
         private readonly ShiftHolidayService $shiftHolidays,
+        private readonly AttendanceScheduleService $schedules,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -65,13 +67,16 @@ class ClockOutController extends Controller
 
         $attendance->loadMissing('shift');
 
+        $schedule = $this->schedules->resolve($pegawai->id, $attendance->shift, $attendance->tanggal_presensi);
+
         return Inertia::render('absensi/absensi-mobile/ClockOut', [
             'schedule' => [
                 'date' => $attendance->tanggal_presensi?->toDateString(),
                 'date_label' => $attendance->tanggal_presensi?->locale('id')->translatedFormat('l, d F Y'),
                 'shift_name' => $attendance->shift?->nama,
-                'start_time' => $attendance->shift ? substr((string) $attendance->shift->jam_masuk, 0, 5) : null,
-                'end_time' => $attendance->shift ? substr((string) $attendance->shift->jam_keluar, 0, 5) : null,
+                'start_time' => $schedule['start_time'],
+                'end_time' => $schedule['end_time'],
+                'schedule_note' => $schedule['note'],
             ],
             'office' => [
                 'id' => $office->id,
@@ -110,6 +115,8 @@ class ClockOutController extends Controller
                 (float) $location->longitude,
             ) > $location->radius_meters;
 
+        $schedule = $this->schedules->resolve($pegawai->id, $attendance->shift, $attendance->tanggal_presensi);
+
         return Inertia::render('absensi/absensi-mobile/ClockOutSuccess', [
             'attendance' => [
                 'date' => $attendance->tanggal_presensi?->toDateString(),
@@ -117,8 +124,9 @@ class ClockOutController extends Controller
                 'clock_out_time' => $attendance->clock_out_at->format('H:i'),
                 'early_departure_minutes' => $attendance->earlyDepartureMinutes(),
                 'shift_name' => $attendance->shift?->nama,
-                'start_time' => $attendance->shift ? substr((string) $attendance->shift->jam_masuk, 0, 5) : null,
-                'end_time' => $attendance->shift ? substr((string) $attendance->shift->jam_keluar, 0, 5) : null,
+                'start_time' => $schedule['start_time'],
+                'end_time' => $schedule['end_time'],
+                'schedule_note' => $schedule['note'],
                 'location_name' => $location?->name,
                 'location_address' => $attendance->clock_out_address,
                 'outside_radius' => (bool) $outsideRadius,

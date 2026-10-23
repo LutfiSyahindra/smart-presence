@@ -5,7 +5,7 @@ namespace App\Services\Notifications;
 use App\Models\User;
 use App\Models\WebPushSubscription;
 use App\Support\AccessPermission;
-use App\Support\CutiAccess;
+use App\Support\PengajuanAccess;
 use Illuminate\Notifications\DatabaseNotification;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
@@ -28,7 +28,7 @@ class WebPushService
         $subscriptions = WebPushSubscription::query()->where('user_id', $user->id)->get()
             ->filter(fn (WebPushSubscription $subscription) => $subscription->audience === 'mobile'
                 ? isset($notification->data['mobile_url']) && $user->can(AccessPermission::MOBILE_ACCESS) && $user->can(AccessPermission::MOBILE_NOTIFICATIONS)
-                : CutiAccess::allows($user) && $user->can(AccessPermission::NOTIFICATIONS_VIEW));
+                : PengajuanAccess::allows($user) && $user->can(AccessPermission::NOTIFICATIONS_VIEW));
         if ($subscriptions->isEmpty()) {
             return;
         }

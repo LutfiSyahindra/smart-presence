@@ -48,6 +48,8 @@ type LogDay = {
     clock_out_address: string | null;
     late_minutes: number;
     early_departure_minutes: number;
+    lembur_late_allowance: number;
+    lembur_early_allowance: number;
     duration: string | null;
     notes: string | null;
     flags: Record<MetricKey, boolean>;
@@ -382,6 +384,12 @@ const { can } = usePermission();
                 <div v-if="selectedDay.duration" class="detail-duration">
                     <Clock3 /><span>Durasi tercatat</span><strong>{{ selectedDay.duration }}</strong>
                 </div>
+                <p v-if="selectedDay.lembur_late_allowance || selectedDay.lembur_early_allowance" class="detail-notes">
+                    <strong>Penggunaan lembur disetujui</strong>
+                    <span v-if="selectedDay.lembur_late_allowance">Telat masuk {{ selectedDay.lembur_late_allowance }} menit. </span>
+                    <span v-if="selectedDay.lembur_early_allowance">Pulang cepat {{ selectedDay.lembur_early_allowance }} menit. </span>
+                    Waktu ini sudah diperhitungkan pada presensi.
+                </p>
                 <p v-if="selectedDay.notes && selectedDay.notes !== selectedDay.day_off_reason" class="detail-notes">
                     <strong>Catatan</strong>{{ selectedDay.notes }}
                 </p>

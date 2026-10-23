@@ -9,6 +9,7 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
@@ -26,6 +27,7 @@ class ClockInController extends Controller
         private readonly AttendanceSubmissionService $submissionService,
         private readonly CutiScheduleService $cutiSchedule,
         private readonly ShiftHolidayService $shiftHolidays,
+        private readonly AttendanceScheduleService $schedules,
     ) {}
 
     public function create(Request $request): Response|RedirectResponse
@@ -60,13 +62,18 @@ class ClockInController extends Controller
                 : to_route('absensi.mobile.home')->with('error', $message);
         }
 
+        $shift = $existing?->shift ?? $pegawai->shift;
+        $date = $existing?->tanggal_presensi ?? now();
+        $schedule = $this->schedules->resolve($pegawai->id, $shift, $date);
+
         return Inertia::render('absensi/absensi-mobile/ClockIn', [
             'schedule' => [
-                'date' => now()->toDateString(),
-                'date_label' => now()->locale('id')->translatedFormat('l, d F Y'),
-                'shift_name' => $pegawai->shift?->nama,
-                'start_time' => $pegawai->shift ? substr((string) $pegawai->shift->jam_masuk, 0, 5) : null,
-                'end_time' => $pegawai->shift ? substr((string) $pegawai->shift->jam_keluar, 0, 5) : null,
+                'date' => $date->toDateString(),
+                'date_label' => $date->locale('id')->translatedFormat('l, d F Y'),
+                'shift_name' => $shift?->nama,
+                'start_time' => $schedule['start_time'],
+                'end_time' => $schedule['end_time'],
+                'schedule_note' => $schedule['note'],
             ],
             'office' => [
                 'id' => $office->id,
@@ -105,6 +112,8 @@ class ClockInController extends Controller
                 (float) $location->longitude,
             ) > $location->radius_meters;
 
+        $schedule = $this->schedules->resolve($pegawai->id, $attendance->shift, $attendance->tanggal_presensi);
+
         return Inertia::render('absensi/absensi-mobile/ClockInSuccess', [
             'attendance' => [
                 'date' => $attendance->tanggal_presensi?->toDateString(),
@@ -112,8 +121,9 @@ class ClockInController extends Controller
                 'clock_in_time' => $attendance->clock_in_at->format('H:i'),
                 'late_minutes' => $attendance->lateMinutes(),
                 'shift_name' => $attendance->shift?->nama,
-                'start_time' => $attendance->shift ? substr((string) $attendance->shift->jam_masuk, 0, 5) : null,
-                'end_time' => $attendance->shift ? substr((string) $attendance->shift->jam_keluar, 0, 5) : null,
+                'start_time' => $schedule['start_time'],
+                'end_time' => $schedule['end_time'],
+                'schedule_note' => $schedule['note'],
                 'location_name' => $location?->name,
                 'location_address' => $attendance->clock_in_address,
                 'outside_radius' => (bool) $outsideRadius,
@@ -144,7 +154,7 @@ class ClockInController extends Controller
 
     private function todayPresensi(Pegawai $pegawai): ?Presensi
     {
-        return $pegawai->presensis()->whereDate('tanggal_presensi', now()->toDateString())->first();
+        return $this->schedules->clockInRecord($pegawai);
     }
 
     private function profilePhotoUrl(Request $request): ?string

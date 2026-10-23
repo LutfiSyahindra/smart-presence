@@ -13,11 +13,11 @@ const compile = (source) => ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-function approvalPage(category = 'butuh-approval') {
+function approvalPage(category = 'butuh-approval', rows = [{ id: 1, can_decide: true }, { id: 2, can_decide: true }, { id: 3, can_decide: false }]) {
     const calls = [];
     const props = vue.reactive({
         category,
-        requests: { data: [{ id: 1, can_decide: true }, { id: 2, can_decide: true }, { id: 3, can_decide: false }] },
+        requests: { data: rows },
         filters: { search: '' },
         overview: { inbox: 2, approved: 0 },
     });
@@ -36,10 +36,10 @@ function approvalPage(category = 'butuh-approval') {
                         ...initial,
                         processing: false,
                         errors: {},
-                        reset() { form.request_ids = []; },
+                        reset() { form.request_ids = []; form.lembur_request_ids = []; },
                         clearErrors() { form.errors = {}; },
                         post(url, options) {
-                            calls.push({ url, ids: [...form.request_ids], options });
+                            calls.push({ url, ids: [...form.request_ids], lemburIds: [...form.lembur_request_ids], options });
                             form.processing = true;
                         },
                     });
@@ -87,6 +87,30 @@ test('bulk submission sends selected IDs once and clears selection after success
         app.calls[0].options.onSuccess();
         assert.equal(app.state.bulkReviewOpen.value, false);
         assert.equal(app.state.selectedRequests.value.length, 0);
+    } finally { app.close(); }
+});
+
+test('cuti and lembur with the same ID are selected and submitted independently', () => {
+    const app = approvalPage('butuh-approval', [
+        { id: 1, request_type: 'cuti', can_decide: true },
+        { id: 1, request_type: 'lembur', can_decide: true },
+        { id: 2, request_type: 'lembur', can_decide: false },
+    ]);
+    try {
+        app.state.bulkForm.lembur_request_ids = [1];
+        assert.equal(app.state.selectedRequests.value.length, 1);
+        assert.equal(app.state.selectedRequests.value[0].request_type, 'lembur');
+        assert.equal(app.state.someSelected.value, true);
+        app.state.toggleAll({ target: { checked: true } });
+        assert.deepEqual([...app.state.bulkForm.request_ids], [1]);
+        assert.deepEqual([...app.state.bulkForm.lembur_request_ids], [1]);
+        assert.equal(app.state.allSelected.value, true);
+        app.state.approveSelected();
+        assert.deepEqual(app.calls[0].ids, [1]);
+        assert.deepEqual(app.calls[0].lemburIds, [1]);
+        app.calls[0].options.onSuccess();
+        assert.equal(app.state.selectedRequests.value.length, 0);
+        assert.equal(app.state.bulkForm.lembur_request_ids.length, 0);
     } finally { app.close(); }
 });
 

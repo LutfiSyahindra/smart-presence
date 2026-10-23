@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Absensi\AdminWeb\Notifikasi;
 
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
+use App\Models\LemburRequest;
 use App\Services\Notifications\WebPushService;
 use App\Support\AccessPermission;
 use Illuminate\Http\JsonResponse;
@@ -30,7 +31,8 @@ class NotificationInboxController extends Controller
             'items' => $request->user()->notifications()->latest()->limit(8)->get()->map(fn ($item) => $this->serialize($item)),
             'unread_count' => $request->user()->unreadNotifications()->count(),
             'pending_approval_count' => $request->user()->can(AccessPermission::CUTI_VIEW)
-                ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
+                ? CutiRequest::query()->awaitingApprovalBy($request->user())->count()
+                    + LemburRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
             'push_public_key' => $push->configured() ? config('webpush.public_key') : null,
         ])->header('Cache-Control', 'no-store, private');
     }
@@ -45,6 +47,13 @@ class NotificationInboxController extends Controller
     public function open(Request $request, string $notification): RedirectResponse
     {
         $item = $request->user()->notifications()->findOrFail($notification);
+        if (($item->data['request_type'] ?? null) === 'lembur') {
+            $lembur = LemburRequest::query()->findOrFail($item->data['request_id']);
+            abort_unless($request->user()->can(AccessPermission::CUTI_VIEW) && $lembur->canBeViewedBy($request->user()), 403);
+            $item->markAsRead();
+
+            return to_route('absensi.admin-web.notifikasi.lembur', $lembur);
+        }
         $item->markAsRead();
         $url = $item->data['url'] ?? '';
         abort_unless(str_starts_with($url, '/absensi/admin-web/'), 404);

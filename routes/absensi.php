@@ -8,6 +8,7 @@ use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClock
 use App\Http\Controllers\Absensi\AbsensiMobile\CutiApprovalController as MobileCutiApprovalController;
 use App\Http\Controllers\Absensi\AbsensiMobile\CutiController as MobileCutiController;
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
+use App\Http\Controllers\Absensi\AbsensiMobile\LemburController as MobileLemburController;
 use App\Http\Controllers\Absensi\AbsensiMobile\NotificationController as MobileNotificationController;
 use App\Http\Controllers\Absensi\AbsensiMobile\PushDeviceController;
 use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\HariLiburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
+use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\LemburController as WebLemburController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotificationInboxController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotifikasiController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\WebPushSubscriptionController;
@@ -44,6 +46,16 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
+        Route::get('lembur', [MobileLemburController::class, 'index'])->name('lembur.index');
+        Route::get('lembur/ajukan', [MobileLemburController::class, 'create'])->name('lembur.create');
+        Route::get('lembur/gunakan', [MobileLemburController::class, 'createUsage'])->name('lembur.usage.create');
+        Route::post('lembur/gunakan', [MobileLemburController::class, 'storeUsage'])->middleware('throttle:20,1')->name('lembur.usage.store');
+        Route::post('lembur', [MobileLemburController::class, 'store'])->middleware('throttle:20,1')->name('lembur.store');
+        Route::get('lembur/{lemburRequest}', [MobileLemburController::class, 'index'])->whereNumber('lemburRequest')->name('lembur.show');
+        Route::post('lembur/{lemburRequest}/decision', [MobileLemburController::class, 'decide'])->name('lembur.decide');
+        Route::post('lembur/{lemburRequest}/cancel', [MobileLemburController::class, 'cancel'])->name('lembur.cancel');
+        Route::get('lembur/{lemburRequest}/lampiran/{attachment}', [MobileLemburController::class, 'attachment'])->whereNumber('attachment')->name('lembur.attachment');
+        Route::get('notifikasi/lembur', fn () => to_route('absensi.mobile.lembur.index', ['scope' => 'delegation']))->name('notifikasi.lembur');
         Route::get('presensi', MobileAttendanceController::class)->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance');
         Route::get('presensi/log', AttendanceLogController::class)->middleware('can:'.AccessPermission::MOBILE_HISTORY)->name('attendance.log');
         Route::get('cuti', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.index');
@@ -166,7 +178,7 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
     });
 
 // Assigned approvers can access their tasks without receiving other admin permissions.
-Route::middleware(['auth', 'verified', 'can:cuti.access'])
+Route::middleware(['auth', 'verified', 'can:pengajuan.access'])
     ->prefix('absensi/admin-web')
     ->name('absensi.admin-web.')
     ->group(function () {
@@ -176,10 +188,13 @@ Route::middleware(['auth', 'verified', 'can:cuti.access'])
         Route::post('notifikasi/read-all', [NotificationInboxController::class, 'readAll'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.read-all');
         Route::get('notifikasi/open/{notification}', [NotificationInboxController::class, 'open'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.open');
         Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.cuti');
+        Route::get('notifikasi/pengajuan/lembur/{lemburRequest}', [WebLemburController::class, 'show'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.lembur');
+        Route::post('notifikasi/pengajuan/lembur/{lemburRequest}/decision', [WebLemburController::class, 'decide'])->middleware(['can:'.AccessPermission::CUTI_VIEW, 'can:'.AccessPermission::CUTI_APPROVE])->name('notifikasi.lembur.decide');
+        Route::get('notifikasi/pengajuan/lembur/{lemburRequest}/lampiran/{attachment}', [MobileLemburController::class, 'attachment'])->whereNumber('attachment')->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.lembur.attachment');
         Route::post('notifikasi/push-subscriptions', [WebPushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.push.store');
         Route::get('notifikasi/butuh-approval', [NotifikasiController::class, 'index'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.index');
         Route::post('notifikasi/approve-many', [NotifikasiController::class, 'approveMany'])->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_APPROVE)->name('notifikasi.approve-many');
         Route::get('notifikasi/disetujui', [NotifikasiController::class, 'index'])->defaults('category', 'disetujui')->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.approved');
-        Route::get('cuti', [CutiController::class, 'index'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('cuti.index');
-        Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_APPROVE)->name('cuti.decide');
+        Route::get('cuti', [CutiController::class, 'index'])->middleware(['can:cuti.access', 'can:'.AccessPermission::CUTI_VIEW])->name('cuti.index');
+        Route::post('cuti/{cutiRequest}/decision', [CutiController::class, 'decide'])->middleware(['can:cuti.access', 'can:'.AccessPermission::CUTI_VIEW, 'can:'.AccessPermission::CUTI_APPROVE])->name('cuti.decide');
     });

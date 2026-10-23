@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\CutiRequest;
+use App\Models\LemburRequest;
 use App\Support\AccessPermission;
 use App\Support\Portal;
 use Illuminate\Foundation\Inspiring;
@@ -60,7 +61,8 @@ class HandleInertiaRequests extends Middleware
                 'unread_count' => $request->user()->can(AccessPermission::NOTIFICATIONS_VIEW)
                     ? $request->user()->unreadNotifications()->count() : 0,
                 'pending_approval_count' => $request->user()->can(AccessPermission::CUTI_VIEW)
-                    ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
+                    ? CutiRequest::query()->awaitingApprovalBy($request->user())->count()
+                        + LemburRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
             ] : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

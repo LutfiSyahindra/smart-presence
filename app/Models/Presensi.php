@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Collection;
 
 class Presensi extends Model
 {
@@ -69,6 +71,11 @@ class Presensi extends Model
         ];
     }
 
+    public function setTanggalPresensiAttribute($value): void
+    {
+        $this->attributes['tanggal_presensi'] = $value === null ? null : Carbon::parse($value)->toDateString();
+    }
+
     /** @return BelongsTo<Pegawai, $this> */
     public function pegawai(): BelongsTo
     {
@@ -110,6 +117,12 @@ class Presensi extends Model
             $this->tanggal_presensi->format('Y-m-d').' '.substr((string) $this->shift->jam_masuk, 0, 5),
         );
 
+        $scheduledClockOut = $this->tanggal_presensi->copy()->setTimeFromTimeString($this->shift->jam_keluar);
+        if ($scheduledClockOut->lte($scheduledClockIn)) {
+            $scheduledClockOut->addDay();
+        }
+        $scheduledClockIn->addMinutes($this->lemburAllowance('late_arrival', $scheduledClockIn, $scheduledClockOut));
+
         return $this->clock_in_at->gt($scheduledClockIn)
             ? (int) $scheduledClockIn->diffInMinutes($this->clock_in_at)
             : 0;
@@ -134,8 +147,54 @@ class Presensi extends Model
             $scheduledClockOut->addDay();
         }
 
+        $scheduledClockOut->subMinutes($this->lemburAllowance('early_departure', $scheduledClockIn, $scheduledClockOut));
+
         return $this->clock_out_at->lt($scheduledClockOut)
             ? (int) $this->clock_out_at->diffInMinutes($scheduledClockOut)
             : 0;
+    }
+
+    public function approvedLemburUsage(): Collection
+    {
+        if (! $this->pegawai_id || ! $this->shift_id || ! $this->tanggal_presensi) {
+            return collect();
+        }
+        if ($this->relationLoaded('approvedLemburUsage')) {
+            return $this->getRelation('approvedLemburUsage');
+        }
+
+        return LemburRequest::query()->where('pegawai_id', $this->pegawai_id)->where('shift_id', $this->shift_id)
+            ->whereDate('tanggal_lembur', $this->tanggal_presensi)->where('request_kind', 'usage')->where('status', 'approved')->get();
+    }
+
+    public function lemburAllowance(string $type, Carbon $start, Carbon $end): int
+    {
+        return (int) $this->approvedLemburUsage()->filter(fn ($usage) => $usage->usage_type === $type
+            && (int) $usage->shift_id === (int) $this->shift_id
+            && $usage->shift_start_at->equalTo($start) && $usage->shift_end_at->equalTo($end))->sum('duration_minutes');
+    }
+
+    /** Keep the SQL filters and totals consistent with the approved arrival boundary. */
+    public static function constrainArrivalStatus(Builder $query, bool $late): Builder
+    {
+        return $query->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at')
+            ->whereExists(function ($shift) use ($late) {
+                $covered = fn ($usage) => $usage->selectRaw('1')->from('lembur_requests as usage')
+                    ->whereColumn('usage.pegawai_id', 'presensis.pegawai_id')->whereColumn('usage.shift_id', 'presensis.shift_id')
+                    ->whereColumn('usage.tanggal_lembur', 'presensis.tanggal_presensi')->where('usage.request_kind', 'usage')
+                    ->where('usage.usage_type', 'late_arrival')->where('usage.status', 'approved')
+                    ->whereRaw('substr(time(usage.shift_start_at), 1, 5) = substr(shifts.jam_masuk, 1, 5)')
+                    ->whereRaw('substr(time(usage.shift_end_at), 1, 5) = substr(shifts.jam_keluar, 1, 5)')
+                    ->whereColumn('usage.usage_end_at', '>=', 'presensis.clock_in_at');
+                $shift->selectRaw('1')->from('shifts')->whereColumn('shifts.id', 'presensis.shift_id')
+                    ->where(function ($arrival) use ($late, $covered) {
+                        $arrival->whereRaw('(date(presensis.clock_in_at) '.($late ? '>' : '<').' presensis.tanggal_presensi or (date(presensis.clock_in_at) = presensis.tanggal_presensi and time(presensis.clock_in_at) '.($late ? '>' : '<=').' shifts.jam_masuk))');
+                        if ($late) {
+                            $arrival->whereNotExists($covered);
+                        } else {
+                            $arrival->orWhereExists($covered);
+                        }
+                    });
+            });
     }
 }

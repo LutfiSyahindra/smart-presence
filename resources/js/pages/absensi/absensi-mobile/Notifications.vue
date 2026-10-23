@@ -38,6 +38,8 @@ const props = defineProps<{
     activeTab: 'notifications' | 'approvals';
     unreadCount: number;
     pendingApprovalCount: number;
+    cutiPendingApprovalCount?: number;
+    lemburPendingApprovalCount?: number;
     today: string;
 }>();
 const { feedback, pushActive, busy, available, supported, enablePush, refresh } = useMobileNotifications();
@@ -45,11 +47,18 @@ const saving = ref(false);
 const base = '/absensi/mobile/notifikasi';
 const compactCount = (count: number) => (count > 99 ? '99+' : count);
 const { can } = usePermission();
-const categories = [
+const categories = computed(() => [
     { name: 'Reimbursement', icon: ReceiptText, tone: 'teal' },
-    { name: 'Cuti', icon: CalendarDays, tone: 'green', active: can('mobile.cuti.view') },
+    {
+        name: 'Cuti',
+        icon: CalendarDays,
+        tone: 'green',
+        active: can('mobile.cuti.view'),
+        href: `${base}/cuti`,
+        count: props.cutiPendingApprovalCount ?? props.pendingApprovalCount,
+    },
     { name: 'Presensi', icon: MapPin, tone: 'amber' },
-    { name: 'Lembur', icon: Timer, tone: 'orange' },
+    { name: 'Lembur', icon: Timer, tone: 'orange', active: true, href: `${base}/lembur`, count: props.lemburPendingApprovalCount ?? 0 },
     { name: 'Perubahan shift', icon: ArrowRightLeft, tone: 'cyan' },
     { name: 'Perubahan data', icon: UserRound, tone: 'violet' },
     { name: 'Formulir', icon: FileInput, tone: 'violet' },
@@ -58,7 +67,7 @@ const categories = [
     { name: 'Task', icon: ListChecks, tone: 'green' },
     { name: 'Penambahan karyawan', icon: UserRoundPlus, tone: 'amber' },
     { name: 'Pemindahan karyawan', icon: FolderInput, tone: 'orange' },
-];
+]);
 const events: Record<string, { label: string; icon: typeof Bell; tone: string }> = {
     approved: { label: 'Disetujui', icon: CircleCheck, tone: 'green' },
     rejected: { label: 'Ditolak', icon: CircleX, tone: 'rose' },
@@ -140,7 +149,6 @@ async function readAll() {
                     <Bell /><span>Notifikasi</span><span v-if="unreadCount" class="tab-count">{{ compactCount(unreadCount) }}</span>
                 </Link>
                 <Link
-                    v-if="can('mobile.cuti.view')"
                     :href="`${base}?tab=approvals`"
                     :class="{ active: activeTab === 'approvals' }"
                     :aria-current="activeTab === 'approvals' ? 'page' : undefined"
@@ -235,7 +243,7 @@ async function readAll() {
                             :is="category.active ? Link : 'button'"
                             v-for="category in categories"
                             :key="category.name"
-                            :href="category.active ? `${base}/cuti` : undefined"
+                            :href="category.active ? category.href : undefined"
                             :type="category.active ? undefined : 'button'"
                             :disabled="!category.active"
                             class="category-row"
@@ -245,11 +253,13 @@ async function readAll() {
                             <span class="category-copy"
                                 ><strong>{{ category.name }}</strong
                                 ><small v-if="category.active">{{
-                                    pendingApprovalCount ? `${pendingApprovalCount} pengajuan menunggu Anda` : 'Tinjau pengajuan cuti karyawan'
+                                    category.count
+                                        ? `${category.count} pengajuan menunggu Anda`
+                                        : `Tinjau pengajuan ${category.name.toLowerCase()} karyawan`
                                 }}</small></span
                             >
                             <template v-if="category.active"
-                                ><span v-if="pendingApprovalCount" class="approval-count">{{ compactCount(pendingApprovalCount) }}</span
+                                ><span v-if="category.count" class="approval-count">{{ compactCount(category.count) }}</span
                                 ><span v-else class="active-label">Aktif</span><ChevronRight class="item-chevron"
                             /></template>
                             <span v-else class="soon-label">Segera hadir</span>

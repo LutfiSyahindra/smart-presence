@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
+use App\Models\LemburRequest;
 use App\Services\Notifications\MobilePushService;
 use App\Services\Notifications\WebPushService;
 use App\Support\AccessPermission;
@@ -21,17 +22,24 @@ class NotificationController extends Controller
     {
         $filters = $request->validate([
             'tab' => ['nullable', Rule::in(['notifications', 'approvals'])],
-            'category' => ['nullable', Rule::in(['cuti'])],
+            'category' => ['nullable', Rule::in(['cuti', 'lembur'])],
         ]);
         if (($filters['category'] ?? null) === 'cuti') {
             return to_route('absensi.mobile.notifikasi.cuti');
         }
+        if (($filters['category'] ?? null) === 'lembur') {
+            return to_route('absensi.mobile.notifikasi.lembur');
+        }
+        $cutiCount = $request->user()->can(AccessPermission::MOBILE_CUTI_VIEW)
+            ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0;
+        $lemburCount = LemburRequest::query()->awaitingApprovalBy($request->user())->count();
 
         return Inertia::render('absensi/absensi-mobile/Notifications', [
-            'activeTab' => $request->user()->can(AccessPermission::MOBILE_CUTI_VIEW) ? ($filters['tab'] ?? 'notifications') : 'notifications',
+            'activeTab' => $filters['tab'] ?? 'notifications',
             'unreadCount' => $this->query($request)->whereNull('read_at')->count(),
-            'pendingApprovalCount' => $request->user()->can(AccessPermission::MOBILE_CUTI_VIEW)
-                ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
+            'pendingApprovalCount' => $cutiCount + $lemburCount,
+            'cutiPendingApprovalCount' => $cutiCount,
+            'lemburPendingApprovalCount' => $lemburCount,
             'today' => now()->toDateString(),
             'notifications' => $this->query($request)->latest()->paginate(20)->withQueryString()->through($this->serialize(...)),
         ]);
@@ -57,6 +65,13 @@ class NotificationController extends Controller
     public function open(Request $request, string $notification): RedirectResponse
     {
         $notice = $this->query($request)->findOrFail($notification);
+        if (($notice->data['request_type'] ?? null) === 'lembur') {
+            $lembur = LemburRequest::query()->findOrFail($notice->data['request_id']);
+            abort_unless($lembur->canBeViewedBy($request->user()), 403);
+            $notice->markAsRead();
+
+            return to_route('absensi.mobile.lembur.show', $lembur);
+        }
         abort_unless(($notice->data['request_type'] ?? null) === 'cuti', 404);
         $cuti = CutiRequest::query()->findOrFail($notice->data['request_id']);
         abort_unless($request->user()->hasRole('super-admin') || (int) $cuti->user_id === (int) $request->user()->id

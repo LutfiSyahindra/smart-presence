@@ -65,7 +65,7 @@ final class Portal
     {
         $user = $request->user();
 
-        return $user !== null && CutiAccess::allows($user)
+        return $user !== null && PengajuanAccess::allows($user)
             && ($user->can(AccessPermission::CUTI_VIEW) || $user->can(AccessPermission::NOTIFICATIONS_VIEW));
     }
 

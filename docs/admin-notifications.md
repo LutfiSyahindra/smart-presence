@@ -1,9 +1,16 @@
 # Notifikasi pengajuan pada admin-web
 
-Setiap pengajuan cuti yang berhasil disimpan, baik dari mobile maupun admin-web,
+Setiap pengajuan cuti atau lembur yang berhasil disimpan, baik dari mobile maupun admin-web,
 menghasilkan notifikasi database dan job Web Push. Semua jenis cuti memakai alur
-yang sama, termasuk cuti tahunan dan cuti khusus. Konfigurasi approval lembur sudah
-tersedia, tetapi modul pengajuan lembur belum tersedia dalam aplikasi ini.
+yang sama, termasuk cuti tahunan dan cuti khusus. Pengajuan lembur dari mobile juga
+masuk ke notifikasi web, daftar **Pengajuan Butuh Approval**, dan badge persetujuan
+saat mencapai giliran approver. Detail lembur di web menyediakan waktu shift,
+durasi dan istirahat, kompensasi, alasan, unduhan lampiran, riwayat persetujuan,
+serta tindakan setujui/tolak. Keputusan web dan mobile memakai transaksi yang sama.
+Approver web memakai izin `cuti.view`, `cuti.approve`, dan `notifications.view`
+yang sudah digunakan menu persetujuan; akses mobile tidak diperlukan. Penugasan
+lembur di approval line maupun riwayat pengajuan memberikan akses portal persetujuan,
+tanpa memberikan izin modul admin lain.
 
 ## Penerima dan kejadian
 
@@ -41,7 +48,10 @@ Persetujuan hanya berlaku pada tingkat approval pengguna; tingkat berikutnya
 berjalan seperti biasa. Server memeriksa ulang status dan approver dalam satu
 transaksi. Jika satu pengajuan tidak tersedia, sudah berubah, atau tidak boleh
 disetujui pengguna, seluruh batch dibatalkan, termasuk notifikasi dan job push.
-Endpoint menerima maksimal 100 ID pengajuan unik per permintaan.
+Endpoint menerima maksimal 100 pengajuan unik per permintaan. ID cuti dikirim
+melalui `request_ids`, dan ID lembur melalui `lembur_request_ids`, sehingga ID
+yang sama pada kedua jenis pengajuan tidak tertukar. Seluruh batch, termasuk
+campuran cuti dan lembur, diproses dalam satu transaksi.
 
 ## Menjalankan
 
@@ -95,7 +105,7 @@ mengubah konfigurasi OpenSSL yang sudah dimuat.
 ## Pengujian
 
 ```sh
-php -d extension=php_pdo_sqlite.dll -d extension=php_sqlite3.dll vendor/phpunit/phpunit/phpunit --filter="NotificationApprovalTest|PengajuanNotificationTest|ApprovalLineCutiTest|CutiPageTest"
+php -d extension=php_pdo_sqlite.dll -d extension=php_sqlite3.dll vendor/phpunit/phpunit/phpunit --filter="NotificationApprovalTest|PengajuanNotificationTest|ApprovalLineCutiTest|ApprovalLineLemburTest|CutiPageTest|LemburRequestTest|LemburPageTest|PortalPermissionTest|MobileNotificationTest"
 node --test tests/frontend/admin-notifications-sw.test.mjs tests/frontend/admin-notification-approval.test.mjs
 npm run build
 ```

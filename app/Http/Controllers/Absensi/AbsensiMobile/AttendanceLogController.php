@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Models\HariLibur;
+use App\Models\LemburRequest;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,6 +18,8 @@ use Inertia\Response;
 
 class AttendanceLogController extends Controller
 {
+    public function __construct(private readonly AttendanceScheduleService $schedules) {}
+
     public function __invoke(Request $request, ShiftHolidayService $holidays): Response
     {
         $validated = $request->validate(['month' => ['nullable', 'date_format:Y-m', 'after_or_equal:1900-01', 'before_or_equal:2100-12']]);
@@ -27,6 +31,12 @@ class AttendanceLogController extends Controller
             ->get()->keyBy(fn (Presensi $record) => $record->tanggal_presensi->toDateString()) ?? collect();
         $leaves = $pegawai ? CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('status', 'approved')
             ->whereDate('tanggal_mulai', '<=', $end)->whereDate('tanggal_selesai', '>=', $start)->get() : collect();
+        $usages = $pegawai ? LemburRequest::query()->where('pegawai_id', $pegawai->id)->where('request_kind', 'usage')->where('status', 'approved')
+            ->whereBetween('tanggal_lembur', [$start->toDateString(), $end->toDateString()])->get()
+            ->groupBy(fn ($usage) => $usage->tanggal_lembur->toDateString()) : collect();
+        foreach ($records as $date => $record) {
+            $record->setRelation('approvedLemburUsage', $usages->get($date, collect()));
+        }
         $calendar = $pegawai ? HariLibur::query()
             ->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])
             ->orderBy('id')->get()->groupBy(fn (HariLibur $holiday) => $holiday->tanggal->toDateString()) : collect();
@@ -36,7 +46,8 @@ class AttendanceLogController extends Controller
             for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
                 $record = $records->get($date->toDateString());
                 $leave = $leaves->first(fn (CutiRequest $leave) => $date->betweenIncluded($leave->tanggal_mulai, $leave->tanggal_selesai));
-                $days[] = $this->day($pegawai, $record, $date, $leave, $holidays, $calendar->get($date->toDateString(), collect()));
+                $days[] = $this->day($pegawai, $record, $date, $leave, $holidays,
+                    $calendar->get($date->toDateString(), collect()), $usages->get($date->toDateString(), collect()));
             }
         }
 
@@ -62,7 +73,7 @@ class AttendanceLogController extends Controller
      * @param  Collection<int, HariLibur>  $calendar
      * @return array<string, mixed>
      */
-    private function day(Pegawai $pegawai, ?Presensi $record, Carbon $date, ?CutiRequest $leave, ShiftHolidayService $holidays, Collection $calendar): array
+    private function day(Pegawai $pegawai, ?Presensi $record, Carbon $date, ?CutiRequest $leave, ShiftHolidayService $holidays, Collection $calendar, Collection $usages): array
     {
         $employed = $date->gte(($pegawai->tanggal_mulai_bekerja ?? $pegawai->created_at)->copy()->startOfDay());
         $assigned = ! $pegawai->shift_assigned_at || $date->gte($pegawai->shift_assigned_at->copy()->startOfDay());
@@ -79,15 +90,14 @@ class AttendanceLogController extends Controller
         $dayOffReason = $dayOff['reason'] ?? null;
         $workday = $shift !== null && ! $dayOffReason && ! $onLeave;
         $future = $date->isAfter(now()->startOfDay());
-        $scheduledStart = $shift ? $date->copy()->setTimeFromTimeString($shift->jam_masuk) : null;
-        $scheduledEnd = $shift ? $date->copy()->setTimeFromTimeString($shift->jam_keluar) : null;
-        if ($scheduledEnd && $scheduledEnd->lte($scheduledStart)) {
-            $scheduledEnd->addDay();
-        }
+        $schedule = $this->schedules->resolve($pegawai->id, $workday ? $shift : null, $date, $usages);
+        $scheduledEnd = $schedule['end_at'];
         $closed = $scheduledEnd?->lte(now()) ?? false;
         $invalid = $clockIn && $clockOut && $clockOut->lt($clockIn);
-        $late = $workday && $clockIn ? max(0, (int) $scheduledStart->diffInMinutes($clockIn, false)) : 0;
-        $early = $workday && $clockOut ? max(0, (int) $clockOut->diffInMinutes($scheduledEnd, false)) : 0;
+        $late = $workday && $clockIn ? $record->lateMinutes() : 0;
+        $early = $workday && $clockOut ? $record->earlyDepartureMinutes() : 0;
+        $lateAllowance = $schedule['late_arrival_minutes'];
+        $earlyAllowance = $schedule['early_departure_minutes'];
         $flags = [
             'late' => ! $invalid && $late > 0,
             'early_departure' => ! $invalid && $early > 0,
@@ -124,7 +134,7 @@ class AttendanceLogController extends Controller
             'day_number' => $date->format('d'),
             'day_name' => $date->copy()->locale('id')->translatedFormat('D'),
             'shift_name' => $dayOffReason ?? ($onLeave ? ($leave->nama_cuti ?: 'Cuti disetujui') : $shift?->nama),
-            'schedule' => $shift && $workday ? substr($shift->jam_masuk, 0, 5).' – '.substr($shift->jam_keluar, 0, 5) : null,
+            'schedule' => $shift && $workday ? $schedule['start_time'].' – '.$schedule['end_time'] : null,
             'status' => $status,
             'status_label' => $label,
             'tone' => $tone,
@@ -140,6 +150,8 @@ class AttendanceLogController extends Controller
             'clock_out_address' => $record?->clock_out_address,
             'late_minutes' => $late,
             'early_departure_minutes' => $early,
+            'lembur_late_allowance' => $lateAllowance,
+            'lembur_early_allowance' => $earlyAllowance,
             'duration' => $duration !== null ? intdiv($duration, 60).' jam '.($duration % 60).' menit' : null,
             'notes' => $record?->notes ?? $dayOffReason,
             'flags' => $flags,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
@@ -19,6 +20,7 @@ class AttendanceController extends Controller
     public function __construct(
         private readonly CutiScheduleService $cutiSchedule,
         private readonly ShiftHolidayService $shiftHolidays,
+        private readonly AttendanceScheduleService $schedules,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -42,6 +44,7 @@ class AttendanceController extends Controller
         $attendanceDate = $isOnCuti ? now() : ($attendance?->tanggal_presensi ?? now());
         $clockIn = $attendance?->clock_in_at;
         $clockOut = $attendance?->clock_out_at;
+        $schedule = $this->schedules->resolve($pegawai?->id, $shift, $attendanceDate);
 
         return Inertia::render('absensi/absensi-mobile/Attendance', [
             'canAccessAccount' => $request->user()?->can(AccessPermission::MOBILE_ACCOUNT) ?? false,
@@ -49,8 +52,9 @@ class AttendanceController extends Controller
                 'date' => $attendanceDate->toDateString(),
                 'date_label' => $attendanceDate->locale('id')->translatedFormat('l, d F Y'),
                 'shift_name' => $isOnCuti ? 'CUTI' : ($isDayOff ? 'Hari Libur' : $shift?->nama),
-                'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
-                'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
+                'start_time' => $schedule['start_time'],
+                'end_time' => $schedule['end_time'],
+                'schedule_note' => $schedule['note'],
                 'location_name' => $office?->name,
                 'location_address' => $office?->address,
             ],
@@ -96,10 +100,7 @@ class AttendanceController extends Controller
 
     private function attendanceForToday(Pegawai $pegawai): ?Presensi
     {
-        $today = $pegawai->presensis()
-            ->with('shift')
-            ->whereDate('tanggal_presensi', now()->toDateString())
-            ->first();
+        $today = $this->schedules->clockInRecord($pegawai);
 
         if ($today) {
             return $today;

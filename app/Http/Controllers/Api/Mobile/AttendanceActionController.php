@@ -10,6 +10,7 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Services\Absensi\AbsensiMobile\AttendanceLocationVerifier;
 use App\Services\Absensi\AbsensiMobile\AttendanceSubmissionService;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
@@ -26,6 +27,7 @@ class AttendanceActionController extends Controller
         private readonly AttendanceSubmissionService $submissionService,
         private readonly CutiScheduleService $cutiSchedule,
         private readonly ShiftHolidayService $shiftHolidays,
+        private readonly AttendanceScheduleService $schedules,
     ) {}
 
     public function show(Request $request, string $action): JsonResponse
@@ -37,7 +39,7 @@ class AttendanceActionController extends Controller
         }
 
         $attendance = $action === 'clock-in'
-            ? $pegawai->presensis()->whereDate('tanggal_presensi', now()->toDateString())->first()
+            ? $this->schedules->clockInRecord($pegawai)
             : $this->attendanceForClockOut($pegawai);
 
         $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
@@ -63,6 +65,7 @@ class AttendanceActionController extends Controller
             $this->fail('Lokasi kantor belum dikonfigurasi. Hubungi administrator.');
         }
         $shift = $attendance?->shift ?? $pegawai->shift;
+        $schedule = $this->schedules->resolve($pegawai->id, $shift, $attendance?->tanggal_presensi ?? now());
 
         return response()->json([
             'data' => [
@@ -71,8 +74,9 @@ class AttendanceActionController extends Controller
                     'date' => $attendance?->tanggal_presensi?->toDateString() ?? now()->toDateString(),
                     'date_label' => ($attendance?->tanggal_presensi ?? now())->locale('id')->translatedFormat('l, d F Y'),
                     'shift_name' => $shift?->nama,
-                    'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
-                    'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
+                    'start_time' => $schedule['start_time'],
+                    'end_time' => $schedule['end_time'],
+                    'schedule_note' => $schedule['note'],
                 ],
                 'office' => [
                     'id' => $office->id,

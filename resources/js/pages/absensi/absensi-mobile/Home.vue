@@ -3,11 +3,11 @@ import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
+    BadgeCheck,
     CalendarDays,
     CalendarRange,
     ChevronRight,
     CircleUserRound,
-    ClipboardList,
     Clock3,
     FileText,
     HeartPulse,
@@ -19,6 +19,7 @@ import {
     Megaphone,
     ShieldCheck,
     Sparkles,
+    Timer,
     TimerReset,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
@@ -32,6 +33,9 @@ const props = defineProps<{
         shift_name: string | null;
         start_time: string | null;
         end_time: string | null;
+        schedule_note?: string | null;
+        late_arrival_minutes?: number;
+        early_departure_minutes?: number;
         location_name: string | null;
     };
     todayAttendance: {
@@ -88,6 +92,13 @@ const liveTime = computed(() =>
         .replace('.', ':'),
 );
 
+const scheduleAdjustments = computed(() =>
+    [
+        { label: 'Telat masuk', minutes: props.todaySchedule.late_arrival_minutes ?? 0, icon: LogIn },
+        { label: 'Pulang cepat', minutes: props.todaySchedule.early_departure_minutes ?? 0, icon: LogOut },
+    ].filter((adjustment) => adjustment.minutes > 0),
+);
+
 const quickActions = computed(() =>
     [
         {
@@ -100,7 +111,7 @@ const quickActions = computed(() =>
             permission: 'mobile.history',
         },
         { label: 'Jadwal', caption: 'Shift kerja', icon: CalendarDays, color: '#5b54a4', background: '#efedfb' },
-        { label: 'Pengajuan', caption: 'Izin & cuti', icon: ClipboardList, color: '#b86a37', background: '#fff1e8' },
+        { label: 'Lembur', caption: 'Jam tambahan', icon: Timer, color: '#b86a37', background: '#fff1e8', lembur: true },
         props.canAccessAdmin
             ? { label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }
             : { label: 'Dokumen', caption: 'Slip & surat', icon: FileText, color: '#a66b22', background: '#fff5dc' },
@@ -188,6 +199,21 @@ const { can } = usePermission();
                             <strong>{{ todaySchedule.start_time || '--:--' }} <i>—</i> {{ todaySchedule.end_time || '--:--' }}</strong>
                         </div>
                     </div>
+
+                    <section v-if="scheduleAdjustments.length" class="schedule-adjustment" aria-labelledby="schedule-adjustment-title">
+                        <div class="adjustment-heading">
+                            <h3 id="schedule-adjustment-title"><Timer aria-hidden="true" /> Penggunaan lembur</h3>
+                            <span class="adjustment-badge"><BadgeCheck aria-hidden="true" /> Disetujui</span>
+                        </div>
+                        <dl class="adjustment-details">
+                            <div v-for="adjustment in scheduleAdjustments" :key="adjustment.label" class="adjustment-item">
+                                <dt><component :is="adjustment.icon" aria-hidden="true" /> {{ adjustment.label }}</dt>
+                                <dd>{{ adjustment.minutes }} <span>menit</span></dd>
+                            </div>
+                        </dl>
+                        <p class="adjustment-caption">Jam kerja sudah disesuaikan.</p>
+                    </section>
+                    <p v-else-if="todaySchedule.schedule_note" class="schedule-note">{{ todaySchedule.schedule_note }}</p>
 
                     <div v-if="can('mobile.attendance') && (can('mobile.clock-in') || can('mobile.clock-out'))" class="attendance-panel">
                         <Link
@@ -301,6 +327,16 @@ const { can } = usePermission();
                                 <small>{{ action.caption }}</small>
                             </Link>
                             <Link
+                                v-else-if="action.lembur"
+                                :href="route('absensi.mobile.lembur.index')"
+                                class="quick-action"
+                                :style="{ '--action-color': action.color, '--action-background': action.background }"
+                            >
+                                <span class="quick-icon"><component :is="action.icon" /></span>
+                                <strong>{{ action.label }}</strong>
+                                <small>{{ action.caption }}</small>
+                            </Link>
+                            <Link
                                 v-else-if="can('mobile.cuti.view') && action.cuti"
                                 :href="route('absensi.mobile.cuti.index')"
                                 class="quick-action"
@@ -388,6 +424,125 @@ const { can } = usePermission();
 </template>
 
 <style scoped>
+.schedule-adjustment {
+    margin: 0 0 16px;
+    padding: 13px;
+    border: 1px solid rgba(228, 189, 123, 0.3);
+    border-radius: 18px;
+    background: linear-gradient(120deg, rgba(228, 189, 123, 0.1), rgba(255, 255, 255, 0.025));
+    box-shadow: inset 0 1px 0 rgba(255, 239, 211, 0.06);
+}
+
+.adjustment-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.adjustment-heading h3 {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #f4dfb8;
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+}
+
+.adjustment-heading h3 svg {
+    width: 14px;
+    height: 14px;
+    color: #e4bd7b;
+}
+
+.adjustment-badge {
+    padding: 4px 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(151, 225, 196, 0.2);
+    border-radius: 999px;
+    color: #c6f2df;
+    background: rgba(119, 214, 185, 0.09);
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.adjustment-badge svg {
+    width: 12px;
+    height: 12px;
+}
+
+.adjustment-details {
+    margin: 11px 0 0;
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 9px;
+}
+
+.adjustment-item {
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid rgba(238, 221, 186, 0.1);
+    border-radius: 12px;
+    background: rgba(4, 29, 32, 0.2);
+}
+
+.adjustment-item dt {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    color: #cee2d9;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.4;
+}
+
+.adjustment-item dt svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    color: #e4bd7b;
+}
+
+.adjustment-item dd {
+    margin: 5px 0 0;
+    color: #fff3d9;
+    font-size: 25px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+}
+
+.adjustment-item dd span {
+    color: #c9d9ce;
+    font-size: 11px;
+    font-weight: 550;
+    letter-spacing: 0;
+}
+
+.adjustment-caption {
+    margin: 9px 0 0;
+    color: #c9d9ce;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.schedule-note {
+    margin: 0 0 16px;
+    font-size: 11px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
 .mobile-workspace {
     --mobile-ink: #173238;
     --mobile-muted: #728288;

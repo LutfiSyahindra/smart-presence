@@ -12,9 +12,10 @@ import CrudModal from '../setting/components/CrudModal.vue';
 import FlashMessage from '../setting/components/FlashMessage.vue';
 import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
+import { duration, requestCode, type ApprovalRequestRow } from './types';
 
 const props = defineProps<{
-    requests: Paginated<CutiRow>;
+    requests: Paginated<ApprovalRequestRow>;
     category: 'butuh-approval' | 'disetujui';
     filters: { search: string };
     overview: { inbox: number; approved: number };
@@ -32,16 +33,20 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     { title: activeCategory.value.title, href: `${baseUrl}/${props.category}` },
 ]);
 const selected = ref<CutiRow | null>(null);
-const bulkForm = useForm({ request_ids: [] as number[] });
+const bulkForm = useForm({ request_ids: [] as number[], lembur_request_ids: [] as number[] });
 const bulkReviewOpen = ref(false);
 const selectableRequests = computed(() => (props.category === 'butuh-approval' ? props.requests.data.filter((cuti) => cuti.can_decide) : []));
-const selectedRequests = computed(() => selectableRequests.value.filter((cuti) => bulkForm.request_ids.includes(cuti.id)));
+const isSelected = (request: ApprovalRequestRow) =>
+    (request.request_type === 'lembur' ? bulkForm.lembur_request_ids : bulkForm.request_ids).includes(request.id);
+const selectedRequests = computed(() => selectableRequests.value.filter(isSelected));
 const allSelected = computed(() => selectableRequests.value.length > 0 && selectedRequests.value.length === selectableRequests.value.length);
 const someSelected = computed(() => selectedRequests.value.length > 0 && !allSelected.value);
 const bulkError = computed(() => Object.values(bulkForm.errors)[0]);
 const toggleAll = (event: Event) => {
     bulkForm.clearErrors();
-    bulkForm.request_ids = (event.target as HTMLInputElement).checked ? selectableRequests.value.map((cuti) => cuti.id) : [];
+    const checked = (event.target as HTMLInputElement).checked;
+    bulkForm.request_ids = checked ? selectableRequests.value.filter((row) => row.request_type !== 'lembur').map((row) => row.id) : [];
+    bulkForm.lembur_request_ids = checked ? selectableRequests.value.filter((row) => row.request_type === 'lembur').map((row) => row.id) : [];
 };
 const closeBulkReview = () => {
     if (!bulkForm.processing) bulkReviewOpen.value = false;
@@ -193,34 +198,57 @@ onBeforeUnmount(() => {
                                     />
                                 </th>
                                 <th>Pemohon</th>
-                                <th>Pengajuan cuti</th>
+                                <th>Pengajuan cuti / lembur</th>
                                 <th>Status & progres</th>
                                 <th class="text-end">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="cuti in requests.data" :key="cuti.id" :class="{ 'bulk-selected-row': bulkForm.request_ids.includes(cuti.id) }">
+                            <tr v-for="cuti in requests.data" :key="requestCode(cuti)" :class="{ 'bulk-selected-row': isSelected(cuti) }">
                                 <td v-if="category === 'butuh-approval'" class="bulk-select-cell">
                                     <input
-                                        v-if="cuti.can_decide"
+                                        v-if="cuti.can_decide && cuti.request_type !== 'lembur'"
                                         v-model="bulkForm.request_ids"
                                         type="checkbox"
                                         class="bulk-checkbox"
                                         :value="cuti.id"
                                         :disabled="bulkForm.processing"
-                                        :aria-label="`Pilih pengajuan #CUTI-${cuti.id} dari ${cuti.nama_pegawai}`"
+                                        :aria-label="`Pilih pengajuan #${requestCode(cuti)} dari ${cuti.nama_pegawai}`"
+                                        @change="bulkForm.clearErrors()"
+                                    />
+                                    <input
+                                        v-else-if="cuti.can_decide"
+                                        v-model="bulkForm.lembur_request_ids"
+                                        type="checkbox"
+                                        class="bulk-checkbox"
+                                        :value="cuti.id"
+                                        :disabled="bulkForm.processing"
+                                        :aria-label="`Pilih pengajuan #${requestCode(cuti)} dari ${cuti.nama_pegawai}`"
                                         @change="bulkForm.clearErrors()"
                                     />
                                 </td>
                                 <td>
                                     <strong>{{ cuti.nama_pegawai }}</strong>
                                     <small>{{ cuti.unit }} · {{ cuti.jabatan }}</small>
-                                    <small>#CUTI-{{ cuti.id }} · {{ cuti.created_at }}</small>
+                                    <small>#{{ requestCode(cuti) }} · {{ cuti.created_at }}</small>
                                 </td>
                                 <td>
-                                    <strong>{{ cuti.nama_cuti || 'Cuti' }}</strong>
-                                    <small>{{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</small>
-                                    <small>{{ cuti.jumlah_hari ?? days(cuti.tanggal_mulai, cuti.tanggal_selesai) }} hari kalender</small>
+                                    <template v-if="cuti.request_type === 'lembur'">
+                                        <strong
+                                            >{{ cuti.request_kind === 'usage' ? 'Penggunaan lembur' : 'Lembur' }} ·
+                                            {{ duration(cuti.duration_minutes ?? 0) }}</strong
+                                        >
+                                        <small v-if="cuti.request_kind === 'usage'">{{
+                                            cuti.usage_type === 'late_arrival' ? 'Telat masuk' : 'Pulang cepat'
+                                        }}</small>
+                                        <small>{{ date(cuti.tanggal_mulai) }}</small>
+                                        <small>Shift {{ cuti.shift_name }}</small>
+                                    </template>
+                                    <template v-else>
+                                        <strong>{{ cuti.nama_cuti || 'Cuti' }}</strong>
+                                        <small>{{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</small>
+                                        <small>{{ cuti.jumlah_hari ?? days(cuti.tanggal_mulai, cuti.tanggal_selesai) }} hari kalender</small>
+                                    </template>
                                 </td>
                                 <td>
                                     <span class="al-status" :class="cuti.status">{{ labels[cuti.status] }}</span>
@@ -228,7 +256,16 @@ onBeforeUnmount(() => {
                                     <small v-else>Seluruh approver telah menyetujui</small>
                                 </td>
                                 <td class="text-end">
+                                    <Link
+                                        v-if="cuti.request_type === 'lembur'"
+                                        :href="`${baseUrl}/pengajuan/lembur/${cuti.id}`"
+                                        class="btn btn-sm"
+                                        :class="cuti.can_decide ? 'btn-primary' : 'btn-outline-secondary'"
+                                    >
+                                        {{ cuti.can_decide ? 'Tinjau pengajuan' : 'Lihat detail' }}
+                                    </Link>
                                     <button
+                                        v-else
                                         type="button"
                                         class="btn btn-sm"
                                         :class="cuti.can_decide ? 'btn-primary' : 'btn-outline-secondary'"
@@ -280,9 +317,13 @@ onBeforeUnmount(() => {
                         berikutnya akan diteruskan sesuai urutannya.
                     </p>
                     <ul class="bulk-review-list">
-                        <li v-for="cuti in selectedRequests" :key="cuti.id">
-                            <strong>#CUTI-{{ cuti.id }} · {{ cuti.nama_pegawai }}</strong>
-                            <span>{{ cuti.nama_cuti || 'Cuti' }} · {{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</span>
+                        <li v-for="cuti in selectedRequests" :key="requestCode(cuti)">
+                            <strong>#{{ requestCode(cuti) }} · {{ cuti.nama_pegawai }}</strong>
+                            <span v-if="cuti.request_type === 'lembur'"
+                                >{{ cuti.request_kind === 'usage' ? 'Penggunaan lembur' : 'Lembur' }} · {{ date(cuti.tanggal_mulai) }} ·
+                                {{ duration(cuti.duration_minutes ?? 0) }}</span
+                            >
+                            <span v-else>{{ cuti.nama_cuti || 'Cuti' }} · {{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</span>
                             <small>Persetujuan tingkat {{ cuti.current_level }}</small>
                         </li>
                     </ul>

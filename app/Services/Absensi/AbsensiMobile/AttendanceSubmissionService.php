@@ -9,6 +9,7 @@ use App\Http\Requests\Absensi\AbsensiMobile\StoreClockOutRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\ValueObjects\FaceVerificationResult;
@@ -26,6 +27,7 @@ class AttendanceSubmissionService
         private readonly AttendanceLocationVerifier $locationVerifier,
         private readonly CutiScheduleService $cutiSchedule,
         private readonly ShiftHolidayService $shiftHolidays,
+        private readonly AttendanceScheduleService $schedules,
     ) {}
 
     /** @return array{attendance: Presensi, message: string, outside_radius: bool} */
@@ -84,8 +86,8 @@ class AttendanceSubmissionService
                 $presensi = $existing ?? new Presensi;
                 $presensi->fill([
                     'pegawai_id' => $pegawai->id,
-                    'shift_id' => $pegawai->shift_id,
-                    'tanggal_presensi' => now()->toDateString(),
+                    'shift_id' => $existing?->shift_id ?? $pegawai->shift_id,
+                    'tanggal_presensi' => $existing?->tanggal_presensi ?? now()->toDateString(),
                     'clock_in_at' => now(),
                     'clock_in_location_id' => $office->id,
                     'clock_in_latitude' => $verifiedLocation->latitude,
@@ -289,7 +291,7 @@ class AttendanceSubmissionService
 
     private function todayPresensi(Pegawai $pegawai): ?Presensi
     {
-        return $pegawai->presensis()->whereDate('tanggal_presensi', now()->toDateString())->first();
+        return $this->schedules->clockInRecord($pegawai);
     }
 
     private function attendanceForClockOut(Pegawai $pegawai): ?Presensi

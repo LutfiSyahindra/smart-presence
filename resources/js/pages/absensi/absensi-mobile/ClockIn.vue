@@ -53,6 +53,7 @@ const props = defineProps<{
         shift_name: string | null;
         start_time: string | null;
         end_time: string | null;
+        schedule_note?: string | null;
     };
     office: {
         id: number;
@@ -788,6 +789,7 @@ onUnmounted(() => {
                         <small>{{ schedule.shift_name || 'Jadwal hari ini' }}</small>
                         <strong>{{ schedule.start_time || '--:--' }} <i>—</i> {{ schedule.end_time || '--:--' }} WIB</strong>
                         <span>{{ schedule.date_label }}</span>
+                        <span v-if="schedule.schedule_note" class="schedule-adjustment">{{ schedule.schedule_note }}</span>
                     </div>
                     <span class="shift-live"><i></i> Hari ini</span>
                 </article>
@@ -998,6 +1000,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.schedule-adjustment {
+    margin: 12px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
 .clock-workspace {
     --clock-ink: #173438;
     --clock-muted: #718184;

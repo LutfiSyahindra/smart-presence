@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\OfficeLocation;
+use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
@@ -20,6 +21,7 @@ class HomeController extends Controller
     public function __construct(
         private readonly CutiScheduleService $cutiSchedule,
         private readonly ShiftHolidayService $shiftHolidays,
+        private readonly AttendanceScheduleService $schedules,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -28,10 +30,7 @@ class HomeController extends Controller
         $pegawai = $user?->pegawai()
             ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
-        $todayPresensi = $pegawai?->presensis()
-            ->with('shift')
-            ->whereDate('tanggal_presensi', now()->toDateString())
-            ->first(['id', 'pegawai_id', 'shift_id', 'tanggal_presensi', 'clock_in_at', 'clock_out_at', 'is_day_off']);
+        $todayPresensi = $pegawai ? $this->schedules->clockInRecord($pegawai) : null;
 
         if (! $todayPresensi && $pegawai) {
             $previousPresensi = $pegawai->presensis()
@@ -72,6 +71,8 @@ class HomeController extends Controller
             && ! str_contains($photoPath, '..')
             && Storage::disk('local')->exists($photoPath);
 
+        $schedule = $this->schedules->resolve($pegawai?->id, $shift, $todayPresensi?->tanggal_presensi ?? now());
+
         return Inertia::render('absensi/absensi-mobile/Home', [
             'canAccessAdmin' => Portal::canAccessAdmin($request),
             'canAccessAccount' => $canAccessAccount,
@@ -80,8 +81,11 @@ class HomeController extends Controller
                 : null,
             'todaySchedule' => [
                 'shift_name' => $isOnCuti ? 'CUTI' : ($isDayOff ? 'Hari Libur' : $shift?->nama),
-                'start_time' => $shift ? substr((string) $shift->jam_masuk, 0, 5) : null,
-                'end_time' => $shift ? substr((string) $shift->jam_keluar, 0, 5) : null,
+                'start_time' => $schedule['start_time'],
+                'end_time' => $schedule['end_time'],
+                'schedule_note' => $schedule['note'],
+                'late_arrival_minutes' => $schedule['late_arrival_minutes'],
+                'early_departure_minutes' => $schedule['early_departure_minutes'],
                 'location_name' => $workLocation?->name,
             ],
             'todayAttendance' => [

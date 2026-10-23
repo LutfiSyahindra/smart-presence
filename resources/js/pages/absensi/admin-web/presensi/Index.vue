@@ -64,6 +64,7 @@ interface PresensiRow {
     overtime_minutes: number;
     notes: string | null;
     late_minutes: number;
+    lembur_late_arrival: { minutes: number; original_time: string; adjusted_time: string } | null;
     early_departure_minutes: number;
     status: 'day-off' | 'incomplete' | 'late' | 'on-time' | null;
     updated_by: string | null;
@@ -93,7 +94,7 @@ interface SearchableSelectOption {
     searchText?: string | null;
 }
 
-interface PresensiForm {
+type PresensiForm = {
     pegawai_id: number;
     tanggal_presensi: string;
     shift_id: number;
@@ -102,7 +103,7 @@ interface PresensiForm {
     is_day_off: boolean;
     overtime_minutes: number;
     notes: string;
-}
+};
 
 const props = defineProps<{
     records: Paginated<PresensiRow>;
@@ -444,6 +445,7 @@ watch(
                                         :employee="record.pegawai.nama"
                                         :empty="!record.has_presensi"
                                         :late-minutes="record.late_minutes"
+                                        :lembur-late-arrival="record.lembur_late_arrival"
                                         @preview="previewPhoto = $event"
                                     />
                                 </td>
@@ -516,6 +518,7 @@ watch(
                                 :employee="record.pegawai.nama"
                                 :empty="!record.has_presensi"
                                 :late-minutes="record.late_minutes"
+                                :lembur-late-arrival="record.lembur_late_arrival"
                                 @preview="previewPhoto = $event"
                             />
                             <ClockDetail
@@ -1237,6 +1240,29 @@ watch(
     width: 10px;
     height: 10px;
     flex: 0 0 auto;
+}
+:deep(.clock-detail .lembur-indicator) {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    max-width: 200px;
+    margin-top: 5px;
+    padding: 5px 7px;
+    border-radius: 6px;
+    color: #168674;
+    background: #e8f8f4;
+    font-weight: 800;
+    line-height: 1.5;
+}
+:deep(.clock-detail .lembur-indicator svg) {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+:deep(.clock-detail .lembur-schedule) {
+    margin-top: 3px;
+    line-height: 1.5;
 }
 :deep(.clock-detail a > svg),
 :deep(.clock-detail span > svg) {

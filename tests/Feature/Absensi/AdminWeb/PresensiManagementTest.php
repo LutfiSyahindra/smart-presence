@@ -2,16 +2,19 @@
 
 namespace Tests\Feature\Absensi\AdminWeb;
 
+use App\Models\LemburRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
 use App\Support\AccessPermission;
+use Carbon\Carbon;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PresensiManagementTest extends TestCase
@@ -123,13 +126,118 @@ class PresensiManagementTest extends TestCase
 
         $viewer = User::factory()->create();
         $viewer->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::PRESENSI_VIEW]);
-        $this->actingAs($viewer)->get($url)
-            ->assertOk()
-            ->assertHeader('Cache-Control', 'private, max-age=300');
+        $response = $this->actingAs($viewer)->get($url)->assertOk();
+        $this->assertTrue($response->headers->hasCacheControlDirective('private'));
+        $this->assertSame('300', $response->headers->getCacheControlDirective('max-age'));
 
         $unauthorized = User::factory()->create();
         $unauthorized->givePermissionTo(AccessPermission::ADMIN_ACCESS);
         $this->actingAs($unauthorized)->get($url)->assertForbidden();
+    }
+
+    public function test_both_pages_explain_approved_late_arrival_and_keep_excess_delay_separate(): void
+    {
+        $this->lateArrivalUsage();
+        $presensi = Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id,
+            'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-09-15',
+            'clock_in_at' => '2026-09-15 08:00',
+            'clock_out_at' => '2026-09-15 15:00',
+        ]);
+
+        foreach (['pegawai', 'set-pegawai'] as $page) {
+            $url = "/absensi/admin-web/presensi/{$page}?date_from=2026-09-15&date_to=2026-09-15";
+            $this->actingAs($this->admin)->get($url)->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('records.data.0.lembur_late_arrival', ['minutes' => 60, 'original_time' => '07:00', 'adjusted_time' => '08:00'])
+                ->where('records.data.0.status', 'on-time')
+                ->where('records.data.0.late_minutes', 0));
+
+            $presensi->update(['clock_in_at' => '2026-09-15 08:15']);
+            $this->get($url)->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('records.data.0.lembur_late_arrival.minutes', 60)
+                ->where('records.data.0.late_minutes', 15)
+                ->where('records.data.0.status', 'late'));
+            $presensi->update(['clock_in_at' => '2026-09-15 08:00']);
+        }
+
+        $presensi->update(['clock_in_at' => null, 'clock_out_at' => null]);
+        $this->get($url)->assertInertia(fn (Assert $page) => $page
+            ->where('records.data.0.lembur_late_arrival.minutes', 60)
+            ->where('records.data.0.clock_in.time', null));
+
+        $presensi->update(['is_day_off' => true]);
+        $this->get($url)->assertInertia(fn (Assert $page) => $page->where('records.data.0.lembur_late_arrival', null));
+    }
+
+    #[DataProvider('unrelatedLateArrivalUsages')]
+    public function test_unapproved_or_unrelated_usage_does_not_explain_a_late_arrival(array $overrides): void
+    {
+        $this->lateArrivalUsage($overrides);
+        Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id,
+            'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-09-15',
+            'clock_in_at' => '2026-09-15 08:00',
+            'clock_out_at' => '2026-09-15 15:00',
+        ]);
+
+        $this->actingAs($this->admin)->get('/absensi/admin-web/presensi/pegawai?date_from=2026-09-15&date_to=2026-09-15')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('records.data.0.lembur_late_arrival', null)
+            ->where('records.data.0.late_minutes', 60));
+    }
+
+    public static function unrelatedLateArrivalUsages(): array
+    {
+        return [
+            'pending' => [['status' => 'pending']],
+            'rejected' => [['status' => 'rejected']],
+            'cancelled' => [['status' => 'cancelled']],
+            'early departure' => [['usage_type' => 'early_departure']],
+            'earned overtime' => [['request_kind' => 'overtime']],
+            'another employee' => [['pegawai_id' => null]],
+            'another date' => [['tanggal_lembur' => '2026-09-16']],
+            'another shift' => [['shift_id' => null]],
+            'changed schedule' => [['shift_start_at' => '2026-09-15 06:00']],
+        ];
+    }
+
+    public function test_approved_arrival_information_can_cross_midnight(): void
+    {
+        $this->shift->update(['jam_masuk' => '23:30', 'jam_keluar' => '07:00']);
+        $this->lateArrivalUsage();
+        Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id,
+            'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-09-15',
+            'clock_in_at' => '2026-09-16 00:30',
+            'clock_out_at' => '2026-09-16 07:00',
+        ]);
+
+        $this->actingAs($this->admin)->get('/absensi/admin-web/presensi/set-pegawai?date_from=2026-09-15&date_to=2026-09-15')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('records.data.0.lembur_late_arrival', ['minutes' => 60, 'original_time' => '23:30', 'adjusted_time' => '00:30'])
+            ->where('records.data.0.clock_in.time', '00:30')
+            ->where('records.data.0.late_minutes', 0));
+    }
+
+    private function lateArrivalUsage(array $overrides = []): LemburRequest
+    {
+        $start = Carbon::parse('2026-09-15 '.$this->shift->jam_masuk);
+        $end = Carbon::parse('2026-09-15 '.$this->shift->jam_keluar);
+        if ($end->lte($start)) {
+            $end->addDay();
+        }
+
+        return LemburRequest::query()->create(array_replace([
+            'user_id' => $this->admin->id, 'pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'nama_pegawai' => $this->pegawai->nama, 'nama_jabatan' => 'Perawat', 'nama_unit' => 'IGD', 'nama_shift' => $this->shift->nama,
+            'tanggal_lembur' => '2026-09-15', 'shift_start_at' => $start, 'shift_end_at' => $end,
+            'request_kind' => 'usage', 'usage_type' => 'late_arrival', 'status' => 'approved',
+            'usage_start_at' => $start, 'usage_end_at' => $start->copy()->addHour(),
+            'duration_minutes' => 60, 'compensation' => 'time_off', 'alasan' => 'Menggunakan saldo lembur.',
+        ], $overrides));
     }
 
     public function test_history_supports_date_search_and_status_filters(): void

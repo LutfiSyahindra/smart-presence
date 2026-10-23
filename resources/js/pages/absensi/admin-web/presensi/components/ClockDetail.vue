@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlarmClock, ExternalLink, Eye, ImageOff, MapPin } from 'lucide-vue-next';
+import { AlarmClock, ExternalLink, Eye, ImageOff, MapPin, TimerReset } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface LocationData {
@@ -23,6 +23,7 @@ const props = defineProps<{
     employee: string;
     empty?: boolean;
     lateMinutes?: number;
+    lemburLateArrival?: { minutes: number; original_time: string; adjusted_time: string } | null;
     earlyDepartureMinutes?: number;
 }>();
 
@@ -43,7 +44,7 @@ const showPhoto = () => {
 </script>
 
 <template>
-    <span v-if="empty || !hasClockData" class="empty-presensi">-</span>
+    <span v-if="(empty || !hasClockData) && !lemburLateArrival" class="empty-presensi">-</span>
     <div v-else class="clock-detail" :class="type">
         <button
             type="button"
@@ -61,6 +62,14 @@ const showPhoto = () => {
         </button>
         <div>
             <strong>{{ clock.time || '--:--' }}</strong>
+            <template v-if="type === 'in' && lemburLateArrival">
+                <small class="lembur-indicator">
+                    <TimerReset aria-hidden="true" />Izin telat: saldo lembur {{ lemburLateArrival.minutes }} menit
+                </small>
+                <small class="lembur-schedule">
+                    Disetujui · Jam masuk {{ lemburLateArrival.original_time }} → {{ lemburLateArrival.adjusted_time }}
+                </small>
+            </template>
             <small v-if="type === 'in' && lateMinutes && lateMinutes > 0" class="late-indicator">
                 <AlarmClock aria-hidden="true" />Terlambat {{ lateMinutes }} menit
             </small>

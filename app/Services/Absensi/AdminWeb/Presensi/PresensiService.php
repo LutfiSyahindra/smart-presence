@@ -155,6 +155,11 @@ class PresensiService
             'overtime_minutes' => $presensi?->overtime_minutes ?? 0,
             'notes' => $presensi?->notes,
             'late_minutes' => $lateMinutes,
+            'lembur_late_arrival' => $presensi && ! $presensi->is_day_off && $schedule['late_arrival_minutes'] > 0 ? [
+                'minutes' => $schedule['late_arrival_minutes'],
+                'original_time' => substr((string) $presensi->shift->jam_masuk, 0, 5),
+                'adjusted_time' => $schedule['start_time'],
+            ] : null,
             'early_departure_minutes' => $earlyDepartureMinutes,
             'status' => $presensi ? $this->status($presensi, $lateMinutes) : null,
             'updated_by' => $presensi?->updatedBy?->name,

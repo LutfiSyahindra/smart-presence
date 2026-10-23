@@ -113,7 +113,7 @@ const clear = () => {
     min-width: 0;
     margin: 0;
     padding: 12px;
-    border: 1px solid #dce1e9;
+    border: 1px solid var(--rs-border);
     border-radius: 10px;
     background: white;
 }
@@ -140,19 +140,19 @@ const clear = () => {
     margin-bottom: 10px;
 }
 .al-multi-toolbar strong {
-    color: #686080;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .al-multi-toolbar button {
     padding: 3px 0;
     border: 0;
     background: transparent;
-    color: #7562c8;
+    color: var(--rs-primary);
     font-size: 11px;
     font-weight: 600;
 }
 .al-multi-toolbar button:disabled {
-    color: #a4aabb;
+    color: var(--rs-muted);
     cursor: not-allowed;
 }
 .al-multi-search {
@@ -164,22 +164,22 @@ const clear = () => {
     position: absolute;
     left: 10px;
     width: 14px;
-    color: #8993a5;
+    color: var(--rs-muted);
     pointer-events: none;
 }
 .al-multi-search input {
     width: 100%;
     height: 36px;
     padding: 0 10px 0 32px;
-    border: 1px solid #e1e5eb;
+    border: 1px solid var(--rs-border);
     border-radius: 8px;
     outline: none;
-    color: #17213d;
-    background: #f8f9fb;
+    color: var(--rs-primary-deep);
+    background: var(--rs-canvas);
     font-size: 12px;
 }
 .al-multi-search input:focus {
-    border-color: #929afa;
+    border-color: var(--rs-primary-pale);
     background: white;
 }
 .al-multi-options {
@@ -199,10 +199,10 @@ const clear = () => {
     cursor: pointer;
 }
 .al-multi-option:hover {
-    background: #f7f6fc;
+    background: var(--rs-canvas);
 }
 .al-multi-option.selected {
-    background: #f0edfb;
+    background: var(--rs-primary-soft);
 }
 .al-multi-option.disabled {
     opacity: 0.55;
@@ -215,8 +215,8 @@ const clear = () => {
     margin: 0;
     padding: 0;
     border-radius: 4px;
-    color: #8171d1;
-    accent-color: #8171d1;
+    color: var(--rs-primary);
+    accent-color: var(--rs-primary);
 }
 .al-multi-option > span:not(.al-multi-order) {
     display: grid;
@@ -225,12 +225,12 @@ const clear = () => {
     overflow-wrap: anywhere;
 }
 .al-multi-option strong {
-    color: #545c70;
+    color: var(--rs-text-soft);
     font-size: 12px;
     font-weight: 600;
 }
 .al-multi-option small {
-    color: #9298a6;
+    color: var(--rs-muted);
     font-size: 10px;
 }
 .al-multi-order {
@@ -240,7 +240,7 @@ const clear = () => {
     height: 23px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: #8171d1;
+    background: var(--rs-primary);
     color: white;
     font-size: 11px;
 }
@@ -248,7 +248,7 @@ const clear = () => {
 .al-multi-empty {
     display: block;
     margin: 8px 0 0;
-    color: #9298a6;
+    color: var(--rs-muted);
     font-size: 11px;
     line-height: 1.6;
 }

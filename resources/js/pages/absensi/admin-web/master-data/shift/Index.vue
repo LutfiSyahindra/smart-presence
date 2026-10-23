@@ -626,16 +626,16 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-holiday-label {
     display: block;
     max-width: 240px;
-    color: #697386;
+    color: var(--rs-text-soft);
     font-size: 12px;
     line-height: 1.6;
 }
 .shift-page,
 .shift-form {
-    --shift-ink: #172033;
-    --shift-muted: #697386;
-    --shift-line: #e6eaf1;
-    --shift-primary: #626fee;
+    --shift-ink: var(--rs-primary-deep);
+    --shift-muted: var(--rs-text-soft);
+    --shift-line: var(--rs-surface-muted);
+    --shift-primary: var(--rs-primary);
 }
 
 .shift-page {
@@ -652,8 +652,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     padding: 40px 44px;
     border-radius: 22px;
     color: white;
-    background: linear-gradient(125deg, #151c35, #242d5a 55%, #4850b8);
-    box-shadow: 0 22px 48px rgba(28, 35, 84, 0.2);
+    background: linear-gradient(125deg, var(--rs-primary-deep), var(--rs-primary-deep) 55%, var(--rs-primary));
+    box-shadow: 0 22px 48px rgba(var(--rs-primary-deep-rgb), 0.2);
 }
 .shift-hero::after {
     position: absolute;
@@ -691,7 +691,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     padding: 7px 11px;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
-    color: #cdd2ff;
+    color: var(--rs-primary-border);
     background: rgba(255, 255, 255, 0.07);
     font-size: 11px;
     font-weight: 800;
@@ -710,12 +710,12 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     letter-spacing: -0.045em;
 }
 .shift-hero h1 span {
-    color: #aeb7ff;
+    color: var(--rs-gold-light);
 }
 .shift-hero-copy > p {
     max-width: 610px;
     margin: 0;
-    color: #c6cbe0;
+    color: var(--rs-primary-border);
     font-size: 14px;
     line-height: 1.75;
 }
@@ -724,7 +724,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     flex-wrap: wrap;
     gap: 16px;
     margin-top: 20px;
-    color: #dfe3f5;
+    color: var(--rs-primary-border);
     font-size: 12px;
 }
 .shift-hero-points span {
@@ -779,7 +779,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-clock-card small,
 .shift-create-button small {
-    color: #bfc6df;
+    color: var(--rs-primary-border);
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.07em;
@@ -790,7 +790,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-clock-card p {
     margin: 3px 0 0;
-    color: #bfc6df;
+    color: var(--rs-primary-border);
     font-size: 11px;
 }
 .shift-create-button {
@@ -799,7 +799,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     cursor: pointer;
     background: white;
     color: var(--shift-ink);
-    box-shadow: 0 12px 25px rgba(8, 12, 34, 0.16);
+    box-shadow: 0 12px 25px rgba(var(--rs-primary-deep-rgb), 0.16);
     transition: transform 0.18s ease;
 }
 .shift-create-button:hover {
@@ -807,7 +807,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-create-button > span {
     color: var(--shift-primary);
-    background: #eef0ff;
+    background: var(--rs-primary-soft);
 }
 .shift-create-button div {
     display: grid;
@@ -815,7 +815,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-create-button small {
     margin-top: 3px;
-    color: #7e879b;
+    color: var(--rs-muted);
 }
 .shift-create-button > svg {
     width: 18px;
@@ -836,7 +836,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     border: 1px solid var(--shift-line);
     border-radius: 17px;
     background: white;
-    box-shadow: 0 8px 24px rgba(30, 41, 59, 0.045);
+    box-shadow: 0 8px 24px rgba(var(--rs-ink-rgb), 0.045);
 }
 .shift-overview-icon {
     display: grid;
@@ -867,26 +867,26 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-overview article > div > span {
     overflow: hidden;
-    color: #8992a3;
+    color: var(--rs-muted);
     font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 .tone-indigo .shift-overview-icon {
-    color: #5d68df;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .tone-amber .shift-overview-icon {
     color: #db8a12;
     background: #fff6df;
 }
 .tone-cyan .shift-overview-icon {
-    color: #159d9a;
+    color: var(--rs-primary-hover);
     background: #e4faf7;
 }
 .tone-violet .shift-overview-icon {
-    color: #8b5bd9;
-    background: #f3ebff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 
 .shift-directory {
@@ -894,7 +894,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     border: 1px solid var(--shift-line);
     border-radius: 20px;
     background: white;
-    box-shadow: 0 12px 35px rgba(30, 41, 59, 0.055);
+    box-shadow: 0 12px 35px rgba(var(--rs-ink-rgb), 0.055);
 }
 .shift-directory-header {
     display: flex;
@@ -942,25 +942,25 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     position: absolute;
     left: 14px;
     width: 17px;
-    color: #8a93a5;
+    color: var(--rs-muted);
 }
 .shift-filter input {
     width: 100%;
     height: 43px;
     padding: 0 42px;
-    border: 1px solid #dfe3eb;
+    border: 1px solid var(--rs-border);
     border-radius: 12px;
     outline: none;
     color: var(--shift-ink);
-    background: #fafbfc;
+    background: var(--rs-canvas);
     font-size: 12px;
     transition:
         border 0.15s,
         box-shadow 0.15s;
 }
 .shift-filter input:focus {
-    border-color: #929afa;
-    box-shadow: 0 0 0 3px rgba(98, 111, 238, 0.12);
+    border-color: var(--rs-primary-pale);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.12);
     background: white;
 }
 .shift-filter label button {
@@ -972,7 +972,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     place-items: center;
     border: 0;
     border-radius: 8px;
-    color: #8b94a6;
+    color: var(--rs-muted);
     background: transparent;
 }
 .shift-filter label button svg {
@@ -1003,8 +1003,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-table th {
     padding: 12px 18px;
-    color: #7b8496;
-    background: #fafbfc;
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -1014,7 +1014,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-table td {
     padding: 15px 18px;
-    border-top: 1px solid #edf0f4;
+    border-top: 1px solid var(--rs-surface-muted);
     color: var(--shift-ink);
     font-size: 12px;
     vertical-align: middle;
@@ -1023,7 +1023,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     transition: background 0.15s;
 }
 .shift-table tbody tr:hover {
-    background: #fbfbff;
+    background: var(--rs-canvas);
 }
 .shift-name {
     display: flex;
@@ -1039,7 +1039,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     place-items: center;
     border-radius: 12px;
     color: var(--shift-primary);
-    background: #eef0ff;
+    background: var(--rs-primary-soft);
 }
 .shift-name svg {
     width: 18px;
@@ -1053,7 +1053,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-name small {
     margin-top: 2px;
-    color: #98a0ae;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .shift-time {
@@ -1074,8 +1074,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     background: #fff7e6;
 }
 .shift-time.end {
-    color: #6551b9;
-    background: #f2efff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .shift-duration {
     display: block;
@@ -1085,7 +1085,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-next-day {
     display: block;
     margin-top: 3px;
-    color: #795bc4;
+    color: var(--rs-primary);
     font-size: 9px;
 }
 .shift-updated {
@@ -1102,16 +1102,16 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     width: 31px;
     height: 31px;
     place-items: center;
-    border: 1px solid #e2e6ed;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
-    color: #657086;
+    color: var(--rs-text-soft);
     background: white;
     transition: 0.15s;
 }
 .shift-actions button:hover {
     color: var(--shift-primary);
-    border-color: #cfd3ff;
-    background: #f4f5ff;
+    border-color: var(--rs-primary-border);
+    background: var(--rs-canvas);
 }
 .shift-actions button.danger:hover {
     color: #d9475b;
@@ -1139,7 +1139,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     place-items: center;
     border-radius: 20px;
     color: var(--shift-primary);
-    background: #eef0ff;
+    background: var(--rs-primary-soft);
 }
 .shift-empty > span svg {
     width: 28px;
@@ -1179,17 +1179,17 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     display: grid;
     gap: 18px;
     padding: 22px;
-    background: #f7f8fb;
+    background: var(--rs-canvas);
 }
 .shift-form-summary {
     display: flex;
     align-items: center;
     gap: 13px;
     padding: 16px;
-    border: 1px solid #e2e6f1;
+    border: 1px solid var(--rs-border);
     border-radius: 15px;
     color: white;
-    background: linear-gradient(120deg, #252e5b, #5c66d5);
+    background: linear-gradient(120deg, var(--rs-primary-hover), var(--rs-primary));
 }
 .shift-form-summary > span {
     display: grid;
@@ -1198,7 +1198,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     flex: 0 0 auto;
     place-items: center;
     border-radius: 12px;
-    color: #bec5ff;
+    color: var(--rs-primary-border);
     background: rgba(255, 255, 255, 0.1);
 }
 .shift-form-summary svg {
@@ -1209,7 +1209,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     flex: 1;
 }
 .shift-form-summary small {
-    color: #c8cee8;
+    color: var(--rs-primary-pale);
     font-size: 9px;
     font-weight: 750;
     letter-spacing: 0.08em;
@@ -1224,7 +1224,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     align-items: center;
     gap: 5px;
     margin: 0;
-    color: #d7dbed;
+    color: var(--rs-primary-border);
     font-size: 10px;
 }
 .shift-form-summary p svg {
@@ -1273,10 +1273,10 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     justify-content: center;
     gap: 6px;
     padding: 8px 11px;
-    border: 1px solid #cfd4ff;
+    border: 1px solid var(--rs-primary-border);
     border-radius: 9px;
-    color: #5965dc;
-    background: #f0f2ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
     font-size: 10px;
     font-weight: 750;
 }
@@ -1295,10 +1295,10 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-input-card {
     overflow: hidden;
-    border: 1px solid #e0e4ec;
+    border: 1px solid var(--rs-border);
     border-radius: 15px;
     background: white;
-    box-shadow: 0 6px 18px rgba(30, 41, 59, 0.035);
+    box-shadow: 0 6px 18px rgba(var(--rs-ink-rgb), 0.035);
 }
 .shift-input-card.single {
     padding: 18px;
@@ -1308,8 +1308,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     align-items: center;
     gap: 10px;
     padding: 11px 15px;
-    border-bottom: 1px solid #edf0f5;
-    background: #fafbfc;
+    border-bottom: 1px solid var(--rs-surface-muted);
+    background: var(--rs-canvas);
 }
 .shift-input-card > header > span {
     display: grid;
@@ -1318,7 +1318,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     place-items: center;
     border-radius: 9px;
     color: var(--shift-primary);
-    background: #e9ebff;
+    background: var(--rs-primary-soft);
     font-size: 10px;
     font-weight: 800;
 }
@@ -1331,7 +1331,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     font-size: 11px;
 }
 .shift-input-card > header small {
-    color: #8b94a5;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .shift-input-card > header button {
@@ -1345,8 +1345,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     background: #fff0f2;
 }
 .shift-input-card > header button:disabled {
-    color: #b5bbc7;
-    background: #f0f2f5;
+    color: var(--rs-muted-light);
+    background: var(--rs-surface-muted);
 }
 .shift-input-card > header button svg {
     width: 14px;
@@ -1366,7 +1366,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-field label {
     display: block;
     margin-bottom: 6px;
-    color: #475167;
+    color: var(--rs-ink);
     font-size: 10px;
     font-weight: 750;
 }
@@ -1375,7 +1375,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-field label small {
     float: right;
-    color: #8b94a5;
+    color: var(--rs-muted);
     font-size: 8px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -1390,23 +1390,23 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     position: absolute;
     left: 11px;
     width: 15px;
-    color: #8b94a5;
+    color: var(--rs-muted);
     pointer-events: none;
 }
 .shift-field input {
     width: 100%;
     height: 40px;
     padding: 0 10px 0 34px;
-    border: 1px solid #dce1e9;
+    border: 1px solid var(--rs-border);
     border-radius: 10px;
     outline: none;
     color: var(--shift-ink);
-    background: #fbfcfd;
+    background: var(--rs-surface-subtle);
     font-size: 11px;
 }
 .shift-field input:focus {
-    border-color: #929afa;
-    box-shadow: 0 0 0 3px rgba(98, 111, 238, 0.1);
+    border-color: var(--rs-primary-pale);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.1);
     background: white;
 }
 .shift-field > div.invalid input {
@@ -1429,9 +1429,9 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     align-items: center;
     gap: 6px;
     padding: 9px 15px;
-    border-top: 1px solid #edf0f5;
-    color: #6d7789;
-    background: #fcfcfd;
+    border-top: 1px solid var(--rs-surface-muted);
+    color: var(--rs-text-soft);
+    background: var(--rs-surface-subtle);
     font-size: 9px;
 }
 .shift-input-card > footer svg {
@@ -1441,8 +1441,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     margin-left: auto;
     padding: 3px 6px;
     border-radius: 6px;
-    color: #7254bb;
-    background: #f2edff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .shift-add-bottom {
     width: 100%;
@@ -1532,11 +1532,11 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
         gap: 10px;
         padding: 14px;
         border-top: 1px solid var(--shift-line);
-        background: #f8f9fb;
+        background: var(--rs-canvas);
     }
     .shift-mobile-list > article {
         padding: 14px;
-        border: 1px solid #e3e7ee;
+        border: 1px solid var(--rs-border);
         border-radius: 14px;
         background: white;
     }
@@ -1554,14 +1554,14 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
         margin-top: 13px;
         padding: 12px;
         border-radius: 11px;
-        background: #f7f8fc;
+        background: var(--rs-canvas);
         text-align: center;
     }
     .shift-mobile-times > span {
         display: grid;
     }
     .shift-mobile-times small {
-        color: #8a93a5;
+        color: var(--rs-muted);
         font-size: 9px;
         text-transform: uppercase;
     }
@@ -1571,17 +1571,17 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     }
     .shift-mobile-times > svg {
         width: 15px;
-        color: #919aab;
+        color: var(--rs-muted);
     }
     .shift-mobile-list footer {
         display: flex;
         justify-content: space-between;
         margin-top: 10px;
-        color: #667085;
+        color: var(--rs-text-soft);
         font-size: 10px;
     }
     .shift-mobile-list footer small {
-        color: #7254bb;
+        color: var(--rs-primary);
     }
     .shift-form-body {
         padding: 15px;

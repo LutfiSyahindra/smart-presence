@@ -1,19 +1,7 @@
 <script setup lang="ts">
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import {
-    ArrowRight,
-    BadgeCheck,
-    BarChart3,
-    Check,
-    ChevronRight,
-    Clock3,
-    Fingerprint,
-    HeartPulse,
-    ShieldCheck,
-    Sparkles,
-    UsersRound,
-} from 'lucide-vue-next';
+import { ArrowRight, BadgeCheck, BarChart3, Check, ChevronRight, Clock3, Fingerprint, ShieldCheck, Sparkles, UsersRound } from 'lucide-vue-next';
 </script>
 
 <template>
@@ -28,8 +16,7 @@ import {
 
         <header class="welcome-header">
             <Link :href="route('home')" class="welcome-brand" aria-label="RSARSY Presence">
-                <span class="welcome-logo"><AppLogoIcon /></span>
-                <span><strong>RSARSY</strong><small>Smart Presence</small></span>
+                <span class="welcome-logo"><AppLogoIcon variant="full" /></span>
             </Link>
 
             <nav class="welcome-nav" aria-label="Navigasi halaman">
@@ -75,7 +62,7 @@ import {
                     </div>
                     <div class="welcome-product">
                         <div class="welcome-product-bar">
-                            <span class="welcome-product-brand"><HeartPulse /> RSARSY</span>
+                            <span class="welcome-product-brand"><AppLogoIcon /> RSARSY</span>
                             <div class="welcome-window-dots"><i></i><i></i><i></i></div>
                         </div>
                         <div class="welcome-product-body">
@@ -221,18 +208,14 @@ import {
     text-decoration: none;
 }
 .welcome-logo {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
+    width: 76px;
+    height: 76px;
     display: grid;
     place-items: center;
-    color: white;
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
-    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.28);
 }
-.welcome-logo :deep(svg) {
-    width: 28px;
-    height: 28px;
+.welcome-logo :deep(img) {
+    width: 76px;
+    height: 76px;
 }
 .welcome-brand > span:last-child {
     display: flex;
@@ -444,9 +427,9 @@ import {
     font-weight: 800;
     letter-spacing: 0.06em;
 }
-.welcome-product-brand svg {
-    width: 15px;
-    color: #6366f1;
+.welcome-product-brand :deep(img) {
+    width: 22px;
+    height: 22px;
 }
 .welcome-window-dots {
     display: flex;

@@ -1158,10 +1158,10 @@ const destroy = () => {
 }
 
 .employee-master-page {
-    --employee-ink: #12302e;
+    --employee-ink: var(--rs-primary-deep);
     --employee-muted: #66807d;
     --employee-line: #dfeae8;
-    --employee-teal: #0f766e;
+    --employee-teal: var(--rs-primary-hover);
     --employee-mint: #14b8a6;
     --employee-coral: #fb7185;
     padding: 1.5rem;
@@ -1182,8 +1182,8 @@ const destroy = () => {
     overflow: hidden;
     border-radius: 2rem;
     color: #fff;
-    background: linear-gradient(125deg, #0b3d3a 0%, #0f766e 55%, #115e59 100%);
-    box-shadow: 0 28px 60px -36px rgba(15, 118, 110, 0.85);
+    background: linear-gradient(125deg, var(--rs-primary-deep) 0%, var(--rs-primary-hover) 55%, var(--rs-primary-deep) 100%);
+    box-shadow: 0 28px 60px -36px rgba(var(--rs-primary-hover-rgb), 0.85);
 }
 
 .employee-orb {
@@ -1271,7 +1271,7 @@ const destroy = () => {
 .employee-hero-copy > p {
     max-width: 38rem;
     margin: 0;
-    color: rgba(236, 254, 255, 0.76);
+    color: rgba(var(--rs-primary-soft-rgb), 0.76);
     font-size: 1rem;
     line-height: 1.75;
 }
@@ -1307,7 +1307,7 @@ const destroy = () => {
     padding: 1.35rem;
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 1.35rem;
-    background: rgba(4, 47, 46, 0.45);
+    background: rgba(var(--rs-primary-deep-rgb), 0.45);
     backdrop-filter: blur(14px);
 }
 
@@ -1372,7 +1372,7 @@ const destroy = () => {
     height: 2.8rem;
     margin-right: -0.55rem;
     place-items: center;
-    border: 3px solid #115e59;
+    border: 3px solid var(--rs-primary-deep);
     border-radius: 50%;
     color: #fff;
     font-size: 0.72rem;
@@ -1380,8 +1380,8 @@ const destroy = () => {
 }
 
 .employee-avatar-more {
-    color: #164e63;
-    background: #cffafe;
+    color: var(--rs-primary-deep);
+    background: var(--rs-primary-border);
 }
 
 .employee-avatar-empty {
@@ -1397,16 +1397,16 @@ const destroy = () => {
 }
 
 .tone-1 {
-    background: linear-gradient(135deg, #14b8a6, #0f766e);
+    background: linear-gradient(135deg, #14b8a6, var(--rs-primary-hover));
 }
 .tone-2 {
     background: linear-gradient(135deg, #fb7185, #e11d48);
 }
 .tone-3 {
-    background: linear-gradient(135deg, #38bdf8, #0369a1);
+    background: linear-gradient(135deg, var(--rs-primary), var(--rs-primary-hover));
 }
 .tone-4 {
-    background: linear-gradient(135deg, #a78bfa, #6d28d9);
+    background: linear-gradient(135deg, var(--rs-primary-pale), var(--rs-primary));
 }
 .tone-5 {
     background: linear-gradient(135deg, #fbbf24, #d97706);
@@ -1454,10 +1454,10 @@ const destroy = () => {
     padding: 0.85rem 1rem;
     border: 0;
     border-radius: 1.15rem;
-    color: #134e4a;
+    color: var(--rs-primary-deep);
     text-align: left;
     background: #fff;
-    box-shadow: 0 15px 30px -22px #020617;
+    box-shadow: 0 15px 30px -22px var(--rs-primary-deep);
     transition:
         transform 0.2s ease,
         box-shadow 0.2s ease;
@@ -1465,7 +1465,7 @@ const destroy = () => {
 
 .employee-hero-action:hover {
     transform: translateY(-2px);
-    box-shadow: 0 20px 35px -22px #020617;
+    box-shadow: 0 20px 35px -22px var(--rs-primary-deep);
 }
 
 .employee-hero-action > span:first-child {
@@ -1517,7 +1517,7 @@ const destroy = () => {
     border: 1px solid var(--employee-line);
     border-radius: 1.25rem;
     background: rgba(255, 255, 255, 0.88);
-    box-shadow: 0 12px 28px -28px rgba(15, 61, 58, 0.6);
+    box-shadow: 0 12px 28px -28px rgba(var(--rs-primary-deep-rgb), 0.6);
 }
 
 .employee-stat-icon {
@@ -1533,7 +1533,7 @@ const destroy = () => {
     width: 1.3rem;
 }
 .employee-stat-card.is-teal .employee-stat-icon {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #ccfbf1;
 }
 .employee-stat-card.is-coral .employee-stat-icon {
@@ -1541,12 +1541,12 @@ const destroy = () => {
     background: #ffe4e6;
 }
 .employee-stat-card.is-sky .employee-stat-icon {
-    color: #0369a1;
-    background: #e0f2fe;
+    color: var(--rs-primary-hover);
+    background: var(--rs-primary-soft);
 }
 .employee-stat-card.is-violet .employee-stat-icon {
-    color: #6d28d9;
-    background: #ede9fe;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 
 .employee-stat-card small,
@@ -1579,7 +1579,7 @@ const destroy = () => {
     border: 1px solid var(--employee-line);
     border-radius: 1.5rem;
     background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 20px 45px -40px rgba(15, 61, 58, 0.55);
+    box-shadow: 0 20px 45px -40px rgba(var(--rs-primary-deep-rgb), 0.55);
 }
 
 .employee-directory-header {
@@ -1704,9 +1704,9 @@ const destroy = () => {
 }
 
 .employee-filter-pills button.active {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #fff;
-    box-shadow: 0 3px 9px rgba(15, 118, 110, 0.1);
+    box-shadow: 0 3px 9px rgba(var(--rs-primary-hover-rgb), 0.1);
 }
 .employee-filter-pills svg {
     width: 0.9rem;
@@ -1796,9 +1796,9 @@ const destroy = () => {
 
 .employee-batch-button:disabled {
     cursor: not-allowed;
-    border-color: #e2e8f0;
-    color: #94a3b8;
-    background: #f8fafc;
+    border-color: var(--rs-border);
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
 }
 
 .employee-create-button svg,
@@ -1895,8 +1895,8 @@ const destroy = () => {
     margin-top: 0.3rem;
     padding: 0.18rem 0.42rem;
     border-radius: 999px;
-    color: #64748b;
-    background: #f1f5f9;
+    color: var(--rs-text-soft);
+    background: var(--rs-primary-soft);
     font-size: 0.56rem;
     font-style: normal;
     font-weight: 800;
@@ -1913,7 +1913,7 @@ const destroy = () => {
 }
 .employee-account-badge.active,
 .employee-mobile-account.active {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #ccfbf1;
 }
 .employee-org {
@@ -1979,7 +1979,7 @@ const destroy = () => {
 }
 .employee-phone,
 .employee-email {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     text-decoration: none;
     font-weight: 700;
 }
@@ -2032,11 +2032,11 @@ const destroy = () => {
 }
 .employee-row-actions button:hover {
     border-color: #99f6e4;
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #f0fdfa;
 }
 .employee-row-actions button.account {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #f0fdfa;
 }
 .employee-row-actions button.account:hover {
@@ -2051,9 +2051,9 @@ const destroy = () => {
 .employee-row-actions button:disabled,
 .employee-row-actions button:disabled:hover {
     cursor: not-allowed;
-    border-color: #e2e8f0;
-    color: #94a3b8;
-    background: #f8fafc;
+    border-color: var(--rs-border);
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
     opacity: 0.65;
 }
 .employee-row-actions svg {
@@ -2082,7 +2082,7 @@ const destroy = () => {
     height: 4rem;
     place-items: center;
     border-radius: 1.25rem;
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: linear-gradient(135deg, #ccfbf1, #f0fdfa);
 }
 .employee-empty-state svg {
@@ -2136,7 +2136,7 @@ const destroy = () => {
     border-radius: 1rem;
     color: inherit;
     text-decoration: none;
-    background: linear-gradient(135deg, #f0fdfa, #ecfeff);
+    background: linear-gradient(135deg, #f0fdfa, var(--rs-primary-soft));
     transition:
         transform 0.18s,
         border-color 0.18s;
@@ -2154,7 +2154,7 @@ const destroy = () => {
     place-items: center;
     border-radius: 0.85rem;
     color: #fff;
-    background: linear-gradient(135deg, #14b8a6, #0f766e);
+    background: linear-gradient(135deg, #14b8a6, var(--rs-primary-hover));
 }
 .employee-template-icon svg {
     width: 1.25rem;
@@ -2169,7 +2169,7 @@ const destroy = () => {
     display: block;
 }
 .employee-template-card small {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     font-size: 0.62rem;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -2190,7 +2190,7 @@ const destroy = () => {
 }
 .employee-template-card > svg {
     width: 1.1rem;
-    color: #0f766e;
+    color: var(--rs-primary-hover);
 }
 .employee-import-divider {
     display: flex;
@@ -2250,7 +2250,7 @@ const destroy = () => {
     margin-bottom: 0.25rem;
     place-items: center;
     border-radius: 1rem;
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #ccfbf1;
 }
 .employee-dropzone.selected .employee-drop-icon {
@@ -2323,8 +2323,8 @@ const destroy = () => {
 }
 .employee-button.primary {
     color: #fff;
-    background: linear-gradient(135deg, #14b8a6, #0f766e);
-    box-shadow: 0 10px 20px -14px #0f766e;
+    background: linear-gradient(135deg, #14b8a6, var(--rs-primary-hover));
+    box-shadow: 0 10px 20px -14px var(--rs-primary-hover);
 }
 .employee-button:disabled {
     cursor: not-allowed;
@@ -2351,7 +2351,7 @@ const destroy = () => {
     color: #fff;
     font-size: 0.82rem;
     font-weight: 800;
-    background: linear-gradient(135deg, #14b8a6, #0f766e);
+    background: linear-gradient(135deg, #14b8a6, var(--rs-primary-hover));
 }
 .employee-profile-preview small,
 .employee-profile-preview strong,
@@ -2359,7 +2359,7 @@ const destroy = () => {
     display: block;
 }
 .employee-profile-preview small {
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     font-size: 0.6rem;
     font-weight: 800;
     text-transform: uppercase;
@@ -2392,7 +2392,7 @@ const destroy = () => {
     flex: 0 0 auto;
     place-items: center;
     border-radius: 0.75rem;
-    color: #0f766e;
+    color: var(--rs-primary-hover);
     background: #ccfbf1;
 }
 .employee-invite-summary svg,
@@ -2477,8 +2477,8 @@ const destroy = () => {
 }
 .employee-form-field input:read-only {
     cursor: not-allowed;
-    color: #64748b;
-    background: #f8fafc;
+    color: var(--rs-text-soft);
+    background: var(--rs-canvas);
 }
 .employee-form-grid {
     display: grid;
@@ -2687,8 +2687,8 @@ const destroy = () => {
         width: fit-content;
         padding: 0.25rem 0.45rem;
         border-radius: 999px;
-        color: #64748b;
-        background: #f1f5f9;
+        color: var(--rs-text-soft);
+        background: var(--rs-primary-soft);
         font-weight: 800;
     }
     :global(.dark) .employee-mobile-card {

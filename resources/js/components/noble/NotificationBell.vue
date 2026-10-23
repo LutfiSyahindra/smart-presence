@@ -247,11 +247,11 @@ onBeforeUnmount(() => {
     right: 0;
     z-index: 1100;
     width: min(390px, calc(100vw - 28px));
-    border: 1px solid #e6e8ef;
+    border: 1px solid var(--rs-border);
     border-radius: 14px;
     background: #fff;
-    color: #263049;
-    box-shadow: 0 15px 50px #23335324;
+    color: var(--rs-ink);
+    box-shadow: 0 15px 50px rgba(var(--rs-primary-deep-rgb), 0.141);
     overflow: hidden;
 }
 .notification-panel header {
@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
     gap: 5px;
     border: 0;
     background: transparent;
-    color: #6f60c6;
+    color: var(--rs-primary);
     font-size: 11px;
 }
 .notification-panel button:disabled {
@@ -279,7 +279,7 @@ onBeforeUnmount(() => {
 }
 .notification-push {
     padding: 12px 17px;
-    background: #f6f5fc;
+    background: var(--rs-primary-soft);
     font-size: 11px;
 }
 .notification-push p {
@@ -293,13 +293,13 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 10px;
     padding: 14px 17px;
-    border-bottom: 1px solid #f0f1f5;
+    border-bottom: 1px solid var(--rs-surface-muted);
     color: inherit;
     text-decoration: none;
 }
 .notification-item:hover,
 .notification-item.unread {
-    background: #faf9ff;
+    background: var(--rs-canvas);
 }
 .notification-item > span:last-child {
     display: grid;
@@ -313,11 +313,11 @@ onBeforeUnmount(() => {
 .notification-item span span {
     font-size: 11px;
     line-height: 1.6;
-    color: #70798c;
+    color: var(--rs-text-soft);
 }
 .notification-item small {
     font-size: 10px;
-    color: #81899c;
+    color: var(--rs-muted);
 }
 .notification-dot {
     width: 7px;
@@ -327,22 +327,22 @@ onBeforeUnmount(() => {
     border-radius: 50%;
 }
 .notification-dot.unread {
-    background: #7a69d3;
+    background: var(--rs-primary);
 }
 .notification-empty {
     padding: 24px;
     margin: 0;
     text-align: center;
     font-size: 12px;
-    color: #81899c;
+    color: var(--rs-muted);
 }
 .notification-footer {
     display: block;
     padding: 14px;
     text-align: center;
     font-size: 12px;
-    color: #6f60c6;
-    border-top: 1px solid #e6e8ef;
+    color: var(--rs-primary);
+    border-top: 1px solid var(--rs-border);
 }
 .notification-toast {
     position: fixed;
@@ -354,11 +354,11 @@ onBeforeUnmount(() => {
     gap: 12px;
     width: min(390px, calc(100vw - 40px));
     padding: 18px;
-    border: 1px solid #dedaf6;
+    border: 1px solid var(--rs-primary-border);
     border-radius: 14px;
     background: #fff;
-    color: #6f60c6;
-    box-shadow: 0 12px 45px #23335329;
+    color: var(--rs-primary);
+    box-shadow: 0 12px 45px rgba(var(--rs-primary-deep-rgb), 0.161);
 }
 .notification-toast > svg {
     width: 22px;
@@ -368,20 +368,20 @@ onBeforeUnmount(() => {
 .notification-toast a {
     display: grid;
     gap: 7px;
-    color: #263049;
+    color: var(--rs-ink);
     text-decoration: none;
     font-size: 12px;
     line-height: 1.6;
 }
 .notification-toast span {
-    color: #70798c;
+    color: var(--rs-text-soft);
     font-size: 11px;
 }
 .notification-toast button {
     border: 0;
     padding: 0;
     background: transparent;
-    color: #81899c;
+    color: var(--rs-muted);
 }
 .notification-toast button svg {
     width: 16px;

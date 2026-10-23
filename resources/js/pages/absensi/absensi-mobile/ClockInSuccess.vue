@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { usePermission } from '@/composables/usePermission';
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowRight, Building2, CalendarDays, Check, Clock3, Home, MapPin, ShieldCheck, Sparkles, X } from 'lucide-vue-next';
@@ -45,8 +46,7 @@ const { can } = usePermission();
             <header class="success-header">
                 <Link :href="route('absensi.mobile.home')" class="close-button" aria-label="Kembali ke beranda"><X /></Link>
                 <div class="brand-mark">
-                    <span>RSARSY</span>
-                    <small>Presence</small>
+                    <AppLogoIcon variant="full" class="size-16" />
                 </div>
                 <span class="secure-mark" aria-label="Data presensi tersimpan aman"><ShieldCheck /></span>
             </header>
@@ -237,22 +237,6 @@ const { can } = usePermission();
     align-items: center;
     justify-content: center;
     flex-direction: column;
-}
-
-.brand-mark span {
-    color: #173d40;
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 0.15em;
-}
-
-.brand-mark small {
-    margin-top: 1px;
-    color: #aa8248;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
 }
 
 .success-content {

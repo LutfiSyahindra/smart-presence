@@ -455,10 +455,10 @@ const mapsUrl = (location: OfficeLocation) =>
 <style scoped>
 .geo-page,
 .geo-form {
-    --geo-ink: #172033;
-    --geo-muted: #697386;
-    --geo-line: #e6eaf1;
-    --geo-primary: #5549d8;
+    --geo-ink: var(--rs-primary-deep);
+    --geo-muted: var(--rs-text-soft);
+    --geo-line: var(--rs-surface-muted);
+    --geo-primary: var(--rs-primary);
 }
 .geo-page {
     display: grid;
@@ -474,8 +474,8 @@ const mapsUrl = (location: OfficeLocation) =>
     padding: 42px 46px;
     border-radius: 22px;
     color: white;
-    background: linear-gradient(125deg, #111a34 0%, #25315e 54%, #4c4fbd 100%);
-    box-shadow: 0 22px 48px rgba(28, 35, 84, 0.2);
+    background: linear-gradient(125deg, var(--rs-primary-deep) 0%, var(--rs-primary-hover) 54%, var(--rs-primary) 100%);
+    box-shadow: 0 22px 48px rgba(var(--rs-primary-deep-rgb), 0.2);
 }
 .geo-grid {
     position: absolute;
@@ -538,12 +538,12 @@ const mapsUrl = (location: OfficeLocation) =>
     letter-spacing: -0.04em;
 }
 .geo-hero h1 span {
-    color: #92eadc;
+    color: var(--rs-gold-light);
 }
 .geo-hero-copy > p {
     max-width: 650px;
     margin: 17px 0 20px;
-    color: rgba(238, 242, 255, 0.75);
+    color: rgba(var(--rs-primary-soft-rgb), 0.75);
     font-size: 14px;
     line-height: 1.7;
 }
@@ -556,7 +556,7 @@ const mapsUrl = (location: OfficeLocation) =>
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    color: #dfe8ff;
+    color: var(--rs-primary-soft);
     font-size: 12px;
     font-weight: 600;
 }
@@ -579,7 +579,7 @@ const mapsUrl = (location: OfficeLocation) =>
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 50%;
-    background: rgba(15, 23, 42, 0.23);
+    background: rgba(var(--rs-primary-deep-rgb), 0.23);
     box-shadow: inset 0 0 40px rgba(110, 231, 215, 0.08);
 }
 .geo-radar > svg {
@@ -590,9 +590,9 @@ const mapsUrl = (location: OfficeLocation) =>
     overflow: visible;
     border-radius: 50%;
     color: white;
-    background: #645ce7;
+    background: var(--rs-primary);
     box-shadow:
-        0 0 0 7px rgba(100, 92, 231, 0.25),
+        0 0 0 7px rgba(var(--rs-primary-rgb), 0.25),
         0 7px 22px rgba(0, 0, 0, 0.25);
 }
 .radar-ring {
@@ -634,7 +634,7 @@ const mapsUrl = (location: OfficeLocation) =>
     font-size: 18px;
 }
 .geo-hero-stats span {
-    color: rgba(234, 240, 255, 0.68);
+    color: rgba(var(--rs-primary-soft-rgb), 0.68);
     font-size: 10px;
 }
 .geo-hero-stats i {
@@ -650,9 +650,9 @@ const mapsUrl = (location: OfficeLocation) =>
     padding: 10px 14px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 13px;
-    color: #202842;
+    color: var(--rs-ink);
     background: white;
-    box-shadow: 0 10px 24px rgba(10, 16, 42, 0.2);
+    box-shadow: 0 10px 24px rgba(var(--rs-primary-deep-rgb), 0.2);
     text-align: left;
 }
 .geo-primary-action > span {
@@ -662,7 +662,7 @@ const mapsUrl = (location: OfficeLocation) =>
     place-items: center;
     border-radius: 10px;
     color: white;
-    background: linear-gradient(145deg, #5c55df, #7768e9);
+    background: linear-gradient(145deg, var(--rs-primary), var(--rs-primary));
 }
 .geo-primary-action svg {
     width: 17px;
@@ -674,7 +674,7 @@ const mapsUrl = (location: OfficeLocation) =>
     font-size: 12px;
 }
 .geo-primary-action small {
-    color: #7b8496;
+    color: var(--rs-muted);
     font-size: 10px;
 }
 .geo-summary {
@@ -691,7 +691,7 @@ const mapsUrl = (location: OfficeLocation) =>
     border: 1px solid var(--geo-line);
     border-radius: 17px;
     background: #fff;
-    box-shadow: 0 9px 25px rgba(33, 42, 75, 0.055);
+    box-shadow: 0 9px 25px rgba(var(--rs-primary-deep-rgb), 0.055);
 }
 .summary-icon {
     display: grid;
@@ -705,8 +705,8 @@ const mapsUrl = (location: OfficeLocation) =>
     width: 20px;
 }
 .summary-icon.indigo {
-    color: #5146d1;
-    background: #eeecff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .summary-icon.teal {
     color: #0f9688;
@@ -733,7 +733,7 @@ const mapsUrl = (location: OfficeLocation) =>
 }
 .geo-summary p {
     margin: 0;
-    color: #8a94a6;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .geo-directory {
@@ -741,7 +741,7 @@ const mapsUrl = (location: OfficeLocation) =>
     border: 1px solid var(--geo-line);
     border-radius: 20px;
     background: #fff;
-    box-shadow: 0 12px 32px rgba(33, 42, 75, 0.06);
+    box-shadow: 0 12px 32px rgba(var(--rs-primary-deep-rgb), 0.06);
 }
 .geo-directory > header {
     display: flex;
@@ -751,7 +751,7 @@ const mapsUrl = (location: OfficeLocation) =>
     margin-bottom: 23px;
 }
 .geo-section-kicker {
-    color: #5d55d9;
+    color: var(--rs-primary);
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.12em;
@@ -793,9 +793,9 @@ const mapsUrl = (location: OfficeLocation) =>
     position: relative;
     overflow: hidden;
     padding: 18px;
-    border: 1px solid #e3e7ef;
+    border: 1px solid var(--rs-border);
     border-radius: 17px;
-    background: linear-gradient(145deg, #fff, #fbfcff);
+    background: linear-gradient(145deg, #fff, var(--rs-canvas));
     transition:
         transform 0.2s ease,
         box-shadow 0.2s ease,
@@ -803,8 +803,8 @@ const mapsUrl = (location: OfficeLocation) =>
 }
 .geo-location-card:hover {
     transform: translateY(-3px);
-    border-color: #cecafa;
-    box-shadow: 0 13px 27px rgba(63, 56, 135, 0.1);
+    border-color: var(--rs-primary-border);
+    box-shadow: 0 13px 27px rgba(var(--rs-primary-hover-rgb), 0.1);
 }
 .geo-location-card::before {
     position: absolute;
@@ -813,7 +813,7 @@ const mapsUrl = (location: OfficeLocation) =>
     width: 100%;
     height: 3px;
     content: '';
-    background: linear-gradient(90deg, #6058db, #57c9b8);
+    background: linear-gradient(90deg, var(--rs-primary), #57c9b8);
 }
 .location-card-top {
     display: flex;
@@ -821,7 +821,7 @@ const mapsUrl = (location: OfficeLocation) =>
     justify-content: space-between;
 }
 .location-number {
-    color: #a0a8b8;
+    color: var(--rs-muted);
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.12em;
@@ -835,15 +835,15 @@ const mapsUrl = (location: OfficeLocation) =>
     width: 29px;
     height: 29px;
     place-items: center;
-    border: 1px solid #e5e7ed;
+    border: 1px solid var(--rs-border);
     border-radius: 8px;
-    color: #677084;
+    color: var(--rs-text-soft);
     background: #fff;
 }
 .location-actions button:hover {
-    color: #5148ce;
-    border-color: #cbc7f7;
-    background: #f6f5ff;
+    color: var(--rs-primary);
+    border-color: var(--rs-primary-border);
+    background: var(--rs-canvas);
 }
 .location-actions button.danger:hover {
     color: #dc3545;
@@ -861,8 +861,8 @@ const mapsUrl = (location: OfficeLocation) =>
     place-items: center;
     border-radius: 14px;
     color: #fff;
-    background: linear-gradient(145deg, #5650d8, #7a65e6);
-    box-shadow: 0 8px 18px rgba(78, 70, 197, 0.24);
+    background: linear-gradient(145deg, var(--rs-primary), var(--rs-primary));
+    box-shadow: 0 8px 18px rgba(var(--rs-primary-rgb), 0.24);
 }
 .location-pin svg {
     width: 20px;
@@ -875,7 +875,7 @@ const mapsUrl = (location: OfficeLocation) =>
 .location-address {
     min-height: 36px;
     margin: 5px 0 15px;
-    color: #7a8497;
+    color: var(--rs-muted);
     font-size: 11px;
     line-height: 1.55;
 }
@@ -885,7 +885,7 @@ const mapsUrl = (location: OfficeLocation) =>
     gap: 7px;
     padding: 10px;
     border-radius: 11px;
-    background: #f6f7fb;
+    background: var(--rs-primary-soft);
 }
 .location-data div {
     display: grid;
@@ -893,13 +893,13 @@ const mapsUrl = (location: OfficeLocation) =>
     min-width: 0;
 }
 .location-data span {
-    color: #949cad;
+    color: var(--rs-muted);
     font-size: 9px;
     text-transform: uppercase;
 }
 .location-data strong {
     overflow: hidden;
-    color: #394158;
+    color: var(--rs-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 10px;
     text-overflow: ellipsis;
@@ -919,13 +919,13 @@ const mapsUrl = (location: OfficeLocation) =>
     font-size: 10px;
 }
 .geo-location-card footer > span {
-    color: #657084;
+    color: var(--rs-text-soft);
 }
 .geo-location-card footer > span strong {
-    color: #252e44;
+    color: var(--rs-ink);
 }
 .geo-location-card footer a {
-    color: #554bd4;
+    color: var(--rs-primary);
     font-weight: 700;
     text-decoration: none;
 }
@@ -945,8 +945,8 @@ const mapsUrl = (location: OfficeLocation) =>
     height: 68px;
     place-items: center;
     border-radius: 20px;
-    color: #635ada;
-    background: #f0efff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .geo-empty > span svg {
     width: 30px;
@@ -984,15 +984,15 @@ const mapsUrl = (location: OfficeLocation) =>
     gap: 8px;
     margin-top: 10px;
     padding: 11px;
-    border: 1px solid #d8dcf4;
+    border: 1px solid var(--rs-primary-border);
     border-radius: 11px;
-    color: #4e47c4;
-    background: #f7f7ff;
+    color: var(--rs-primary);
+    background: var(--rs-canvas);
     font-size: 12px;
     font-weight: 700;
 }
 .current-location-button:hover:not(:disabled) {
-    background: #efeeff;
+    background: var(--rs-primary-soft);
 }
 .current-location-button:disabled {
     opacity: 0.65;
@@ -1026,7 +1026,7 @@ const mapsUrl = (location: OfficeLocation) =>
     align-items: center;
     justify-content: space-between;
     margin: 0 0 6px;
-    color: #3d465b;
+    color: var(--rs-ink);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1036,7 +1036,7 @@ const mapsUrl = (location: OfficeLocation) =>
 }
 .geo-field label span {
     margin-left: auto;
-    color: #5c53d6;
+    color: var(--rs-primary);
     font-size: 10px;
 }
 .geo-field > div:not(.radius-scale) {
@@ -1045,7 +1045,7 @@ const mapsUrl = (location: OfficeLocation) =>
     gap: 8px;
     min-height: 41px;
     padding: 0 11px;
-    border: 1px solid #dfe3eb;
+    border: 1px solid var(--rs-border);
     border-radius: 10px;
     background: #fff;
     transition:
@@ -1053,8 +1053,8 @@ const mapsUrl = (location: OfficeLocation) =>
         box-shadow 0.2s;
 }
 .geo-field > div:focus-within {
-    border-color: #756ee2;
-    box-shadow: 0 0 0 3px rgba(103, 93, 220, 0.1);
+    border-color: var(--rs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.1);
 }
 .geo-field > div.invalid {
     border-color: #e66472;
@@ -1063,14 +1063,14 @@ const mapsUrl = (location: OfficeLocation) =>
 .geo-field div > svg {
     width: 15px;
     flex: 0 0 auto;
-    color: #8c95a7;
+    color: var(--rs-muted);
 }
 .geo-field input,
 .geo-field textarea {
     width: 100%;
     border: 0;
     outline: 0;
-    color: #273047;
+    color: var(--rs-ink);
     background: transparent;
     font-size: 12px;
 }
@@ -1082,7 +1082,7 @@ const mapsUrl = (location: OfficeLocation) =>
     resize: none;
 }
 .geo-field em {
-    color: #929aaa;
+    color: var(--rs-muted);
     font-size: 10px;
     font-style: normal;
 }
@@ -1103,8 +1103,8 @@ const mapsUrl = (location: OfficeLocation) =>
     height: 31px;
     place-items: center;
     border-radius: 9px;
-    color: #5750d4;
-    background: #eeedff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .coordinate-heading svg {
     width: 15px;
@@ -1113,11 +1113,11 @@ const mapsUrl = (location: OfficeLocation) =>
     display: grid;
 }
 .coordinate-heading strong {
-    color: #30394e;
+    color: var(--rs-ink);
     font-size: 11px;
 }
 .coordinate-heading small {
-    color: #929aaa;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .radius-field .radius-slider {
@@ -1127,7 +1127,7 @@ const mapsUrl = (location: OfficeLocation) =>
     margin: 8px 0 3px;
     padding: 0;
     border: 0;
-    accent-color: #5e55db;
+    accent-color: var(--rs-primary);
     box-shadow: none;
 }
 .radius-scale {
@@ -1136,7 +1136,7 @@ const mapsUrl = (location: OfficeLocation) =>
     justify-content: space-between;
     padding: 0 !important;
     border: 0 !important;
-    color: #9aa2b1;
+    color: var(--rs-muted);
     background: transparent !important;
     font-size: 8px;
 }
@@ -1145,10 +1145,10 @@ const mapsUrl = (location: OfficeLocation) =>
     align-items: center;
     gap: 7px;
     padding: 9px 10px;
-    border: 1px dashed #d9dde7;
+    border: 1px dashed var(--rs-border);
     border-radius: 10px;
-    color: #8a93a4;
-    background: #fafbfc;
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
     font-size: 10px;
     font-weight: 600;
 }
@@ -1167,7 +1167,7 @@ const mapsUrl = (location: OfficeLocation) =>
     gap: 15px;
 }
 .geo-form-footer > span {
-    color: #7a8496;
+    color: var(--rs-muted);
     font-size: 10px;
 }
 .geo-form-footer > div {
@@ -1258,30 +1258,30 @@ const mapsUrl = (location: OfficeLocation) =>
 :global(.dark) .geo-summary article,
 :global(.dark) .geo-directory,
 :global(.dark) .geo-location-card {
-    border-color: #2b3446;
-    background: #151c29;
+    border-color: var(--rs-ink);
+    background: var(--rs-ink);
 }
 :global(.dark) .geo-summary strong,
 :global(.dark) .geo-directory h2,
 :global(.dark) .geo-location-card h3 {
-    color: #edf2ff;
+    color: var(--rs-primary-soft);
 }
 :global(.dark) .location-data {
-    background: #202838;
+    background: var(--rs-ink);
 }
 :global(.dark) .location-data strong {
-    color: #dce4f5;
+    color: var(--rs-primary-border);
 }
 :global(.dark) .geo-field > div:not(.radius-scale) {
-    border-color: #384254;
-    background: #1a2230;
+    border-color: var(--rs-ink);
+    background: var(--rs-ink);
 }
 :global(.dark) .geo-field input,
 :global(.dark) .geo-field textarea {
-    color: #edf2ff;
+    color: var(--rs-primary-soft);
 }
 :global(.dark) .geo-field label,
 :global(.dark) .coordinate-heading strong {
-    color: #dce4f5;
+    color: var(--rs-primary-border);
 }
 </style>

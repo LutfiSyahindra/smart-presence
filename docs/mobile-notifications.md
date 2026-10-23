@@ -45,6 +45,30 @@ membuka notifikasi. Nama pegawai, jenis/tanggal cuti, dan alasan tidak dikirim
 ke provider push. Detail tersedia di aplikasi setelah autentikasi. Tidak ada
 pengiriman percobaan ke perangkat nyata dalam tes otomatis.
 
+## Logo pada notifikasi
+
+Web/admin dan PWA mobile memakai logo aplikasi berwarna sebagai `icon` serta
+siluet logo putih transparan sebagai `badge` untuk tampilan kecil yang didukung
+browser/OS. Android native memakai resource `ic_stat_notification` dari simbol
+logo yang sama, dengan aksen hijau. Resource ini dipakai oleh FCM saat aplikasi
+di latar belakang maupun oleh plugin saat aplikasi terbuka. Android mewarnai
+ikon kecil sesuai tampilan sistem, sehingga bentuk logo tetap dipakai dalam
+versi monokrom. Browser dapat tetap menampilkan identitas browser di sampingnya.
+
+iOS native menggunakan AppIcon yang dibundel dalam aplikasi. APNs tidak memiliki
+parameter untuk mengganti ikon aplikasi per notifikasi. PWA iPhone memakai ikon
+aplikasi Layar Utama; manifest dan Apple touch icon sudah menunjuk ke logo
+ARSY Presensi. Tampilan akhir mengikuti dukungan browser/OS.
+
+Perubahan Android memerlukan build dan pemasangan APK terbaru. Perubahan iOS
+memerlukan build/signing dan pemasangan aplikasi dari Xcode/TestFlight. Untuk
+web/PWA, deploy aset publik termasuk kedua service worker, buka ulang aplikasi
+agar worker diperbarui, lalu uji dengan pengajuan dan persetujuan seperti biasa.
+Jika ikon instalasi PWA masih lama, perbarui/pasang ulang PWA. Aktifkan notifikasi
+perangkat melalui Inbox dan pastikan worker antrean server berjalan.
+
+Pembuatan ulang aset dijelaskan pada [branding.md](branding.md).
+
 ## Persiapan server
 
 ```sh

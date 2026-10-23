@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
@@ -10,7 +11,6 @@ import {
     CircleUserRound,
     Clock3,
     FileText,
-    HeartPulse,
     History,
     Home,
     LogIn,
@@ -162,7 +162,7 @@ const { can } = usePermission();
                     <div class="profile-copy">
                         <p>{{ greeting }},</p>
                         <h1>{{ user.name }}</h1>
-                        <span><HeartPulse /> RSARSY Presence</span>
+                        <span><AppLogoIcon class="size-4" /> RSARSY Presence</span>
                     </div>
                 </div>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { usePermission } from '@/composables/usePermission';
 import { Head, Link } from '@inertiajs/vue3';
 import {
@@ -19,7 +20,6 @@ import {
     Navigation,
     ShieldCheck,
     Sparkles,
-    TimerReset,
     TriangleAlert,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
@@ -173,7 +173,7 @@ const { can } = usePermission();
                     <ArrowLeft />
                 </MobileBackLink>
                 <div class="header-title">
-                    <span class="brand-mark"><TimerReset /></span>
+                    <span class="brand-mark"><AppLogoIcon /></span>
                     <span><small>RSARSY Presence</small><strong>Layanan Presensi</strong></span>
                 </div>
                 <span class="secure-indicator" aria-label="Koneksi aman"><ShieldCheck /></span>
@@ -546,12 +546,13 @@ const { can } = usePermission();
     place-items: center;
     border-radius: 12px;
     color: #f6fffc;
-    background: linear-gradient(145deg, #0e4a4c, #21766e);
+    background: #fff;
     box-shadow: 0 7px 15px rgba(16, 83, 80, 0.18);
 }
 
-.brand-mark svg {
-    width: 16px;
+.brand-mark :deep(img) {
+    width: 30px;
+    height: 30px;
 }
 
 .header-title > span:last-child {

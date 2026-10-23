@@ -350,8 +350,8 @@ onBeforeUnmount(() => {
 .bulk-approval-bar {
     justify-content: space-between;
     padding: 16px 24px;
-    border-top: 1px solid #e9ebf2;
-    background: #faf9ff;
+    border-top: 1px solid var(--rs-surface-muted);
+    background: var(--rs-canvas);
 }
 .bulk-approval-bar strong,
 .bulk-approval-bar small {
@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
 }
 .bulk-approval-bar small {
     margin-top: 5px;
-    color: #80899b;
+    color: var(--rs-muted);
 }
 .al-table .bulk-select-cell {
     width: 44px;
@@ -369,13 +369,13 @@ onBeforeUnmount(() => {
 .bulk-checkbox {
     width: 17px;
     height: 17px;
-    border: 1px solid #b8b2d1;
+    border: 1px solid var(--rs-muted-light);
     border-radius: 4px;
-    accent-color: #6f60c6;
+    accent-color: var(--rs-primary);
     cursor: pointer;
 }
 .bulk-checkbox:focus-visible {
-    outline: 2px solid #6f60c6;
+    outline: 2px solid var(--rs-primary);
     outline-offset: 3px;
 }
 .bulk-checkbox:disabled {
@@ -383,7 +383,7 @@ onBeforeUnmount(() => {
     opacity: 0.5;
 }
 .bulk-selected-row {
-    background: #f7f5ff;
+    background: var(--rs-canvas);
 }
 .bulk-approval-error {
     padding: 12px 24px;
@@ -399,14 +399,14 @@ onBeforeUnmount(() => {
     display: grid;
     gap: 6px;
     padding: 14px;
-    border: 1px solid #e6e3f4;
+    border: 1px solid var(--rs-primary-soft);
     border-radius: 10px;
     font-size: 12px;
     overflow-wrap: anywhere;
 }
 .bulk-review-list span,
 .bulk-review-list small {
-    color: #80899b;
+    color: var(--rs-muted);
 }
 .notification-tab {
     display: inline-flex;
@@ -416,15 +416,15 @@ onBeforeUnmount(() => {
     padding: 12px 16px;
     border: 1px solid transparent;
     border-radius: 9px;
-    color: #81899c;
+    color: var(--rs-muted);
     font-size: 12px;
     font-weight: 600;
     text-decoration: none;
 }
 .notification-tab.active {
-    border-color: #dedaf6;
-    background: #f1effc;
-    color: #6f60c6;
+    border-color: var(--rs-primary-border);
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
 }
 .notification-tab svg {
     width: 16px;
@@ -432,7 +432,7 @@ onBeforeUnmount(() => {
     flex-shrink: 0;
 }
 .notification-tab:focus-visible {
-    outline: 2px solid #6f60c6;
+    outline: 2px solid var(--rs-primary);
     outline-offset: 2px;
 }
 </style>

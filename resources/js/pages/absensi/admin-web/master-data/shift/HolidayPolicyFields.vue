@@ -31,7 +31,7 @@ defineEmits<{ change: [field: keyof HolidayPolicy, value: boolean] }>();
     min-width: 0;
     margin: 20px 0 0;
     padding: 18px;
-    border: 1px solid #e6eaf1;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 14px;
 }
 .holiday-policy legend {
@@ -39,13 +39,13 @@ defineEmits<{ change: [field: keyof HolidayPolicy, value: boolean] }>();
     width: auto;
     margin: 0;
     padding: 0 6px;
-    color: #172033;
+    color: var(--rs-primary-deep);
     font-size: 13px;
     font-weight: 700;
 }
 .holiday-policy p {
     margin: 0 0 14px;
-    color: #697386;
+    color: var(--rs-text-soft);
     font-size: 12px;
     line-height: 1.6;
 }
@@ -63,19 +63,19 @@ defineEmits<{ change: [field: keyof HolidayPolicy, value: boolean] }>();
 .holiday-policy-options input {
     flex-shrink: 0;
     margin-top: 3px;
-    accent-color: #626fee;
+    accent-color: var(--rs-primary);
 }
 .holiday-policy-options strong,
 .holiday-policy-options small {
     display: block;
 }
 .holiday-policy-options strong {
-    color: #172033;
+    color: var(--rs-primary-deep);
     font-size: 13px;
 }
 .holiday-policy-options small {
     margin-top: 3px;
-    color: #697386;
+    color: var(--rs-text-soft);
     font-size: 11px;
 }
 .holiday-policy .policy-error {

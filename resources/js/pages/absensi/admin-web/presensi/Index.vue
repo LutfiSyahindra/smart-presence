@@ -713,10 +713,10 @@ watch(
 
 <style scoped>
 .attendance-page {
-    --ink: #17213d;
-    --muted: #788399;
-    --line: #e8ebf1;
-    --primary: #5865dc;
+    --ink: var(--rs-primary-deep);
+    --muted: var(--rs-muted);
+    --line: var(--rs-surface-muted);
+    --primary: var(--rs-primary);
     display: grid;
     gap: 18px;
     padding: 4px 0 30px;
@@ -731,8 +731,9 @@ watch(
     border-radius: 24px;
     color: white;
     background:
-        radial-gradient(circle at 82% 5%, rgba(142, 155, 255, 0.32), transparent 26%), linear-gradient(125deg, #182140 0%, #293668 55%, #5a64d4 100%);
-    box-shadow: 0 18px 42px rgba(32, 43, 91, 0.18);
+        radial-gradient(circle at 82% 5%, rgba(var(--rs-primary-pale-rgb), 0.32), transparent 26%),
+        linear-gradient(125deg, var(--rs-primary-deep) 0%, var(--rs-primary-hover) 55%, var(--rs-primary) 100%);
+    box-shadow: 0 18px 42px rgba(var(--rs-primary-deep-rgb), 0.18);
 }
 .attendance-hero::after {
     position: absolute;
@@ -753,7 +754,7 @@ watch(
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    color: #cdd2ff;
+    color: var(--rs-primary-border);
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.16em;
@@ -770,7 +771,7 @@ watch(
 .attendance-hero-copy > p {
     max-width: 660px;
     margin: 0;
-    color: #d8dcef;
+    color: var(--rs-primary-border);
     font-size: 12px;
     line-height: 1.75;
 }
@@ -787,7 +788,7 @@ watch(
     padding: 7px 10px;
     border: 1px solid rgba(255, 255, 255, 0.11);
     border-radius: 9px;
-    color: #dce0f6;
+    color: var(--rs-primary-border);
     background: rgba(255, 255, 255, 0.06);
     font-size: 9px;
     font-weight: 650;
@@ -811,7 +812,7 @@ watch(
     padding: 7px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 15px;
-    background: rgba(8, 13, 34, 0.18);
+    background: rgba(var(--rs-primary-deep-rgb), 0.18);
     backdrop-filter: blur(8px);
 }
 .attendance-hero-actions nav a {
@@ -820,16 +821,16 @@ watch(
     gap: 9px;
     padding: 10px 12px;
     border-radius: 10px;
-    color: #cfd5ec;
+    color: var(--rs-primary-border);
     font-size: 10px;
     font-weight: 700;
     text-decoration: none;
     transition: 0.15s;
 }
 .attendance-hero-actions nav a.active {
-    color: #252f64;
+    color: var(--rs-primary-hover);
     background: white;
-    box-shadow: 0 8px 20px rgba(12, 18, 50, 0.18);
+    box-shadow: 0 8px 20px rgba(var(--rs-primary-deep-rgb), 0.18);
 }
 .attendance-hero-actions svg {
     width: 16px;
@@ -849,7 +850,7 @@ watch(
     box-shadow: 0 8px 20px rgba(231, 132, 65, 0.25);
 }
 .attendance-hero-actions > small {
-    color: #c4cae5;
+    color: var(--rs-primary-pale);
     font-size: 9px;
     text-align: center;
 }
@@ -867,7 +868,7 @@ watch(
     border: 1px solid var(--line);
     border-radius: 16px;
     background: white;
-    box-shadow: 0 8px 24px rgba(25, 34, 64, 0.045);
+    box-shadow: 0 8px 24px rgba(var(--rs-primary-deep-rgb), 0.045);
 }
 .attendance-overview article > span {
     display: grid;
@@ -885,7 +886,7 @@ watch(
     min-width: 0;
 }
 .attendance-overview small {
-    color: #7e8799;
+    color: var(--rs-muted);
     font-size: 8px;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -899,14 +900,14 @@ watch(
 .attendance-overview p {
     overflow: hidden;
     margin: 0;
-    color: #939baa;
+    color: var(--rs-muted);
     font-size: 8px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 .tone-indigo > span {
-    color: #5965dc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .tone-teal > span {
     color: #159980;
@@ -917,15 +918,15 @@ watch(
     background: #fff0ef;
 }
 .tone-violet > span {
-    color: #8a60c2;
-    background: #f5effc;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .attendance-directory {
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 19px;
     background: white;
-    box-shadow: 0 10px 30px rgba(25, 34, 64, 0.05);
+    box-shadow: 0 10px 30px rgba(var(--rs-primary-deep-rgb), 0.05);
 }
 .attendance-directory-head {
     display: flex;
@@ -983,7 +984,7 @@ watch(
     position: absolute;
     left: 12px;
     width: 15px;
-    color: #929bab;
+    color: var(--rs-muted);
 }
 .search-field input,
 .date-field input,
@@ -993,11 +994,11 @@ watch(
 .search-field input,
 .date-field input {
     height: 40px;
-    border: 1px solid #dfe3ea;
+    border: 1px solid var(--rs-border);
     border-radius: 10px;
     outline: 0;
     color: var(--ink);
-    background: #fafbfc;
+    background: var(--rs-canvas);
     font-size: 10px;
 }
 .search-field input {
@@ -1010,7 +1011,7 @@ watch(
 }
 .date-field small,
 .status-field small {
-    color: #7a8497;
+    color: var(--rs-muted);
     font-size: 8px;
     font-weight: 750;
 }
@@ -1019,22 +1020,22 @@ watch(
 }
 .search-field input:focus,
 .date-field input:focus {
-    border-color: #929afa;
-    box-shadow: 0 0 0 3px rgba(88, 101, 220, 0.09);
+    border-color: var(--rs-primary-pale);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.09);
     background: white;
 }
 .status-field :deep(.searchable-select-native),
 .status-field :deep(.searchable-select-trigger) {
     height: 40px;
-    border-color: #dfe3ea;
+    border-color: var(--rs-border);
     border-radius: 10px;
-    background: #fafbfc;
+    background: var(--rs-canvas);
 }
 .date-arrow {
     display: grid;
     height: 40px;
     place-items: center;
-    color: #a0a7b4;
+    color: var(--rs-muted);
 }
 .date-arrow svg {
     width: 14px;
@@ -1063,8 +1064,8 @@ watch(
 }
 .attendance-table th {
     padding: 12px 14px;
-    color: #8991a1;
-    background: #f8f9fb;
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -1081,13 +1082,13 @@ watch(
 }
 .attendance-table td {
     padding: 15px 14px;
-    border-top: 1px solid #edf0f4;
-    color: #566175;
+    border-top: 1px solid var(--rs-surface-muted);
+    color: var(--rs-text-soft);
     font-size: 13px;
     vertical-align: middle;
 }
 .attendance-table tbody tr:hover {
-    background: #fcfcff;
+    background: var(--rs-canvas);
 }
 .employee-cell {
     display: flex;
@@ -1106,8 +1107,8 @@ watch(
     font-weight: 850;
 }
 .avatar-tone-1 {
-    color: #5865cf;
-    background: #eceeff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .avatar-tone-2 {
     color: #168b79;
@@ -1122,8 +1123,8 @@ watch(
     background: #fff5e5;
 }
 .avatar-tone-5 {
-    color: #815ab1;
-    background: #f3edfb;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .employee-cell > div {
     display: grid;
@@ -1138,7 +1139,7 @@ watch(
     white-space: nowrap;
 }
 .employee-cell small {
-    color: #8992a3;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .employee-cell p {
@@ -1146,7 +1147,7 @@ watch(
     align-items: center;
     gap: 4px;
     margin: 3px 0 0;
-    color: #5b6680;
+    color: var(--rs-text-soft);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1157,7 +1158,7 @@ watch(
     max-width: 175px;
     overflow: hidden;
     margin-top: 2px;
-    color: #9aa2b0;
+    color: var(--rs-muted);
     font-size: 11px;
     font-style: normal;
     text-overflow: ellipsis;
@@ -1176,18 +1177,18 @@ watch(
     align-items: center;
     gap: 4px;
     margin-top: 4px;
-    color: #7c8698;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .shift-cell svg {
     width: 11px;
 }
 .muted-value {
-    color: #a0a7b4;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 :deep(.empty-presensi) {
-    color: #a0a7b4;
+    color: var(--rs-muted);
     font-size: 12px;
 }
 :deep(.clock-detail) {
@@ -1213,14 +1214,14 @@ watch(
     max-width: 125px;
     overflow: hidden;
     margin-top: 2px;
-    color: #5965ba;
+    color: var(--rs-primary);
     font-size: 11px;
     text-decoration: none;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 :deep(.clock-detail small) {
-    color: #a0a7b4;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 :deep(.clock-detail .late-indicator) {
@@ -1254,10 +1255,10 @@ watch(
     flex: 0 0 auto;
     padding: 0;
     place-items: center;
-    border: 1px solid #dfe3eb;
+    border: 1px solid var(--rs-border);
     border-radius: 11px;
-    color: #8993a5;
-    background: #f5f6f8;
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
 }
 :deep(.face-photo img) {
     width: 100%;
@@ -1270,7 +1271,7 @@ watch(
 :deep(.face-photo:not(.empty)::after) {
     position: absolute;
     inset: 0;
-    background: rgba(20, 28, 54, 0.45);
+    background: rgba(var(--rs-primary-deep-rgb), 0.45);
     opacity: 0;
     content: '';
     transition: 0.15s;
@@ -1319,15 +1320,15 @@ watch(
     background: #fff6e5;
 }
 .status-pill.day-off {
-    color: #666fc2;
-    background: #eff0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .status-cell > small {
     display: flex;
     align-items: center;
     gap: 4px;
     max-width: 125px;
-    color: #7d66ae;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .status-cell > small svg {
@@ -1335,7 +1336,7 @@ watch(
 }
 .status-cell .note-text {
     overflow: hidden;
-    color: #949cab;
+    color: var(--rs-muted);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1348,14 +1349,14 @@ watch(
     width: 32px;
     height: 32px;
     place-items: center;
-    border: 1px solid #dfe3ea;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
-    color: #5965c9;
+    color: var(--rs-primary);
     background: white;
 }
 .action-cell button:hover {
-    border-color: #cdd1ff;
-    background: #f1f2ff;
+    border-color: var(--rs-primary-border);
+    background: var(--rs-primary-soft);
 }
 .action-cell .set-presensi-button {
     display: inline-flex;
@@ -1397,7 +1398,7 @@ watch(
     place-items: center;
     border-radius: 19px;
     color: var(--primary);
-    background: #eef0ff;
+    background: var(--rs-primary-soft);
 }
 .attendance-empty > span svg {
     width: 27px;
@@ -1440,7 +1441,7 @@ watch(
     min-height: 0;
     overflow-y: auto;
     padding: 20px;
-    background: #f7f8fb;
+    background: var(--rs-canvas);
 }
 :deep(.admin-modal-header h5) {
     font-size: 20px;
@@ -1456,7 +1457,7 @@ watch(
     padding: 15px;
     border-radius: 14px;
     color: white;
-    background: linear-gradient(120deg, #222d58, #5c66d5);
+    background: linear-gradient(120deg, var(--rs-primary-deep), var(--rs-primary));
 }
 .form-summary > span {
     display: grid;
@@ -1465,7 +1466,7 @@ watch(
     flex: 0 0 auto;
     place-items: center;
     border-radius: 11px;
-    color: #c6ccff;
+    color: var(--rs-primary-border);
     background: rgba(255, 255, 255, 0.1);
 }
 .form-summary svg {
@@ -1476,7 +1477,7 @@ watch(
     flex: 1;
 }
 .form-summary small {
-    color: #cbd0ea;
+    color: var(--rs-primary-border);
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.09em;
@@ -1486,7 +1487,7 @@ watch(
 }
 .form-summary p {
     margin: 1px 0 0;
-    color: #d8dcef;
+    color: var(--rs-primary-border);
     font-size: 12px;
 }
 .form-summary em {
@@ -1514,7 +1515,7 @@ watch(
     min-width: 0;
 }
 .form-field > span {
-    color: #505a6d;
+    color: var(--rs-text-soft);
     font-size: 12px;
     font-weight: 750;
 }
@@ -1523,7 +1524,7 @@ watch(
 }
 .form-field > span small {
     float: right;
-    color: #929aaa;
+    color: var(--rs-muted);
     font-size: 10px;
     font-weight: 650;
 }
@@ -1531,7 +1532,7 @@ watch(
 .form-field select,
 .form-field textarea {
     width: 100%;
-    border: 1px solid #dce1e9;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
     outline: none;
     color: var(--ink);
@@ -1550,13 +1551,13 @@ watch(
 .form-field input:focus,
 .form-field select:focus,
 .form-field textarea:focus {
-    border-color: #929afa;
-    box-shadow: 0 0 0 3px rgba(88, 101, 220, 0.09);
+    border-color: var(--rs-primary-pale);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.09);
 }
 .form-field input:disabled,
 .form-field select:disabled {
-    color: #8d95a4;
-    background: #eef0f3;
+    color: var(--rs-muted);
+    background: var(--rs-surface-muted);
 }
 .form-field .invalid {
     border-color: #dc5364;
@@ -1567,7 +1568,7 @@ watch(
     font-size: 11px;
 }
 .form-field > small {
-    color: #8992a3;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .employee-field,
@@ -1580,9 +1581,9 @@ watch(
     align-items: center;
     gap: 10px;
     padding: 12px;
-    border: 1px solid #dadff2;
+    border: 1px solid var(--rs-primary-border);
     border-radius: 11px;
-    background: #f4f5ff;
+    background: var(--rs-canvas);
     cursor: pointer;
 }
 .day-off-toggle > input {
@@ -1596,8 +1597,8 @@ watch(
     height: 32px;
     place-items: center;
     border-radius: 9px;
-    color: #626dcc;
-    background: #e6e8ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .day-off-toggle svg {
     width: 15px;
@@ -1606,11 +1607,11 @@ watch(
     display: grid;
 }
 .day-off-toggle strong {
-    color: #39446d;
+    color: var(--rs-ink);
     font-size: 13px;
 }
 .day-off-toggle small {
-    color: #838ca0;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .overtime-field > div:first-of-type {
@@ -1622,7 +1623,7 @@ watch(
     position: absolute;
     left: 10px;
     width: 14px;
-    color: #858fa1;
+    color: var(--rs-muted);
     pointer-events: none;
 }
 .overtime-field input {
@@ -1634,10 +1635,10 @@ watch(
 }
 .overtime-quick button {
     padding: 4px 7px;
-    border: 1px solid #dfe2f4;
+    border: 1px solid var(--rs-primary-border);
     border-radius: 6px;
-    color: #606bbd;
-    background: #f2f3ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
     font-size: 10px;
     font-weight: 750;
 }
@@ -1650,14 +1651,14 @@ watch(
     justify-content: space-between;
     gap: 12px;
     padding: 14px 20px;
-    border-top: 1px solid #e4e7ed;
+    border-top: 1px solid var(--rs-border);
     background: white;
 }
 .attendance-form-footer > span {
     display: flex;
     align-items: center;
     gap: 5px;
-    color: #858e9f;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .attendance-form-footer > span svg {
@@ -1686,7 +1687,7 @@ watch(
     display: grid;
     padding: 25px;
     place-items: center;
-    background: rgba(13, 18, 38, 0.78);
+    background: rgba(var(--rs-primary-deep-rgb), 0.78);
     backdrop-filter: blur(5px);
 }
 .photo-preview section {
@@ -1722,8 +1723,8 @@ watch(
     place-items: center;
     border: 0;
     border-radius: 8px;
-    color: #687287;
-    background: #f0f2f5;
+    color: var(--rs-text-soft);
+    background: var(--rs-surface-muted);
 }
 .photo-preview header svg {
     width: 15px;
@@ -1733,7 +1734,7 @@ watch(
     width: 100%;
     max-height: 68vh;
     object-fit: contain;
-    background: #11182f;
+    background: var(--rs-primary-deep);
 }
 @media (max-width: 1100px) {
     .attendance-hero {
@@ -1806,11 +1807,11 @@ watch(
         gap: 10px;
         padding: 13px;
         border-top: 1px solid var(--line);
-        background: #f7f8fb;
+        background: var(--rs-canvas);
     }
     .attendance-mobile-list > article {
         padding: 13px;
-        border: 1px solid #e2e6ed;
+        border: 1px solid var(--rs-border);
         border-radius: 14px;
         background: white;
     }
@@ -1827,8 +1828,8 @@ watch(
         margin: 11px 0 8px;
         padding: 8px 10px;
         border-radius: 8px;
-        color: #596477;
-        background: #f6f7fa;
+        color: var(--rs-text-soft);
+        background: var(--rs-canvas);
         font-size: 8px;
     }
     .mobile-shift span {
@@ -1840,7 +1841,7 @@ watch(
         width: 11px;
     }
     .mobile-shift small {
-        color: #7c8596;
+        color: var(--rs-muted);
     }
     .mobile-clock-grid {
         display: grid;
@@ -1849,7 +1850,7 @@ watch(
     }
     .mobile-clock-grid :deep(.clock-detail) {
         padding: 9px;
-        border: 1px solid #e6e9ef;
+        border: 1px solid var(--rs-border);
         border-radius: 10px;
         min-width: 0;
     }
@@ -1867,7 +1868,7 @@ watch(
         display: flex;
         align-items: center;
         gap: 4px;
-        color: #7357aa;
+        color: var(--rs-text-soft);
         font-size: 8px;
     }
     .attendance-mobile-list footer svg {

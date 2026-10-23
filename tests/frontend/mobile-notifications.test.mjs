@@ -47,6 +47,8 @@ test('mobile push displays while closed and informs only mobile windows', async 
         data: { json: () => ({ id: 'notice-1', title: 'Disetujui', body: 'Ada pembaruan', url: '/absensi/mobile/notifikasi/open/notice-1' }) },
     });
     assert.equal(app.shown[0].tag, 'notice-1');
+    assert.equal(app.shown[0].icon, '/icons/arsy-presensi-192.png');
+    assert.equal(app.shown[0].badge, '/icons/arsy-presensi-badge-96.png');
     assert.equal(app.shown[0].data.url, '/absensi/mobile/notifikasi/open/notice-1');
     assert.equal(messages[0].type, 'mobile-notification');
 });
@@ -61,6 +63,8 @@ test('invalid payload still displays a generic notification', async () => {
         },
     });
     assert.equal(app.shown[0].title, 'RSARSY Presence');
+    assert.equal(app.shown[0].icon, '/icons/arsy-presensi-192.png');
+    assert.equal(app.shown[0].badge, '/icons/arsy-presensi-badge-96.png');
     assert.equal(app.shown[0].data.url, '/absensi/mobile/notifikasi');
 });
 

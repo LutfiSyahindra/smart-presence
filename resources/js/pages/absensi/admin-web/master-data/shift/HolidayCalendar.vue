@@ -215,14 +215,14 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
     margin-bottom: 20px;
     padding: 14px 16px;
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--rs-canvas);
 }
 .calendar-sync-info p {
     margin: 0 0 5px;
     font-size: 12px;
 }
 .calendar-sync-info a {
-    color: #4f46e5;
+    color: var(--rs-primary);
     text-decoration: underline;
 }
 .calendar-reference {
@@ -231,12 +231,12 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
     font-size: 12px;
 }
 .calendar-origin {
-    color: #697386;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .calendar-edit-note {
     margin: 0;
-    color: #697386;
+    color: var(--rs-text-soft);
     font-size: 12px;
     line-height: 1.6;
 }
@@ -253,7 +253,7 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
 }
 .holiday-calendar {
     padding: 26px;
-    border: 1px solid #e6eaf1;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 20px;
     background: white;
 }
@@ -271,18 +271,18 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    color: #626fee;
+    color: var(--rs-primary);
     font-size: 12px;
     font-weight: 700;
 }
 .holiday-calendar h2 {
     margin: 8px 0;
-    color: #172033;
+    color: var(--rs-primary-deep);
     font-size: 21px;
     font-weight: 750;
 }
 .holiday-calendar p {
-    color: #697386;
+    color: var(--rs-text-soft);
     font-size: 13px;
     line-height: 1.7;
 }
@@ -302,13 +302,13 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
 }
 .calendar-year input {
     width: 100px;
-    border: 1px solid #dce1eb;
+    border: 1px solid var(--rs-border);
     border-radius: 8px;
     padding: 8px 10px;
 }
 .calendar-year span {
     margin-left: auto;
-    color: #697386;
+    color: var(--rs-text-soft);
 }
 .calendar-table-wrap {
     overflow-x: auto;
@@ -319,14 +319,14 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
     font-size: 13px;
 }
 .holiday-calendar th {
-    color: #697386;
+    color: var(--rs-text-soft);
     font-weight: 600;
-    background: #f8fafc;
+    background: var(--rs-canvas);
 }
 .holiday-calendar td,
 .holiday-calendar th {
     padding: 13px 12px;
-    border-bottom: 1px solid #e6eaf1;
+    border-bottom: 1px solid var(--rs-surface-muted);
 }
 .holiday-type {
     display: inline-block;
@@ -338,8 +338,8 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
     font-size: 12px;
 }
 .holiday-type.collective {
-    color: #6d28d9;
-    background: #f5f3ff;
+    color: var(--rs-primary);
+    background: var(--rs-canvas);
 }
 .calendar-actions {
     display: flex;
@@ -348,9 +348,9 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
 }
 .calendar-actions button {
     padding: 6px;
-    border: 1px solid #e6eaf1;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 8px;
-    color: #697386;
+    color: var(--rs-text-soft);
 }
 .calendar-actions button:last-child {
     color: #b42318;
@@ -358,7 +358,7 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
 .calendar-empty {
     padding: 22px;
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--rs-canvas);
 }
 .calendar-form {
     display: grid;
@@ -367,7 +367,7 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
 .calendar-form label {
     display: grid;
     gap: 8px;
-    color: #172033;
+    color: var(--rs-primary-deep);
     font-size: 13px;
     font-weight: 600;
 }
@@ -375,7 +375,7 @@ const dateLabel = (date: string) => new Intl.DateTimeFormat('id-ID', { dateStyle
 .calendar-form select {
     width: 100%;
     padding: 11px 12px;
-    border: 1px solid #dce1eb;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
     font-weight: 400;
 }

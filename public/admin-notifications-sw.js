@@ -7,7 +7,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(Promise.all([
         self.registration.showNotification(payload.title || 'Notifikasi pengajuan', {
             body: payload.body || 'Ada pembaruan pengajuan di admin-web.',
-            icon: '/assets/images/favicon.png',
+            icon: '/icons/arsy-presensi-192.png',
+            badge: '/icons/arsy-presensi-badge-96.png',
             tag: payload.id || 'admin-notification',
             data: { url: payload.url || '/absensi/admin-web/notifikasi/semua' },
         }),

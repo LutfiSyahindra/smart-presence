@@ -38,6 +38,8 @@ test('background push displays a notification and refreshes open inboxes', async
     assert.equal(app.shown[0].title, 'Pengajuan baru');
     assert.equal(app.shown[0].body, 'Cuti tahunan');
     assert.equal(app.shown[0].tag, 'notice-1');
+    assert.equal(app.shown[0].icon, '/icons/arsy-presensi-192.png');
+    assert.equal(app.shown[0].badge, '/icons/arsy-presensi-badge-96.png');
     assert.equal(messages[0].type, 'admin-notification');
     assert.equal(app.handlers.has('fetch'), false);
 });
@@ -46,6 +48,8 @@ test('invalid push data still displays a usable notification', async () => {
     const app = worker();
     await app.dispatch('push', { data: { json: () => { throw new Error('Invalid JSON'); } } });
     assert.equal(app.shown[0].title, 'Notifikasi pengajuan');
+    assert.equal(app.shown[0].icon, '/icons/arsy-presensi-192.png');
+    assert.equal(app.shown[0].badge, '/icons/arsy-presensi-badge-96.png');
     assert.equal(app.shown[0].data.url, '/absensi/admin-web/notifikasi/semua');
 });
 

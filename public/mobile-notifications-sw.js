@@ -31,7 +31,8 @@ self.addEventListener('push', (event) => {
         Promise.all([
             self.registration.showNotification(payload.title || 'RSARSY Presence', {
                 body: payload.body || 'Ada pembaruan pengajuan. Buka aplikasi untuk melihat detail.',
-                icon: '/icons/absensi-192.png',
+                icon: '/icons/arsy-presensi-192.png',
+                badge: '/icons/arsy-presensi-badge-96.png',
                 tag: payload.id || 'mobile-notification',
                 data: { url: url?.pathname || '/absensi/mobile/notifikasi' },
             }),

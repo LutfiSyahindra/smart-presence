@@ -30,7 +30,7 @@ async function submit() {
 <template>
     <main class="login-screen">
         <section class="login-hero">
-            <img src="/app-icon.svg" alt="RSARSY" class="login-logo" />
+            <img src="/images/arsy-presensi-logo.png" alt="ARSY Presensi" width="500" height="500" class="login-logo" />
             <div>
                 <p class="app-eyebrow light">Rumah Sakit AR. Sayyid</p>
                 <h1>Presensi yang aman, langsung dari genggaman.</h1>

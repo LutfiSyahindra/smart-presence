@@ -36,7 +36,7 @@ createInertiaApp({
         startMobileNotifications(props.initialPage);
     },
     progress: {
-        color: '#6366f1',
+        color: '#087f78',
     },
 });
 

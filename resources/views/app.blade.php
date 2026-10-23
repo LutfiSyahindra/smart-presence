@@ -13,10 +13,11 @@
         <link rel="stylesheet" href="{{ asset('assets/fonts/feather-font/css/iconfont.css') }}">
         <link rel="stylesheet" href="{{ asset('assets/vendors/flag-icon-css/css/flag-icon.min.css') }}">
         <link rel="stylesheet" href="{{ asset('assets/css/demo1/style.css') }}">
-        <link rel="shortcut icon" href="{{ asset('assets/images/favicon.png') }}">
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/arsy-presensi-32.png') }}">
+        <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+        <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon.png') }}">
         @if (request()->is('absensi/mobile', 'absensi/mobile/*', 'login'))
             <link rel="manifest" href="{{ asset('absensi-mobile.webmanifest') }}">
-            <link rel="apple-touch-icon" href="{{ asset('icons/absensi-192.png') }}">
             <meta name="theme-color" content="#187f68">
             <meta name="apple-mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-title" content="RSARSY Presence">

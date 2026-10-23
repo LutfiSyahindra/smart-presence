@@ -74,8 +74,8 @@ const updateLayers = (recenter = false) => {
     if (!radiusCircle) {
         radiusCircle = L.circle(coordinates, {
             radius: validRadius.value,
-            color: '#4f46e5',
-            fillColor: '#6366f1',
+            color: '#087f78',
+            fillColor: '#087f78',
             fillOpacity: 0.14,
             weight: 2,
         }).addTo(map);
@@ -134,9 +134,9 @@ onBeforeUnmount(() => {
     position: relative;
     min-height: 340px;
     overflow: hidden;
-    border: 1px solid #dfe4ef;
+    border: 1px solid var(--rs-border);
     border-radius: 16px;
-    background: #eef2f7;
+    background: var(--rs-primary-soft);
 }
 .office-map {
     z-index: 1;
@@ -151,11 +151,11 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 12px;
     padding: 8px 11px;
-    border: 1px solid rgba(226, 232, 240, 0.9);
+    border: 1px solid rgba(var(--rs-border-rgb), 0.9);
     border-radius: 10px;
-    color: #475569;
+    color: var(--rs-ink);
     background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 6px 18px rgba(var(--rs-primary-deep-rgb), 0.12);
     font-size: 11px;
     font-weight: 600;
     backdrop-filter: blur(8px);
@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
     border-radius: 50%;
 }
 .click-dot {
-    background: #4f46e5;
+    background: var(--rs-primary);
 }
 .drag-dot {
     background: #14b8a6;
@@ -188,8 +188,8 @@ onBeforeUnmount(() => {
     transform: rotate(45deg);
     border: 4px solid #fff;
     border-radius: 50% 50% 50% 8px;
-    background: linear-gradient(145deg, #4f46e5, #7c3aed);
-    box-shadow: 0 7px 16px rgba(67, 56, 202, 0.42);
+    background: linear-gradient(145deg, var(--rs-primary), var(--rs-primary));
+    box-shadow: 0 7px 16px rgba(var(--rs-primary-rgb), 0.42);
 }
 :deep(.office-map-marker i) {
     position: absolute;

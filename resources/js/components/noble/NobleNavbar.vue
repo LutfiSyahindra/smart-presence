@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import NotificationBell from '@/components/noble/NotificationBell.vue';
 import { getInitials } from '@/composables/useInitials';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { CalendarDays, ChevronDown, HeartPulse, LogOut, Menu, Settings, ShieldCheck, Smartphone, UserRound } from 'lucide-vue-next';
+import { CalendarDays, ChevronDown, LogOut, Menu, Settings, ShieldCheck, Smartphone, UserRound } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const emit = defineEmits<{
@@ -46,12 +47,12 @@ onBeforeUnmount(() => document.removeEventListener('click', closeWhenClickingOut
 
         <div class="navbar-content">
             <Link :href="homeUrl" class="noble-mobile-brand" aria-label="RSARSY Beranda">
-                <HeartPulse />
+                <AppLogoIcon />
                 <span>RSARSY</span>
             </Link>
 
             <div class="noble-navbar-context d-none d-md-flex">
-                <span class="noble-navbar-context-icon"><HeartPulse /></span>
+                <span class="noble-navbar-context-icon"><AppLogoIcon /></span>
                 <div>
                     <strong>RSARSY Presence</strong>
                     <span><i></i> Sistem operasional aktif</span>

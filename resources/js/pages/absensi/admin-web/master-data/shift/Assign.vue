@@ -484,10 +484,10 @@ const saveBulk = () => {
 
 <style scoped>
 .assign-page {
-    --assign-primary: #5b63d3;
-    --assign-ink: #17213d;
-    --assign-muted: #737e91;
-    --assign-line: #e5e8ee;
+    --assign-primary: var(--rs-primary);
+    --assign-ink: var(--rs-primary-deep);
+    --assign-muted: var(--rs-text-soft);
+    --assign-line: var(--rs-border);
     display: grid;
     gap: 20px;
     padding-bottom: 28px;
@@ -502,8 +502,9 @@ const saveBulk = () => {
     border-radius: 21px;
     color: white;
     background:
-        radial-gradient(circle at 82% 5%, rgba(152, 161, 255, 0.34), transparent 30%), linear-gradient(125deg, #20294d 0%, #39458d 58%, #626cda 100%);
-    box-shadow: 0 18px 45px rgba(34, 44, 91, 0.16);
+        radial-gradient(circle at 82% 5%, rgba(var(--rs-primary-pale-rgb), 0.34), transparent 30%),
+        linear-gradient(125deg, var(--rs-primary-deep) 0%, var(--rs-primary-hover) 58%, var(--rs-primary) 100%);
+    box-shadow: 0 18px 45px rgba(var(--rs-primary-deep-rgb), 0.16);
 }
 .assign-hero-copy {
     position: relative;
@@ -516,7 +517,7 @@ const saveBulk = () => {
     padding: 6px 10px;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
-    color: #d7dcff;
+    color: var(--rs-primary-soft);
     background: rgba(255, 255, 255, 0.08);
     font-size: 10px;
     font-weight: 800;
@@ -536,12 +537,12 @@ const saveBulk = () => {
     letter-spacing: -0.04em;
 }
 .assign-hero h1 span {
-    color: #c7ccff;
+    color: var(--rs-primary-border);
 }
 .assign-hero-copy > p {
     max-width: 690px;
     margin: 0;
-    color: #d3d8ea;
+    color: var(--rs-primary-border);
     font-size: 13px;
     line-height: 1.7;
 }
@@ -555,7 +556,7 @@ const saveBulk = () => {
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #e8eaff;
+    color: var(--rs-primary-soft);
     font-size: 10px;
     font-weight: 650;
 }
@@ -565,7 +566,7 @@ const saveBulk = () => {
     padding: 20px;
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 17px;
-    background: rgba(15, 23, 55, 0.3);
+    background: rgba(var(--rs-primary-deep-rgb), 0.3);
     backdrop-filter: blur(12px);
 }
 .assign-progress-head {
@@ -579,7 +580,7 @@ const saveBulk = () => {
     height: 42px;
     place-items: center;
     border-radius: 12px;
-    color: #d8dcff;
+    color: var(--rs-primary-soft);
     background: rgba(255, 255, 255, 0.12);
 }
 .assign-progress-head svg {
@@ -592,7 +593,7 @@ const saveBulk = () => {
     flex: 1;
 }
 .assign-progress-head small {
-    color: #c9cfe7;
+    color: var(--rs-primary-pale);
     font-size: 10px;
 }
 .assign-progress-head strong {
@@ -609,12 +610,12 @@ const saveBulk = () => {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #aeb6ff, #e0e3ff);
+    background: linear-gradient(90deg, var(--rs-primary-pale), var(--rs-primary-soft));
     transition: width 0.25s ease;
 }
 .assign-progress-card p {
     margin: 0;
-    color: #c8cde0;
+    color: var(--rs-primary-border);
     font-size: 10px;
 }
 .assign-overview {
@@ -630,7 +631,7 @@ const saveBulk = () => {
     border: 1px solid var(--assign-line);
     border-radius: 15px;
     background: white;
-    box-shadow: 0 7px 20px rgba(31, 42, 75, 0.04);
+    box-shadow: 0 7px 20px rgba(var(--rs-primary-deep-rgb), 0.04);
 }
 .assign-overview article > span {
     display: grid;
@@ -644,8 +645,8 @@ const saveBulk = () => {
     width: 20px;
 }
 .assign-overview .tone-indigo {
-    color: #5661d3;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .assign-overview .tone-green {
     color: #158568;
@@ -672,7 +673,7 @@ const saveBulk = () => {
 }
 .assign-overview p {
     margin: 0;
-    color: #939baa;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .assign-directory {
@@ -680,7 +681,7 @@ const saveBulk = () => {
     border: 1px solid var(--assign-line);
     border-radius: 18px;
     background: white;
-    box-shadow: 0 10px 28px rgba(30, 41, 59, 0.05);
+    box-shadow: 0 10px 28px rgba(var(--rs-ink-rgb), 0.05);
 }
 .assign-directory-header {
     display: flex;
@@ -709,8 +710,8 @@ const saveBulk = () => {
 .assign-directory-header > strong {
     padding: 7px 10px;
     border-radius: 9px;
-    color: #667086;
-    background: #f4f5f8;
+    color: var(--rs-text-soft);
+    background: var(--rs-canvas);
     font-size: 10px;
 }
 .assign-filters {
@@ -728,11 +729,11 @@ const saveBulk = () => {
 .assign-filters input {
     width: 100%;
     height: 42px;
-    border: 1px solid #dfe3ea;
+    border: 1px solid var(--rs-border);
     border-radius: 10px;
     outline: none;
-    color: #27324b;
-    background: #fafbfc;
+    color: var(--rs-ink);
+    background: var(--rs-canvas);
     font-size: 11px;
 }
 .assign-filters select {
@@ -742,7 +743,7 @@ const saveBulk = () => {
     position: absolute;
     left: 12px;
     width: 15px;
-    color: #929bac;
+    color: var(--rs-muted);
 }
 .assign-search input {
     padding: 0 39px 0 36px;
@@ -756,7 +757,7 @@ const saveBulk = () => {
     place-items: center;
     border: 0;
     border-radius: 7px;
-    color: #8993a5;
+    color: var(--rs-muted);
     background: transparent;
 }
 .assign-search button svg {
@@ -764,8 +765,8 @@ const saveBulk = () => {
 }
 .assign-filters input:focus,
 .assign-filters select:focus {
-    border-color: #929afa;
-    box-shadow: 0 0 0 3px rgba(91, 99, 211, 0.1);
+    border-color: var(--rs-primary-pale);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.1);
     background: white;
 }
 .assign-filters > button {
@@ -788,8 +789,8 @@ const saveBulk = () => {
 .assign-filters > .reset-filter {
     min-width: 42px;
     padding: 0;
-    color: #69758a;
-    border: 1px solid #e0e4eb;
+    color: var(--rs-text-soft);
+    border: 1px solid var(--rs-border);
     background: white;
 }
 .assign-bulk-bar {
@@ -800,9 +801,9 @@ const saveBulk = () => {
     gap: 12px;
     margin: 0 25px 18px;
     padding: 12px;
-    border: 1px solid #d8dcff;
+    border: 1px solid var(--rs-primary-soft);
     border-radius: 13px;
-    background: #f5f6ff;
+    background: var(--rs-canvas);
 }
 .assign-bulk-copy {
     display: flex;
@@ -816,7 +817,7 @@ const saveBulk = () => {
     place-items: center;
     border-radius: 10px;
     color: var(--assign-primary);
-    background: #e5e8ff;
+    background: var(--rs-primary-soft);
 }
 .assign-bulk-bar svg {
     width: 16px;
@@ -830,7 +831,7 @@ const saveBulk = () => {
     font-size: 11px;
 }
 .assign-bulk-bar small {
-    color: #7c8698;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .filter-shift-select,
@@ -845,7 +846,7 @@ const saveBulk = () => {
 :deep(.bulk-shift-select .searchable-select-native) {
     height: 42px;
     border-radius: 10px;
-    background: #fafbfc;
+    background: var(--rs-canvas);
     font-size: 11px;
 }
 :deep(.bulk-shift-select .searchable-select-trigger),
@@ -893,8 +894,8 @@ const saveBulk = () => {
 }
 .assign-table th {
     padding: 12px 14px;
-    color: #7c8596;
-    background: #fafbfc;
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -904,7 +905,7 @@ const saveBulk = () => {
 }
 .assign-table td {
     padding: 14px;
-    border-top: 1px solid #edf0f4;
+    border-top: 1px solid var(--rs-surface-muted);
     color: var(--assign-ink);
     font-size: 11px;
     vertical-align: middle;
@@ -914,7 +915,7 @@ const saveBulk = () => {
 }
 .assign-table tbody tr:hover,
 .assign-table tbody tr.selected {
-    background: #fafaff;
+    background: var(--rs-canvas);
 }
 .check-column {
     width: 38px;
@@ -940,8 +941,8 @@ const saveBulk = () => {
     flex: 0 0 auto;
     place-items: center;
     border-radius: 11px;
-    color: #5762cc;
-    background: #ebeefe;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
     font-size: 14px;
     font-weight: 800;
 }
@@ -963,7 +964,7 @@ const saveBulk = () => {
 .history-cell small,
 .shift-badge small {
     margin-top: 2px;
-    color: #9199a8;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .account-cell {
@@ -1007,7 +1008,7 @@ const saveBulk = () => {
 }
 .organization-cell svg {
     width: 13px;
-    color: #768199;
+    color: var(--rs-muted);
 }
 .row-shift-select {
     min-width: 190px;
@@ -1022,7 +1023,7 @@ const saveBulk = () => {
     font-size: 10px;
 }
 .shift-badge strong {
-    color: #4854bf;
+    color: var(--rs-primary);
 }
 .no-shift {
     display: inline-flex;
@@ -1039,7 +1040,7 @@ const saveBulk = () => {
     min-width: 130px;
 }
 .history-empty {
-    color: #9ca3af;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .save-row {
@@ -1068,7 +1069,7 @@ const saveBulk = () => {
     place-items: center;
     border-radius: 18px;
     color: var(--assign-primary);
-    background: #eef0ff;
+    background: var(--rs-primary-soft);
 }
 .assign-empty > span svg {
     width: 27px;
@@ -1168,17 +1169,17 @@ const saveBulk = () => {
         gap: 10px;
         padding: 14px;
         border-top: 1px solid var(--assign-line);
-        background: #f8f9fb;
+        background: var(--rs-canvas);
     }
     .assign-mobile-list > article {
         overflow: hidden;
-        border: 1px solid #e1e5ec;
+        border: 1px solid var(--rs-border);
         border-radius: 14px;
         background: white;
     }
     .assign-mobile-list > article.selected {
-        border-color: #bfc5ff;
-        box-shadow: 0 0 0 2px rgba(91, 99, 211, 0.08);
+        border-color: var(--rs-primary-border);
+        box-shadow: 0 0 0 2px rgba(var(--rs-primary-rgb), 0.08);
     }
     .assign-mobile-list header {
         display: flex;
@@ -1200,9 +1201,9 @@ const saveBulk = () => {
         display: grid;
         gap: 3px;
         padding: 10px 13px;
-        border-block: 1px solid #edf0f4;
-        color: #5f6a80;
-        background: #fafbfc;
+        border-block: 1px solid var(--rs-surface-muted);
+        color: var(--rs-text-soft);
+        background: var(--rs-canvas);
         font-size: 10px;
     }
     .mobile-detail span {
@@ -1214,7 +1215,7 @@ const saveBulk = () => {
         width: 13px;
     }
     .mobile-detail small {
-        color: #8b94a5;
+        color: var(--rs-muted);
         font-size: 9px;
     }
     .mobile-assignment {
@@ -1223,7 +1224,7 @@ const saveBulk = () => {
         padding: 13px;
     }
     .mobile-assignment label {
-        color: #555f73;
+        color: var(--rs-text-soft);
         font-size: 9px;
         font-weight: 800;
         letter-spacing: 0.05em;
@@ -1235,8 +1236,8 @@ const saveBulk = () => {
     }
     .assign-mobile-list footer {
         padding: 9px 13px;
-        border-top: 1px solid #edf0f4;
-        color: #929aaa;
+        border-top: 1px solid var(--rs-surface-muted);
+        color: var(--rs-muted);
         font-size: 8px;
     }
 }

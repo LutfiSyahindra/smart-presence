@@ -519,7 +519,7 @@ const remove = () => {
     gap: 12px;
     padding: 16px 20px;
     background: #fff;
-    border: 1px solid #e6e8f0;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 12px;
 }
 .mc-year label {
@@ -531,7 +531,7 @@ const remove = () => {
     width: 110px;
 }
 .mc-year small {
-    color: #80899b;
+    color: var(--rs-muted);
 }
 .mc-types {
     display: grid;
@@ -542,12 +542,12 @@ const remove = () => {
 .mc-type {
     min-width: 0;
     padding: 20px;
-    border: 1px solid #e4e6f1;
+    border: 1px solid var(--rs-border);
     border-radius: 13px;
-    background: #fcfcff;
+    background: var(--rs-canvas);
 }
 .mc-type.inactive {
-    background: #f6f7f9;
+    background: var(--rs-canvas);
 }
 .mc-type-heading,
 .mc-type-meta {
@@ -559,20 +559,20 @@ const remove = () => {
 .mc-code {
     font-size: 11px;
     font-weight: 750;
-    color: #8b92a6;
+    color: var(--rs-muted);
     letter-spacing: 0.06em;
 }
 .mc-badge {
     border-radius: 6px;
     padding: 4px 8px;
-    background: #edf2f5;
-    color: #64748b;
+    background: var(--rs-surface-muted);
+    color: var(--rs-text-soft);
     font-size: 10px;
     font-weight: 650;
 }
 .mc-badge.annual {
-    background: #efedfc;
-    color: #7562c8;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
 }
 .mc-type h3 {
     margin: 16px 0 10px;
@@ -581,7 +581,7 @@ const remove = () => {
     overflow-wrap: anywhere;
 }
 .mc-duration {
-    color: #665ac0;
+    color: var(--rs-primary);
     margin: 0;
     font-size: 13px;
 }
@@ -589,22 +589,22 @@ const remove = () => {
     font-size: 28px;
 }
 .mc-duration small {
-    color: #858ca0;
+    color: var(--rs-muted);
     margin-left: 5px;
 }
 .mc-description {
     margin: 12px 0;
     min-height: 38px;
-    color: #7b8395;
+    color: var(--rs-muted);
     font-size: 12px;
     line-height: 1.6;
     overflow-wrap: anywhere;
 }
 .mc-type-meta {
-    color: #8790a4;
+    color: var(--rs-muted);
     font-size: 11px;
     padding: 12px 0;
-    border-top: 1px solid #eaeaf3;
+    border-top: 1px solid var(--rs-surface-muted);
 }
 .mc-type footer {
     display: flex;
@@ -627,8 +627,8 @@ const remove = () => {
     flex-wrap: wrap;
     gap: 18px;
     padding: 20px 24px;
-    border-top: 1px solid #eef0f5;
-    background: #fafbfe;
+    border-top: 1px solid var(--rs-surface-muted);
+    background: var(--rs-canvas);
 }
 .mc-excel-icon {
     display: grid;
@@ -650,7 +650,7 @@ const remove = () => {
 .mc-import-copy small,
 .mc-import-input small {
     font-size: 11px;
-    color: #81899b;
+    color: var(--rs-muted);
 }
 .mc-download {
     display: inline-flex;
@@ -658,7 +658,7 @@ const remove = () => {
     gap: 6px;
     margin-top: 6px;
     font-size: 12px;
-    color: #665ac0;
+    color: var(--rs-primary);
 }
 .mc-import-input {
     flex: 1;
@@ -690,8 +690,8 @@ const remove = () => {
 .mc-tags span {
     padding: 4px 7px;
     border-radius: 6px;
-    background: #f0eefb;
-    color: #7363c4;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
     font-size: 10px;
 }
 .mc-balance {
@@ -706,7 +706,7 @@ const remove = () => {
     font-size: 13px;
 }
 .mc-checkbox input {
-    accent-color: #7562c8;
+    accent-color: var(--rs-primary);
 }
 @media (max-width: 760px) {
     .mc-types {

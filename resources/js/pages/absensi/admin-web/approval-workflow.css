@@ -2,7 +2,7 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-    color: #253047;
+    color: var(--rs-ink);
 }
 .al-hero {
     display: flex;
@@ -10,15 +10,15 @@
     justify-content: space-between;
     gap: 28px;
     padding: 32px;
-    border: 1px solid #e3e5f6;
+    border: 1px solid var(--rs-primary-soft);
     border-radius: 20px;
-    background: linear-gradient(115deg, #fff 35%, #eeefff);
+    background: linear-gradient(115deg, #fff 35%, var(--rs-primary-soft));
 }
 .al-eyebrow {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    color: #6056c9;
+    color: var(--rs-primary);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -36,7 +36,7 @@
 .al-hero p {
     max-width: 650px;
     margin: 0;
-    color: #737c90;
+    color: var(--rs-text-soft);
     line-height: 1.7;
 }
 .al-module {
@@ -46,13 +46,13 @@
     margin-top: 18px;
     padding: 7px 12px;
     border-radius: 8px;
-    background: #f0effc;
-    color: #665eb0;
+    background: var(--rs-primary-soft);
+    color: var(--rs-muted);
     font-size: 12px;
     font-weight: 600;
 }
 .al-module > span {
-    color: #b4aed9;
+    color: var(--rs-primary-pale);
 }
 .al-button {
     display: inline-flex;
@@ -75,7 +75,7 @@
     align-items: center;
     gap: 16px;
     padding: 23px;
-    border: 1px solid #e8eaf1;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 15px;
     background: #fff;
 }
@@ -86,16 +86,16 @@
     height: 48px;
     flex-shrink: 0;
     border-radius: 13px;
-    background: #efedfc;
-    color: #7766d4;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
 }
 .al-stat-icon.cyan {
-    background: #e8f7f6;
+    background: var(--rs-primary-soft);
     color: #3a9f96;
 }
 .al-stat-icon.amber {
-    background: #fff4e6;
-    color: #ca9246;
+    background: var(--rs-gold-soft);
+    color: var(--rs-gold);
 }
 .al-stat-icon svg {
     width: 23px;
@@ -109,15 +109,15 @@
 .al-stats article div > span {
     display: block;
     margin-top: 4px;
-    color: #7b8395;
+    color: var(--rs-muted);
     font-size: 12px;
 }
 .al-panel {
     overflow: hidden;
-    border: 1px solid #e6e8f0;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 16px;
     background: #fff;
-    box-shadow: 0 4px 24px #29365903;
+    box-shadow: 0 4px 24px rgba(var(--rs-primary-hover-rgb), 0.012);
 }
 .al-panel-header {
     display: flex;
@@ -133,7 +133,7 @@
 }
 .al-panel-header p {
     margin: 0;
-    color: #80899b;
+    color: var(--rs-muted);
     font-size: 12px;
 }
 .al-search {
@@ -142,27 +142,27 @@
     gap: 9px;
     min-width: 290px;
     padding: 9px 12px;
-    border: 1px solid #e1e5ef;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
-    background: #fafbfe;
+    background: var(--rs-canvas);
 }
 .al-search svg {
     width: 16px;
     height: 16px;
     flex-shrink: 0;
-    color: #9299aa;
+    color: var(--rs-muted);
 }
 .al-search input {
     width: 100%;
     border: 0;
     outline: none;
     background: transparent;
-    color: #343d53;
+    color: var(--rs-ink);
     font-size: 12px;
 }
 .al-search:focus-within {
-    border-color: #8b81dc;
-    box-shadow: 0 0 0 3px #7766d415;
+    border-color: var(--rs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.082);
 }
 .al-table-wrap {
     overflow-x: auto;
@@ -175,10 +175,10 @@
 }
 .al-table th {
     padding: 13px 24px;
-    border-top: 1px solid #eef0f5;
-    border-bottom: 1px solid #eef0f5;
-    background: #fafbfe;
-    color: #8a92a4;
+    border-top: 1px solid var(--rs-surface-muted);
+    border-bottom: 1px solid var(--rs-surface-muted);
+    background: var(--rs-canvas);
+    color: var(--rs-muted);
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -186,14 +186,14 @@
 }
 .al-table td {
     padding: 21px 24px;
-    border-bottom: 1px solid #eff1f5;
+    border-bottom: 1px solid var(--rs-surface-muted);
     vertical-align: middle;
 }
 .al-table tbody tr:last-child td {
     border-bottom: none;
 }
 .al-table tbody tr:hover {
-    background: #fdfdff;
+    background: var(--rs-canvas);
 }
 .al-table td > strong {
     display: block;
@@ -202,7 +202,7 @@
 .al-table td small {
     display: block;
     margin-top: 5px;
-    color: #81899c;
+    color: var(--rs-muted);
     font-size: 11px;
     line-height: 1.5;
 }
@@ -225,8 +225,8 @@
     height: 28px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: #eeecfb;
-    color: #7363c4;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
     font-size: 11px;
     font-weight: 700;
 }
@@ -244,7 +244,7 @@
     width: 14px;
     height: 14px;
     flex-shrink: 0;
-    color: #c1c5d4;
+    color: var(--rs-primary-border);
 }
 .al-unavailable strong,
 .al-unavailable small {
@@ -262,17 +262,17 @@
     height: 32px;
     flex-shrink: 0;
     padding: 0;
-    border: 1px solid #e7e8f1;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 8px;
     background: #fff;
-    color: #7b769d;
+    color: var(--rs-muted);
 }
 .al-icon-button svg {
     width: 14px;
     height: 14px;
 }
 .al-icon-button:hover {
-    background: #f3f1ff;
+    background: var(--rs-primary-soft);
 }
 .al-icon-button.danger {
     color: #c97470;
@@ -291,7 +291,7 @@
     width: 38px;
     height: 38px;
     margin-bottom: 18px;
-    color: #b4afd7;
+    color: var(--rs-muted-light);
 }
 .al-empty h3 {
     margin: 0 0 9px;
@@ -301,13 +301,13 @@
 .al-empty p {
     max-width: 450px;
     margin: 0 0 20px;
-    color: #8a91a1;
+    color: var(--rs-muted);
     font-size: 12px;
     line-height: 1.7;
 }
 .al-footnote {
     margin: 0;
-    color: #8a92a4;
+    color: var(--rs-muted);
     font-size: 12px;
     line-height: 1.7;
 }
@@ -341,16 +341,16 @@
     flex-wrap: wrap;
     gap: 10px;
     padding: 18px 24px;
-    border-top: 1px solid #eceef4;
-    background: #fafbfe;
+    border-top: 1px solid var(--rs-surface-muted);
+    background: var(--rs-canvas);
     border-radius: 0 0 16px 16px;
 }
 .al-info {
     padding: 14px 16px;
-    border: 1px solid #e4e3f6;
+    border: 1px solid var(--rs-primary-soft);
     border-radius: 10px;
-    background: #f5f4fd;
-    color: #797395;
+    background: var(--rs-primary-soft);
+    color: var(--rs-muted);
     font-size: 12px;
     line-height: 1.8;
 }
@@ -360,7 +360,7 @@
     gap: 8px;
     width: 100%;
     margin: 0;
-    color: #515a70;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .al-field > span {
@@ -368,7 +368,7 @@
 }
 .al-field > span small {
     font-weight: 400;
-    color: #8a91a0;
+    color: var(--rs-muted);
 }
 .al-field b {
     color: #ce7b74;
@@ -379,10 +379,10 @@
 .al-filter-select {
     width: 100%;
     padding: 11px 12px;
-    border: 1px solid #dfe3ed;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
     background: #fff;
-    color: #434b60;
+    color: var(--rs-ink);
     font-size: 12px;
 }
 .al-field select {
@@ -397,8 +397,8 @@
 .al-field textarea:focus,
 .al-filter-select:focus {
     outline: 0;
-    border-color: #8b81dc;
-    box-shadow: 0 0 0 3px #7766d415;
+    border-color: var(--rs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.082);
 }
 .al-error {
     display: block;
@@ -409,7 +409,7 @@
 }
 .al-help {
     margin: 0;
-    color: #8b92a2;
+    color: var(--rs-muted);
     font-size: 11px;
     line-height: 1.8;
 }
@@ -422,7 +422,7 @@
     font-size: 12px;
 }
 .al-section-label > span {
-    color: #9b94bb;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .al-step-input {
@@ -430,9 +430,9 @@
     align-items: center;
     gap: 12px;
     padding: 15px;
-    border: 1px solid #e8e7f2;
+    border: 1px solid var(--rs-surface-muted);
     border-radius: 12px;
-    background: #fcfbff;
+    background: var(--rs-canvas);
 }
 .al-step-input .al-field {
     min-width: 0;
@@ -445,11 +445,11 @@
     overflow-wrap: anywhere;
 }
 .al-approver-summary strong {
-    color: #545c70;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .al-approver-summary small {
-    color: #9298a6;
+    color: var(--rs-muted);
     font-size: 10px;
 }
 .al-step-input .al-actions {
@@ -465,10 +465,10 @@
     justify-content: center;
     gap: 8px;
     padding: 12px;
-    border: 1px dashed #c9c3e9;
+    border: 1px dashed var(--rs-primary-pale);
     border-radius: 10px;
-    background: #fbfaff;
-    color: #8171c1;
+    background: var(--rs-canvas);
+    color: var(--rs-primary);
     font-size: 12px;
 }
 .al-add-step svg {
@@ -480,7 +480,7 @@
     gap: 8px;
     overflow-x: auto;
     padding: 15px 24px 0;
-    border-bottom: 1px solid #e9ebf2;
+    border-bottom: 1px solid var(--rs-surface-muted);
 }
 .al-tabs button {
     flex-shrink: 0;
@@ -488,12 +488,12 @@
     border: 0;
     border-bottom: 2px solid transparent;
     background: none;
-    color: #9298a7;
+    color: var(--rs-muted);
     font-size: 12px;
 }
 .al-tabs button.active {
-    border-bottom-color: #8171d1;
-    color: #7562c8;
+    border-bottom-color: var(--rs-primary);
+    color: var(--rs-primary);
     font-weight: 650;
 }
 .al-filter-group {
@@ -526,8 +526,8 @@
     color: #c77770;
 }
 .al-status.cancelled {
-    background: #eef1f4;
-    color: #5f6c7b;
+    background: var(--rs-surface-muted);
+    color: var(--rs-text-soft);
 }
 .al-date-fields {
     display: grid;
@@ -545,7 +545,7 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    color: #68627c;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .al-detail-heading {
@@ -557,14 +557,14 @@
 .al-detail-heading h3,
 .al-review h3 {
     margin: 0 0 6px;
-    color: #394256;
+    color: var(--rs-ink);
     font-size: 16px;
     font-weight: 650;
 }
 .al-detail-heading p,
 .al-review > p {
     margin: 0;
-    color: #9298a6;
+    color: var(--rs-muted);
     font-size: 12px;
     line-height: 1.7;
 }
@@ -572,7 +572,7 @@
     margin: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    color: #737d90;
+    color: var(--rs-text-soft);
     font-size: 12px;
     line-height: 1.8;
 }
@@ -597,7 +597,7 @@
     top: 34px;
     bottom: 4px;
     width: 1px;
-    background: #e6e7ef;
+    background: var(--rs-border);
 }
 .al-timeline li:last-child {
     padding-bottom: 0;
@@ -612,8 +612,8 @@
     height: 32px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: #f0f1f6;
-    color: #a7adbb;
+    background: var(--rs-surface-muted);
+    color: var(--rs-muted);
     font-size: 12px;
     font-weight: 650;
 }
@@ -639,13 +639,13 @@
 }
 .al-timeline strong {
     display: block;
-    color: #545c70;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .al-timeline small {
     display: block;
     margin-top: 4px;
-    color: #9299aa;
+    color: var(--rs-muted);
     font-size: 10px;
     line-height: 1.7;
 }
@@ -653,13 +653,13 @@
     margin-top: 7px;
     padding: 9px 12px;
     border-radius: 8px;
-    background: #f6f7fa;
+    background: var(--rs-canvas);
 }
 .al-review {
     padding: 18px;
-    border: 1px solid #e6e3f4;
+    border: 1px solid var(--rs-primary-soft);
     border-radius: 12px;
-    background: #fbfaff;
+    background: var(--rs-canvas);
 }
 .al-review .al-field {
     margin-top: 15px;
@@ -678,9 +678,9 @@
     gap: 10px;
     max-width: 100%;
     padding: 8px 10px;
-    border: 1px solid #e3dff3;
+    border: 1px solid var(--rs-primary-border);
     border-radius: 9px;
-    background: #f7f5fd;
+    background: var(--rs-canvas);
 }
 .al-position-chip > span {
     display: grid;
@@ -688,11 +688,11 @@
     overflow-wrap: anywhere;
 }
 .al-position-chip strong {
-    color: #686080;
+    color: var(--rs-text-soft);
     font-size: 12px;
 }
 .al-position-chip small {
-    color: #9298a6;
+    color: var(--rs-muted);
     font-size: 10px;
 }
 .al-position-chip button {
@@ -703,10 +703,10 @@
     border: 0;
     border-radius: 5px;
     background: transparent;
-    color: #837693;
+    color: var(--rs-muted);
 }
 .al-position-chip button:hover {
-    background: #eae5f5;
+    background: var(--rs-primary-soft);
 }
 .al-position-chip button svg {
     width: 14px;

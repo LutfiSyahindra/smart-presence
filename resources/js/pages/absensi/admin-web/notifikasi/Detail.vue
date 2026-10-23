@@ -53,7 +53,7 @@ watch(
 }
 .detail-summary p {
     margin-bottom: 18px;
-    color: #70798c;
+    color: var(--rs-text-soft);
 }
 .detail-summary .btn {
     margin: 0 10px 10px 0;

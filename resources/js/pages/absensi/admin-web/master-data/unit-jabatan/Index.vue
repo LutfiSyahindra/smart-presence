@@ -791,10 +791,10 @@ const destroy = () => {
 <style scoped>
 .structure-page,
 .structure-form {
-    --ink: #172033;
-    --muted: #6b7589;
-    --line: #e7eaf1;
-    --indigo: #6571e8;
+    --ink: var(--rs-primary-deep);
+    --muted: var(--rs-text-soft);
+    --line: var(--rs-surface-muted);
+    --indigo: var(--rs-primary);
 }
 .structure-page {
     display: grid;
@@ -809,8 +809,8 @@ const destroy = () => {
     padding: 40px 44px;
     border-radius: 22px;
     color: #fff;
-    background: linear-gradient(125deg, #141b33, #252e61 55%, #434cbd);
-    box-shadow: 0 22px 50px rgba(22, 30, 72, 0.2);
+    background: linear-gradient(125deg, var(--rs-primary-deep), var(--rs-primary-hover) 55%, var(--rs-primary));
+    box-shadow: 0 22px 50px rgba(var(--rs-primary-deep-rgb), 0.2);
 }
 .hero-glow {
     position: absolute;
@@ -853,12 +853,12 @@ const destroy = () => {
     letter-spacing: -0.045em;
 }
 .hero h1 span {
-    color: #9ef1e6;
+    color: var(--rs-gold-light);
 }
 .hero-copy > p {
     max-width: 650px;
     margin: 0;
-    color: #c9cfe5;
+    color: var(--rs-primary-pale);
     font-size: 15px;
     line-height: 1.75;
 }
@@ -866,7 +866,7 @@ const destroy = () => {
     display: flex;
     gap: 20px;
     margin-top: 23px;
-    color: #e6eafa;
+    color: var(--rs-primary-soft);
     font-size: 12px;
     font-weight: 700;
 }
@@ -885,11 +885,11 @@ const destroy = () => {
     padding: 19px 20px;
     border: 1px solid rgba(255, 255, 255, 0.13);
     border-radius: 16px;
-    background: rgba(12, 17, 40, 0.35);
+    background: rgba(var(--rs-primary-deep-rgb), 0.35);
     backdrop-filter: blur(12px);
 }
 .hero-side > div small {
-    color: #cbd2ed;
+    color: var(--rs-primary-border);
 }
 .hero-side > div strong {
     margin: 4px 0;
@@ -907,7 +907,7 @@ const destroy = () => {
     padding: 14px 16px;
     border: 0;
     border-radius: 15px;
-    color: #1b2850;
+    color: var(--rs-primary-deep);
     background: #fff;
     text-align: left;
 }
@@ -918,7 +918,7 @@ const destroy = () => {
     display: grid;
 }
 .hero-side > button small {
-    color: #747e92;
+    color: var(--rs-muted);
     font-size: 10px;
 }
 .summary-grid {
@@ -935,7 +935,7 @@ const destroy = () => {
     border: 1px solid var(--line);
     border-radius: 17px;
     background: #fff;
-    box-shadow: 0 8px 24px rgba(28, 36, 64, 0.05);
+    box-shadow: 0 8px 24px rgba(var(--rs-primary-deep-rgb), 0.05);
 }
 .summary-icon {
     display: grid;
@@ -949,8 +949,8 @@ const destroy = () => {
     width: 20px;
 }
 .summary-card.indigo .summary-icon {
-    color: #5965dc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .summary-card.emerald .summary-icon {
     color: #139775;
@@ -961,8 +961,8 @@ const destroy = () => {
     background: #fff5df;
 }
 .summary-card.cyan .summary-icon {
-    color: #168fa2;
-    background: #e8f9fb;
+    color: var(--rs-primary-hover);
+    background: var(--rs-primary-soft);
 }
 .summary-card > div {
     display: grid;
@@ -978,7 +978,7 @@ const destroy = () => {
     font-size: 27px;
 }
 .summary-card span {
-    color: #8a93a5;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .directory {
@@ -986,7 +986,7 @@ const destroy = () => {
     border: 1px solid var(--line);
     border-radius: 20px;
     background: #fff;
-    box-shadow: 0 12px 34px rgba(28, 36, 64, 0.06);
+    box-shadow: 0 12px 34px rgba(var(--rs-primary-deep-rgb), 0.06);
 }
 .directory-heading {
     display: flex;
@@ -1029,20 +1029,20 @@ const destroy = () => {
     gap: 10px;
     padding: 15px 26px;
     border-block: 1px solid var(--line);
-    background: #fafbfe;
+    background: var(--rs-canvas);
 }
 .search-field {
     display: flex;
     align-items: center;
     gap: 9px;
     padding: 0 12px;
-    border: 1px solid #dfe3ec;
+    border: 1px solid var(--rs-border);
     border-radius: 11px;
     background: #fff;
 }
 .search-field > svg {
     width: 17px;
-    color: #8a93a5;
+    color: var(--rs-muted);
 }
 .search-field input {
     width: 100%;
@@ -1054,7 +1054,7 @@ const destroy = () => {
 .search-field button,
 .row-actions button {
     border: 0;
-    color: #7f899d;
+    color: var(--rs-muted);
     background: transparent;
 }
 .search-field button svg {
@@ -1063,7 +1063,7 @@ const destroy = () => {
 .status-filter {
     display: flex;
     padding: 3px;
-    border: 1px solid #dfe3ec;
+    border: 1px solid var(--rs-border);
     border-radius: 11px;
     background: #fff;
 }
@@ -1071,14 +1071,14 @@ const destroy = () => {
     padding: 7px 12px;
     border: 0;
     border-radius: 8px;
-    color: #6f788b;
+    color: var(--rs-text-soft);
     background: transparent;
     font-size: 12px;
     font-weight: 700;
 }
 .status-filter button.active {
     color: #fff;
-    background: #5965dc;
+    background: var(--rs-primary);
 }
 .search-button,
 .add-position,
@@ -1098,7 +1098,7 @@ const destroy = () => {
 .search-button {
     padding: 0 16px;
     color: #fff;
-    background: #222b51;
+    background: var(--rs-primary-deep);
 }
 .search-button svg,
 .add-position svg,
@@ -1136,14 +1136,14 @@ const destroy = () => {
     display: grid;
     gap: 15px;
     padding: 20px 26px 25px;
-    background: #f7f8fc;
+    background: var(--rs-canvas);
 }
 .unit-card {
     overflow: hidden;
-    border: 1px solid #e0e4ed;
+    border: 1px solid var(--rs-border);
     border-radius: 16px;
     background: #fff;
-    box-shadow: 0 7px 20px rgba(28, 36, 64, 0.04);
+    box-shadow: 0 7px 20px rgba(var(--rs-primary-deep-rgb), 0.04);
 }
 .unit-header {
     display: flex;
@@ -1170,8 +1170,8 @@ const destroy = () => {
     width: 21px;
 }
 .tone-1 {
-    color: #5664d8 !important;
-    background: #edf0ff !important;
+    color: var(--rs-primary) !important;
+    background: var(--rs-primary-soft) !important;
 }
 .tone-2 {
     color: #168d71 !important;
@@ -1182,8 +1182,8 @@ const destroy = () => {
     background: #fff4dc !important;
 }
 .tone-4 {
-    color: #2586a0 !important;
-    background: #e8f8fb !important;
+    color: var(--rs-primary-hover) !important;
+    background: var(--rs-primary-soft) !important;
 }
 .tone-5 {
     color: #a35b99 !important;
@@ -1212,7 +1212,7 @@ const destroy = () => {
     display: flex;
     align-items: center;
     gap: 5px;
-    color: #8a93a5;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .unit-identity > div > small svg {
@@ -1222,8 +1222,8 @@ const destroy = () => {
     display: inline-flex;
     padding: 4px 8px;
     border-radius: 7px;
-    color: #4e5bcc;
-    background: #f0f1ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
     font-family: ui-monospace, monospace;
     font-size: 10px;
     font-weight: 900;
@@ -1259,8 +1259,8 @@ const destroy = () => {
 }
 .add-position {
     padding: 9px 12px;
-    color: #4e5bcc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .icon-button,
 .row-actions button {
@@ -1268,9 +1268,9 @@ const destroy = () => {
     width: 33px;
     height: 33px;
     place-items: center;
-    border: 1px solid #e1e4ec;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
-    color: #717b8f;
+    color: var(--rs-text-soft);
     background: #fff;
 }
 .icon-button svg,
@@ -1290,8 +1290,8 @@ table {
 }
 th {
     padding: 10px 16px;
-    color: #838da0;
-    background: #fafbfe;
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
     font-size: 9px;
     font-weight: 900;
     letter-spacing: 0.08em;
@@ -1300,7 +1300,7 @@ th {
 }
 td {
     padding: 12px 16px;
-    border-top: 1px solid #eff1f5;
+    border-top: 1px solid var(--rs-surface-muted);
     color: var(--muted);
     font-size: 11px;
     vertical-align: middle;
@@ -1329,7 +1329,7 @@ td {
     font-size: 12px;
 }
 .position-name small {
-    color: #949cad;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .description {
@@ -1357,9 +1357,9 @@ td {
     justify-content: center;
     gap: 10px;
     padding: 22px;
-    border-top: 1px dashed #dfe3ec;
-    color: #8790a2;
-    background: #fbfcfe;
+    border-top: 1px dashed var(--rs-border);
+    color: var(--rs-muted);
+    background: var(--rs-canvas);
 }
 .empty-positions > svg {
     width: 22px;
@@ -1377,7 +1377,7 @@ td {
 .empty-positions button {
     padding: 8px 10px;
     color: #fff;
-    background: #5965dc;
+    background: var(--rs-primary);
 }
 .empty-state {
     display: grid;
@@ -1391,8 +1391,8 @@ td {
     height: 58px;
     place-items: center;
     border-radius: 18px;
-    color: #5965dc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .empty-state h3 {
     margin: 12px 0 4px;
@@ -1404,13 +1404,13 @@ td {
 .empty-state button {
     padding: 9px 13px;
     color: #fff;
-    background: #5965dc;
+    background: var(--rs-primary);
 }
 .form-body {
     display: grid;
     gap: 15px;
     padding: 19px 21px;
-    background: #f7f8fc;
+    background: var(--rs-canvas);
 }
 .form-preview {
     display: flex;
@@ -1419,7 +1419,7 @@ td {
     padding: 14px;
     border-radius: 14px;
     color: #fff;
-    background: linear-gradient(120deg, #20284f, #5965dc);
+    background: linear-gradient(120deg, var(--rs-primary-deep), var(--rs-primary));
 }
 .form-preview > span:first-child {
     display: grid;
@@ -1437,7 +1437,7 @@ td {
     flex: 1;
 }
 .form-preview small {
-    color: #cdd3ef;
+    color: var(--rs-primary-border);
     font-size: 9px;
     text-transform: uppercase;
 }
@@ -1469,8 +1469,8 @@ td {
     flex: 0 0 36px;
     place-items: center;
     border-radius: 10px;
-    color: #5965dc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .form-section > header svg {
     width: 17px;
@@ -1479,7 +1479,7 @@ td {
     flex: 1;
 }
 .form-section > header small {
-    color: #5965dc;
+    color: var(--rs-primary);
     font-size: 9px;
     font-weight: 900;
     text-transform: uppercase;
@@ -1505,7 +1505,7 @@ td {
 .field label {
     display: block;
     margin-bottom: 6px;
-    color: #3d4658;
+    color: var(--rs-ink);
     font-size: 11px;
     font-weight: 800;
 }
@@ -1514,7 +1514,7 @@ td {
 }
 .field > small,
 .field-meta small {
-    color: #9199a9;
+    color: var(--rs-muted);
     font-size: 9px;
 }
 .input,
@@ -1522,7 +1522,7 @@ td {
     display: flex;
     align-items: center;
     gap: 8px;
-    border: 1px solid #dfe3ec;
+    border: 1px solid var(--rs-border);
     border-radius: 10px;
     background: #fff;
 }
@@ -1537,7 +1537,7 @@ td {
 .textarea > svg {
     width: 15px;
     flex: 0 0 15px;
-    color: #949caf;
+    color: var(--rs-muted);
 }
 .input input,
 .input select,
@@ -1580,10 +1580,10 @@ td {
     gap: 10px;
     width: 100%;
     padding: 11px 13px;
-    border: 1px solid #e1e5ed;
+    border: 1px solid var(--rs-border);
     border-radius: 11px;
     color: var(--ink);
-    background: #f8f9fc;
+    background: var(--rs-canvas);
     text-align: left;
 }
 .status-switch > span:first-child {
@@ -1591,7 +1591,7 @@ td {
     height: 19px;
     padding: 2px;
     border-radius: 99px;
-    background: #cbd1dc;
+    background: var(--rs-primary-border);
 }
 .status-switch > span:first-child i {
     display: block;
@@ -1629,8 +1629,8 @@ td {
 .add-input,
 .add-more {
     padding: 8px 10px;
-    color: #4e5bcc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 .input-list {
     display: grid;
@@ -1638,9 +1638,9 @@ td {
 }
 .position-input {
     padding: 13px;
-    border: 1px solid #e3e6ed;
+    border: 1px solid var(--rs-border);
     border-radius: 12px;
-    background: #fafbfe;
+    background: var(--rs-canvas);
 }
 .position-input > header {
     display: flex;
@@ -1654,8 +1654,8 @@ td {
     height: 30px;
     place-items: center;
     border-radius: 9px;
-    color: #5965dc;
-    background: #eef0ff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
     font-size: 10px;
     font-weight: 900;
 }
@@ -1689,8 +1689,8 @@ td {
 }
 .add-more {
     width: 100%;
-    border: 1px dashed #bfc5ef;
-    background: #f8f8ff;
+    border: 1px dashed var(--rs-primary-pale);
+    background: var(--rs-canvas);
 }
 .form-footer {
     display: flex;

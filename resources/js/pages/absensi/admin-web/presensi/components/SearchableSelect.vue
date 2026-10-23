@@ -204,10 +204,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 .searchable-select-trigger {
     width: 100%;
     height: 44px;
-    border: 1px solid #dce1e9;
+    border: 1px solid var(--rs-border);
     border-radius: 9px;
     outline: none;
-    color: #17213d;
+    color: var(--rs-primary-deep);
     background: white;
     font-size: 13px;
 }
@@ -232,13 +232,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 }
 
 .searchable-select-trigger .placeholder {
-    color: #7b8493;
+    color: var(--rs-muted);
 }
 
 .searchable-select-trigger > svg {
     width: 15px;
     flex: 0 0 auto;
-    color: #858fa1;
+    color: var(--rs-muted);
     transition: transform 0.15s ease;
 }
 
@@ -249,8 +249,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 .searchable-select-native:focus,
 .searchable-select-trigger:focus,
 .open .searchable-select-trigger {
-    border-color: #929afa;
-    box-shadow: 0 0 0 3px rgba(88, 101, 220, 0.09);
+    border-color: var(--rs-primary-pale);
+    box-shadow: 0 0 0 3px rgba(var(--rs-primary-rgb), 0.09);
 }
 
 .invalid .searchable-select-native,
@@ -260,8 +260,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 
 .disabled .searchable-select-native,
 .disabled .searchable-select-trigger {
-    color: #8d95a4;
-    background: #eef0f3;
+    color: var(--rs-muted);
+    background: var(--rs-surface-muted);
     cursor: not-allowed;
 }
 
@@ -273,10 +273,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
     left: 0;
     overflow: hidden;
     padding: 7px;
-    border: 1px solid #dfe3ea;
+    border: 1px solid var(--rs-border);
     border-radius: 11px;
     background: white;
-    box-shadow: 0 16px 38px rgba(23, 33, 61, 0.18);
+    box-shadow: 0 16px 38px rgba(var(--rs-primary-deep-rgb), 0.18);
 }
 
 .searchable-select-search {
@@ -289,7 +289,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
     position: absolute;
     left: 10px;
     width: 14px;
-    color: #8993a5;
+    color: var(--rs-muted);
     pointer-events: none;
 }
 
@@ -297,16 +297,16 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
     width: 100%;
     height: 36px;
     padding: 0 10px 0 31px;
-    border: 1px solid #e1e5eb;
+    border: 1px solid var(--rs-border);
     border-radius: 8px;
     outline: none;
-    color: #17213d;
-    background: #f8f9fb;
+    color: var(--rs-primary-deep);
+    background: var(--rs-canvas);
     font-size: 12px;
 }
 
 .searchable-select-search input:focus {
-    border-color: #929afa;
+    border-color: var(--rs-primary-pale);
     background: white;
 }
 
@@ -327,19 +327,19 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
     padding: 8px 9px;
     border: 0;
     border-radius: 7px;
-    color: #3c465a;
+    color: var(--rs-ink);
     background: transparent;
     text-align: left;
 }
 
 .searchable-select-option:hover,
 .searchable-select-option.active {
-    background: #f2f3ff;
+    background: var(--rs-primary-soft);
 }
 
 .searchable-select-option.selected {
-    color: #4e59c4;
-    background: #eceeff;
+    color: var(--rs-primary);
+    background: var(--rs-primary-soft);
 }
 
 .searchable-select-option > span {
@@ -358,7 +358,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 .searchable-select-option small {
     overflow: hidden;
     margin-top: 1px;
-    color: #8891a2;
+    color: var(--rs-muted);
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -374,14 +374,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideC
 }
 
 .placeholder-option span {
-    color: #778195;
+    color: var(--rs-muted);
     font-size: 13px;
 }
 
 .searchable-select-empty {
     margin: 0;
     padding: 13px 8px;
-    color: #8d95a4;
+    color: var(--rs-muted);
     font-size: 11px;
     text-align: center;
 }

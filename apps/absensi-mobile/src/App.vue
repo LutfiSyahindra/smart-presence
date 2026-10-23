@@ -8,7 +8,7 @@ import { RouterView } from 'vue-router';
             <component :is="Component" />
             <template #fallback>
                 <main class="splash-screen">
-                    <img src="/app-icon.svg" alt="RSARSY" class="splash-logo" />
+                    <img src="/images/arsy-presensi-logo.png" alt="ARSY Presensi" width="500" height="500" class="splash-logo" />
                     <span class="spinner" aria-label="Memuat"></span>
                 </main>
             </template>

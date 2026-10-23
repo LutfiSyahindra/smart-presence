@@ -73,14 +73,14 @@ const markAllRead = () => {
     gap: 8px;
     padding: 12px 16px;
     border-radius: 9px;
-    color: #81899c;
+    color: var(--rs-muted);
     font-size: 12px;
     font-weight: 600;
     text-decoration: none;
 }
 .inbox-tab.active {
-    background: #f1effc;
-    color: #6f60c6;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
 }
 .inbox-tab svg {
     width: 16px;
@@ -91,13 +91,13 @@ const markAllRead = () => {
     gap: 16px;
     align-items: flex-start;
     padding: 22px;
-    border-bottom: 1px solid #edf0f5;
+    border-bottom: 1px solid var(--rs-surface-muted);
     color: inherit;
     text-decoration: none;
 }
 .inbox-item:hover,
 .inbox-item.unread {
-    background: #faf9ff;
+    background: var(--rs-canvas);
 }
 .inbox-icon {
     display: grid;
@@ -105,8 +105,8 @@ const markAllRead = () => {
     width: 40px;
     height: 40px;
     flex-shrink: 0;
-    background: #f1effc;
-    color: #6f60c6;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
     border-radius: 12px;
 }
 .inbox-icon svg {
@@ -121,19 +121,19 @@ const markAllRead = () => {
 }
 .inbox-item p {
     margin: 6px 0;
-    color: #70798c;
+    color: var(--rs-text-soft);
     font-size: 12px;
     line-height: 1.7;
 }
 .inbox-item small {
-    color: #81899c;
+    color: var(--rs-muted);
     font-size: 11px;
 }
 .inbox-unread {
     padding: 3px 8px;
     border-radius: 8px;
-    background: #ede9fb;
-    color: #6f60c6;
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
     font-size: 10px;
 }
 </style>

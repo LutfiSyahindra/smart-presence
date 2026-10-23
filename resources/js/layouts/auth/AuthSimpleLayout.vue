@@ -15,8 +15,7 @@ defineProps<{
         <div class="auth-premium-grid" aria-hidden="true"></div>
         <section class="auth-story-panel">
             <Link :href="route('home')" class="auth-brand">
-                <span class="auth-brand-logo"><AppLogoIcon /></span>
-                <span><strong>RSARSY</strong><small>Smart Presence</small></span>
+                <span class="auth-brand-logo"><AppLogoIcon variant="full" /></span>
             </Link>
 
             <div class="auth-story-copy">
@@ -49,8 +48,7 @@ defineProps<{
 
         <main class="auth-form-panel">
             <Link :href="route('home')" class="auth-mobile-brand">
-                <span><AppLogoIcon /></span>
-                RSARSY Presence
+                <span><AppLogoIcon variant="full" /></span>
             </Link>
 
             <div class="auth-form-wrap">
@@ -113,37 +111,14 @@ defineProps<{
     z-index: 2;
 }
 .auth-brand-logo {
-    width: 43px;
-    height: 43px;
+    width: 96px;
+    height: 96px;
     display: grid;
     place-items: center;
-    border: 1px solid #dce2f3;
-    border-radius: 14px;
-    color: #6668df;
-    background: rgba(255, 255, 255, 0.82);
-    box-shadow: 0 9px 22px rgba(99, 102, 241, 0.1);
-    backdrop-filter: blur(10px);
 }
-.auth-brand-logo :deep(svg) {
-    width: 29px;
-    height: 29px;
-}
-.auth-brand > span:last-child {
-    display: flex;
-    flex-direction: column;
-    line-height: 1;
-}
-.auth-brand strong {
-    font-size: 17px;
-    letter-spacing: 0.08em;
-}
-.auth-brand small {
-    margin-top: 6px;
-    color: #7d88a1;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+.auth-brand-logo :deep(img) {
+    width: 96px;
+    height: 96px;
 }
 .auth-story-copy {
     max-width: 490px;
@@ -488,7 +463,7 @@ defineProps<{
         display: none;
     }
     .auth-form-panel {
-        padding: 90px 24px 35px;
+        padding: 118px 24px 35px;
     }
     .auth-mobile-brand {
         display: inline-flex;
@@ -499,25 +474,23 @@ defineProps<{
         font-weight: 800;
         text-decoration: none;
         position: absolute;
-        top: 28px;
+        top: 20px;
         left: 50%;
         transform: translateX(-50%);
         white-space: nowrap;
     }
     .auth-mobile-brand > span {
-        width: 31px;
-        height: 31px;
+        width: 78px;
+        height: 78px;
         display: grid;
         place-items: center;
-        border-radius: 10px;
-        color: #fff;
-        background: linear-gradient(135deg, #4f46e5, #7c3aed);
     }
-    .auth-mobile-brand svg {
-        width: 23px;
+    .auth-mobile-brand :deep(img) {
+        width: 78px;
+        height: 78px;
     }
     .auth-compact .auth-form-panel {
-        padding: 74px 18px 24px;
+        padding: 110px 18px 24px;
     }
     .auth-compact .auth-mobile-brand {
         top: 20px;
@@ -526,7 +499,7 @@ defineProps<{
 
 @media (max-width: 520px) {
     .auth-form-panel {
-        padding: 82px 14px 20px;
+        padding: 114px 14px 20px;
         align-items: start;
     }
     .auth-form-wrap {
@@ -542,7 +515,7 @@ defineProps<{
         margin-bottom: 25px;
     }
     .auth-compact .auth-form-panel {
-        padding: 70px 12px 16px;
+        padding: 110px 12px 16px;
     }
     .auth-compact .auth-form-wrap {
         padding: 24px 20px;

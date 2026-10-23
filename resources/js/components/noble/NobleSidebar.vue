@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { useAdminNotificationCounts } from '@/composables/useAdminNotificationCounts';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
@@ -11,7 +12,6 @@ import {
     ChevronDown,
     ContactRound,
     GitPullRequestArrow,
-    HeartPulse,
     Inbox,
     LayoutDashboard,
     MapPinned,
@@ -179,7 +179,7 @@ watch(currentPath, () => {
     <nav class="sidebar" aria-label="Navigasi utama">
         <div class="sidebar-header">
             <Link :href="homeUrl" class="sidebar-brand premium-sidebar-brand" @click="emit('navigate')">
-                <span class="sidebar-brand-mark"><HeartPulse /></span>
+                <span class="sidebar-brand-mark"><AppLogoIcon /></span>
                 <span class="sidebar-brand-copy">
                     <strong>RSARSY</strong>
                     <small>Smart Presence</small>

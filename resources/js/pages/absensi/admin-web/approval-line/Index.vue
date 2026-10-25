@@ -12,7 +12,7 @@ import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
 import SearchableMultiSelect from './components/SearchableMultiSelect.vue';
 
-type ApprovalType = 'cuti' | 'lembur';
+type ApprovalType = 'cuti' | 'lembur' | 'perubahan-shift';
 
 interface LineRow {
     id: number;
@@ -42,9 +42,10 @@ const open = ref(false);
 const editing = ref<LineRow | null>(null);
 const deleting = ref<LineRow | null>(null);
 const deleteProcessing = ref(false);
-const activeLabel = computed(() => props.typeOptions.find((option) => option.value === props.filters.type)?.label ?? '');
+const typeLabel = (type: ApprovalType) => props.typeOptions.find((option) => option.value === type)?.label ?? '';
+const activeLabel = computed(() => typeLabel(props.filters.type));
 const form = useForm({ type: props.filters.type, jabatan_ids: [] as number[], approver_ids: [] as number[] });
-const formLabel = computed(() => props.typeOptions.find((option) => option.value === form.type)?.label ?? '');
+const formLabel = computed(() => typeLabel(form.type));
 const availablePositions = computed(() =>
     props.jabatanOptions.filter((position) => !position.configured || editing.value?.jabatans.some((selected) => selected.id === position.id)),
 );
@@ -179,7 +180,7 @@ onBeforeUnmount(() => {
                 <div>
                     <span class="al-eyebrow"><GitPullRequestArrow /> Alur persetujuan</span>
                     <h1>Aproval Line</h1>
-                    <p>Atur siapa yang menyetujui pengajuan cuti dan lembur untuk setiap jabatan, secara berurutan hingga tiga tingkat.</p>
+                    <p>Atur siapa yang menyetujui pengajuan cuti, lembur, dan perubahan shift untuk setiap jabatan hingga tiga tingkat.</p>
                     <span class="al-module">Pengajuan {{ activeLabel.toLowerCase() }} <span>•</span> Approval berurutan</span>
                 </div>
                 <button v-if="can.create" type="button" class="btn btn-primary al-button" @click="edit()"><Plus /> Tambah approval line</button>
@@ -223,7 +224,7 @@ onBeforeUnmount(() => {
                 <header class="al-panel-header">
                     <div>
                         <h2>Daftar approval line {{ activeLabel.toLowerCase() }}</h2>
-                        <p>Satu alur dapat digunakan oleh beberapa jabatan pemohon. Pengaturan cuti dan lembur terpisah.</p>
+                        <p>Satu alur dapat digunakan oleh beberapa jabatan pemohon. Setiap kategori memiliki pengaturan sendiri.</p>
                     </div>
                     <form class="al-search" role="search" @submit.prevent="applySearch">
                         <Search /><input
@@ -441,7 +442,7 @@ onBeforeUnmount(() => {
         <ConfirmDelete
             :open="!!deleting"
             title="Hapus approval line?"
-            :description="`Alur ${deleting?.type ?? filters.type} untuk ${lineLabel(deleting)} akan dihapus. Pengajuan yang sedang berjalan tetap diproses dengan urutan sebelumnya. Pengajuan baru memerlukan alur pengganti.`"
+            :description="`Alur ${typeLabel(deleting?.type ?? filters.type).toLowerCase()} untuk ${lineLabel(deleting)} akan dihapus. Pengajuan yang sedang berjalan tetap diproses dengan urutan sebelumnya. Pengajuan baru memerlukan alur pengganti.`"
             :processing="deleteProcessing"
             @close="!deleteProcessing && (deleting = null)"
             @confirm="destroy"

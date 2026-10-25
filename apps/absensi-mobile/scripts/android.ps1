@@ -5,6 +5,8 @@ param(
 
     [switch] $Development,
 
+    [switch] $Release,
+
     [string] $Target
 )
 
@@ -13,6 +15,13 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'android-environment.ps1')
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $mobileRoot '..\..'))
+
+if ($Release) {
+    if ($Action -ne 'apk' -or $Development) { throw '-Release hanya untuk -Action apk tanpa -Development.' }
+    $env:CAPACITOR_BUILD_MODE = 'release'
+} else {
+    $env:CAPACITOR_BUILD_MODE = 'development'
+}
 
 function Invoke-CheckedCommand {
     param(
@@ -141,10 +150,22 @@ try {
             Invoke-CheckedCommand $adb '-s' $Target 'shell' 'am' 'start' '-n' 'id.rsarsy.presensi/.MainActivity'
         }
         'apk' {
+            if ($Release) {
+                & (Join-Path $PSScriptRoot 'android-signing.ps1')
+            }
             Push-Location $androidRoot
             try {
-                Invoke-CheckedCommand (Join-Path $androidRoot 'gradlew.bat') '--gradle-user-home' $gradleUserHome 'assembleDebug'
-                Write-Output 'APK development memakai Vue/Laravel yang sama dengan browser. Untuk emulator/USB, jalankan npm run android:connect.'
+                if ($Release) {
+                    Invoke-CheckedCommand (Join-Path $androidRoot 'gradlew.bat') '--gradle-user-home' $gradleUserHome ':app:testReleaseUnitTest' ':app:assembleRelease'
+                    $releaseApk = Join-Path $androidRoot 'app\build\outputs\apk\release\app-release.apk'
+                    $downloadDirectory = Join-Path $projectRoot 'public\downloads'
+                    New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null
+                    Copy-Item -LiteralPath $releaseApk -Destination (Join-Path $downloadDirectory 'arsy-presensi.apk') -Force
+                    Write-Output 'APK release: public/downloads/arsy-presensi.apk'
+                } else {
+                    Invoke-CheckedCommand (Join-Path $androidRoot 'gradlew.bat') '--gradle-user-home' $gradleUserHome 'assembleDebug'
+                    Write-Output 'APK development memakai Vue/Laravel yang sama dengan browser. Untuk emulator/USB, jalankan npm run android:connect.'
+                }
             } finally {
                 Pop-Location
             }

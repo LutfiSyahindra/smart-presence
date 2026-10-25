@@ -470,6 +470,24 @@ class ClockInTest extends TestCase
         $this->assertNotNull($presensi->fresh()->clock_in_at);
     }
 
+    public function test_clock_in_reloads_a_dated_shift_created_during_face_verification(): void
+    {
+        $this->travelTo('2026-10-26 06:00:00');
+        $target = Shift::query()->create(['nama' => 'Shift Siang', 'jam_masuk' => '14:00', 'jam_keluar' => '22:00']);
+        $this->mock(FaceVerifier::class, function (MockInterface $mock) use ($target): void {
+            $mock->shouldReceive('compare')->once()->andReturnUsing(function () use ($target) {
+                Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'tanggal_presensi' => now()->toDateString(), 'shift_id' => $target->id]);
+
+                return new FaceVerificationResult(true, 96.42, 'test-verifier');
+            });
+        });
+        $this->actingAs($this->user)->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasNoErrors()->assertRedirect('/absensi/mobile/clock-in/berhasil');
+        $record = Presensi::query()->sole();
+        $this->assertSame($target->id, $record->shift_id);
+        $this->assertNotNull($record->clock_in_at);
+    }
+
     /** @param array<string, mixed> $overrides */
     private function payload(array $overrides = []): array
     {

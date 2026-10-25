@@ -1,0 +1,10 @@
+# Use together with compose.yml after placing your certificate and private key.
+services:
+  web:
+    environment:
+      APP_HTTPS: "on"
+    ports:
+      - "${HTTPS_BIND_ADDRESS:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/https.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro

@@ -40,6 +40,7 @@ const props = defineProps<{
     pendingApprovalCount: number;
     cutiPendingApprovalCount?: number;
     lemburPendingApprovalCount?: number;
+    perubahanShiftPendingApprovalCount?: number;
     today: string;
 }>();
 const { feedback, pushActive, busy, available, supported, enablePush, refresh } = useMobileNotifications();
@@ -59,7 +60,14 @@ const categories = computed(() => [
     },
     { name: 'Presensi', icon: MapPin, tone: 'amber' },
     { name: 'Lembur', icon: Timer, tone: 'orange', active: true, href: `${base}/lembur`, count: props.lemburPendingApprovalCount ?? 0 },
-    { name: 'Perubahan shift', icon: ArrowRightLeft, tone: 'cyan' },
+    {
+        name: 'Perubahan shift',
+        icon: ArrowRightLeft,
+        tone: 'cyan',
+        active: true,
+        href: `${base}/perubahan-shift`,
+        count: props.perubahanShiftPendingApprovalCount ?? 0,
+    },
     { name: 'Perubahan data', icon: UserRound, tone: 'violet' },
     { name: 'Formulir', icon: FileInput, tone: 'violet' },
     { name: 'Goal', icon: Target, tone: 'rose' },

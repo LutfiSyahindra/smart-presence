@@ -10,6 +10,7 @@ use App\Http\Controllers\Absensi\AbsensiMobile\CutiController as MobileCutiContr
 use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeController;
 use App\Http\Controllers\Absensi\AbsensiMobile\LemburController as MobileLemburController;
 use App\Http\Controllers\Absensi\AbsensiMobile\NotificationController as MobileNotificationController;
+use App\Http\Controllers\Absensi\AbsensiMobile\PerubahanShiftController as MobilePerubahanShiftController;
 use App\Http\Controllers\Absensi\AbsensiMobile\PushDeviceController;
 use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
 use App\Http\Controllers\Absensi\AdminWeb\Cuti\CutiController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\HariLiburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\LemburController as WebLemburController;
+use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\PerubahanShiftController as WebPerubahanShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotificationInboxController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotifikasiController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\WebPushSubscriptionController;
@@ -46,6 +48,12 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
+        Route::get('perubahan-shift', [MobilePerubahanShiftController::class, 'index'])->name('perubahan-shift.index');
+        Route::post('perubahan-shift', [MobilePerubahanShiftController::class, 'store'])->middleware('throttle:20,1')->name('perubahan-shift.store');
+        Route::get('perubahan-shift/{perubahanShiftRequest}', [MobilePerubahanShiftController::class, 'index'])->whereNumber('perubahanShiftRequest')->name('perubahan-shift.show');
+        Route::post('perubahan-shift/{perubahanShiftRequest}/cancel', [MobilePerubahanShiftController::class, 'cancel'])->whereNumber('perubahanShiftRequest')->name('perubahan-shift.cancel');
+        Route::post('perubahan-shift/{perubahanShiftRequest}/decision', [MobilePerubahanShiftController::class, 'decide'])->whereNumber('perubahanShiftRequest')->name('perubahan-shift.decide');
+        Route::get('notifikasi/perubahan-shift', fn () => to_route('absensi.mobile.perubahan-shift.index', ['scope' => 'delegation']))->name('notifikasi.perubahan-shift');
         Route::get('lembur', [MobileLemburController::class, 'index'])->name('lembur.index');
         Route::get('lembur/ajukan', [MobileLemburController::class, 'create'])->name('lembur.create');
         Route::get('lembur/gunakan', [MobileLemburController::class, 'createUsage'])->name('lembur.usage.create');
@@ -188,6 +196,8 @@ Route::middleware(['auth', 'verified', 'can:pengajuan.access'])
         Route::post('notifikasi/read-all', [NotificationInboxController::class, 'readAll'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.read-all');
         Route::get('notifikasi/open/{notification}', [NotificationInboxController::class, 'open'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.open');
         Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.cuti');
+        Route::get('notifikasi/pengajuan/perubahan-shift/{perubahanShiftRequest}', [WebPerubahanShiftController::class, 'show'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.perubahan-shift');
+        Route::post('notifikasi/pengajuan/perubahan-shift/{perubahanShiftRequest}/decision', [WebPerubahanShiftController::class, 'decide'])->middleware(['can:'.AccessPermission::CUTI_VIEW, 'can:'.AccessPermission::CUTI_APPROVE])->name('notifikasi.perubahan-shift.decide');
         Route::get('notifikasi/pengajuan/lembur/{lemburRequest}', [WebLemburController::class, 'show'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.lembur');
         Route::post('notifikasi/pengajuan/lembur/{lemburRequest}/decision', [WebLemburController::class, 'decide'])->middleware(['can:'.AccessPermission::CUTI_VIEW, 'can:'.AccessPermission::CUTI_APPROVE])->name('notifikasi.lembur.decide');
         Route::get('notifikasi/pengajuan/lembur/{lemburRequest}/lampiran/{attachment}', [MobileLemburController::class, 'attachment'])->whereNumber('attachment')->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.lembur.attachment');

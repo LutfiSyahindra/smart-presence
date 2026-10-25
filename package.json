@@ -10,6 +10,7 @@
         "mobile:sync": "npm --prefix apps/absensi-mobile run cap:sync",
         "mobile:android": "npm --prefix apps/absensi-mobile run cap:android",
         "mobile:apk:dev": "npm --prefix apps/absensi-mobile run android:apk:dev",
+        "mobile:apk:release": "npm --prefix apps/absensi-mobile run android:apk:release",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix"

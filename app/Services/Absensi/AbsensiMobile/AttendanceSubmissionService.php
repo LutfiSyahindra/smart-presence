@@ -80,6 +80,10 @@ class AttendanceSubmissionService
         try {
             $attendance = DB::transaction(function () use ($distance, $existing, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): Presensi {
                 Pegawai::query()->lockForUpdate()->findOrFail($pegawai->id);
+                $existing = $this->todayPresensi($pegawai);
+                if ($existing?->clock_in_at) {
+                    $this->fail('attendance', 'Anda sudah melakukan clock in. Muat ulang halaman presensi.');
+                }
                 $this->cutiSchedule->ensureCanAttend($pegawai, $existing);
                 $this->shiftHolidays->ensureCanAttend($pegawai, $existing);
 

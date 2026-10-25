@@ -4,13 +4,13 @@ import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
+    ArrowRightLeft,
     BadgeCheck,
     CalendarDays,
     CalendarRange,
     ChevronRight,
     CircleUserRound,
     Clock3,
-    FileText,
     History,
     Home,
     LogIn,
@@ -110,11 +110,11 @@ const quickActions = computed(() =>
             history: true,
             permission: 'mobile.history',
         },
-        { label: 'Jadwal', caption: 'Shift kerja', icon: CalendarDays, color: '#5b54a4', background: '#efedfb' },
+        { label: 'Perubahan Shift', caption: 'Pengajuan shift', icon: ArrowRightLeft, color: '#5b54a4', background: '#efedfb', perubahanShift: true },
         { label: 'Lembur', caption: 'Jam tambahan', icon: Timer, color: '#b86a37', background: '#fff1e8', lembur: true },
-        props.canAccessAdmin
-            ? { label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }
-            : { label: 'Dokumen', caption: 'Slip & surat', icon: FileText, color: '#a66b22', background: '#fff5dc' },
+        ...(props.canAccessAdmin
+            ? [{ label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }]
+            : []),
         {
             label: 'Cuti',
             caption: 'Saldo cuti',
@@ -319,6 +319,16 @@ const { can } = usePermission();
                             <Link
                                 v-if="can('mobile.history') && action.history"
                                 :href="route('absensi.mobile.attendance.log')"
+                                class="quick-action"
+                                :style="{ '--action-color': action.color, '--action-background': action.background }"
+                            >
+                                <span class="quick-icon"><component :is="action.icon" /></span>
+                                <strong>{{ action.label }}</strong>
+                                <small>{{ action.caption }}</small>
+                            </Link>
+                            <Link
+                                v-else-if="action.perubahanShift"
+                                :href="route('absensi.mobile.perubahan-shift.index')"
                                 class="quick-action"
                                 :style="{ '--action-color': action.color, '--action-background': action.background }"
                             >

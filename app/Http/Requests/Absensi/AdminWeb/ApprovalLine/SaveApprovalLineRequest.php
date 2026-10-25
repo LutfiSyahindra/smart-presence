@@ -46,7 +46,7 @@ class SaveApprovalLineRequest extends FormRequest
             'type.required' => 'Pilih kategori approval line.',
             'type.in' => $this->route('approvalLine')
                 ? 'Kategori approval line tidak dapat diubah. Buat alur baru untuk kategori lain.'
-                : 'Kategori approval line harus cuti atau lembur.',
+                : 'Kategori approval line harus cuti, lembur, atau perubahan shift.',
             'jabatan_ids.required' => 'Pilih minimal satu jabatan pemohon.',
             'jabatan_ids.min' => 'Pilih minimal satu jabatan pemohon.',
             'jabatan_ids.list' => 'Daftar jabatan pemohon tidak valid.',

@@ -55,10 +55,11 @@ class ApprovalLineLemburTest extends TestCase
 
     private function configure(string $type = ApprovalLine::TYPE_LEMBUR, array $overrides = []): ApprovalLine
     {
+        $label = mb_strtolower(ApprovalLine::typeLabels()[$type]);
         $this->actingAs($this->admin)->from(self::LINES.'?type='.$type)
             ->post(self::LINES, array_replace($this->payload($type), $overrides))
             ->assertSessionHasNoErrors()->assertRedirect(self::LINES.'?type='.$type)
-            ->assertSessionHas('success', "Approval line {$type} berhasil ditambahkan.");
+            ->assertSessionHas('success', "Approval line {$label} berhasil ditambahkan.");
 
         return ApprovalLine::query()->where('type', $type)->latest('id')->firstOrFail();
     }
@@ -94,7 +95,11 @@ class ApprovalLineLemburTest extends TestCase
         $this->actingAs($this->admin)->get(self::LINES.'?type=lembur')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('filters.type', 'lembur')->has('lines.data', 0)
                 ->where('overview.configured', 0)->where('jabatanOptions.0.configured', false)
-                ->where('typeOptions', [['value' => 'cuti', 'label' => 'Cuti'], ['value' => 'lembur', 'label' => 'Lembur']]));
+                ->where('typeOptions', [
+                    ['value' => 'cuti', 'label' => 'Cuti'],
+                    ['value' => 'lembur', 'label' => 'Lembur'],
+                    ['value' => 'perubahan-shift', 'label' => 'Perubahan Shift'],
+                ]));
 
         $lembur = $this->configure(overrides: ['approver_ids' => [$this->approvers[1]->id]]);
         $this->get(self::LINES)->assertOk()->assertInertia(fn (Assert $page) => $page
@@ -135,6 +140,7 @@ class ApprovalLineLemburTest extends TestCase
     {
         $this->configure(ApprovalLine::TYPE_CUTI);
         $lembur = $this->configure();
+        $this->configure(ApprovalLine::TYPE_PERUBAHAN_SHIFT);
         foreach (ApprovalLine::types() as $type) {
             $this->post(self::LINES, $this->payload($type))->assertSessionHasErrors('jabatan_ids.0');
         }
@@ -143,7 +149,7 @@ class ApprovalLineLemburTest extends TestCase
         $this->put(self::LINES."/{$second->id}", $this->payload())->assertSessionHasErrors('jabatan_ids.0');
         $this->assertSame([$other->id], $second->fresh()->jabatans->modelKeys());
         $this->assertSame([$this->jabatan->id], $lembur->fresh()->jabatans->modelKeys());
-        $this->assertDatabaseCount('approval_lines', 3);
+        $this->assertDatabaseCount('approval_lines', 4);
     }
 
     public function test_invalid_categories_are_rejected_and_existing_categories_cannot_change(): void

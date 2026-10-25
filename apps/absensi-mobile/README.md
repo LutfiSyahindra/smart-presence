@@ -1,5 +1,39 @@
 # RSARSY Presence Android
 
+## APK release untuk pegawai
+
+Domain release saat ini adalah `https://absensi.rsarsylamongan.com`, disimpan
+di `production.json`. Dari root repository, jalankan:
+
+```powershell
+npm run mobile:apk:release
+```
+
+Hasil yang siap diunduh berada di `public/downloads/arsy-presensi.apk`.
+Build release ditandatangani memakai keystore khusus, tanpa debug mode dan
+tanpa HTTP. Kunci signing dan password dibuat sekali di
+`apps/absensi-mobile/.tooling/signing/`; **backup seluruh direktori tersebut**
+agar APK berikutnya tetap bisa memperbarui instalasi pegawai. Direktori ini
+diabaikan Git dan tidak disertakan dalam APK. Untuk rilis berikutnya, naikkan
+`versionCode`/`versionName` di `android/app/build.gradle` sesuai kebutuhan.
+
+Wrapper release memuat frontend Laravel melalui jaringan HTTPS Android,
+memakai origin bridge yang sama persis dengan domain production. Ia tidak
+memakai `server.url` atau daftar `allowNavigation` development. Hanya halaman
+cadangan `/native/` yang dilayani dari asset APK; request service worker tetap
+menuju server. GPS native/anti-mock, push dan navigasi kembali tetap tersedia.
+Android System WebView yang mendukung document-start scripts serta origin-bound
+message listeners diperlukan; versi lama menampilkan permintaan pembaruan.
+
+DNS tidak perlu aktif ketika membangun APK. Sebelum dipakai pegawai, arahkan DNS
+ke server, aktifkan sertifikat HTTPS valid, dan jalankan backend. Selama server
+belum dapat dihubungi, APK menampilkan halaman cadangan dengan tombol coba lagi.
+Perubahan tampilan/backend cukup dideploy di server; perubahan native atau
+domain memerlukan APK baru. Signing/build sukses tidak menggantikan pengujian
+login, kamera, GPS, serta push terhadap server production yang sudah aktif.
+
+Perintah Android lainnya di bawah ini tetap memakai build development.
+
 Android development membuka **frontend Laravel/Inertia/Vue yang sama dengan browser**.
 Login memakai `resources/js/pages/auth/Login.vue`; beranda, akun, dan presensi memakai
 `resources/js/pages/absensi/absensi-mobile`. Perubahan UI dilakukan di `resources/js`.
@@ -301,12 +335,10 @@ Notifikasi persetujuan sudah terhubung ke Web Push untuk PWA, FCM untuk Android,
 dan APNs untuk iOS. Konfigurasi kredensial, izin perangkat, serta langkah uji ada
 di [panduan notifikasi mobile](../../docs/mobile-notifications.md).
 
-Wrapper saat ini adalah **development Android**. `server.url` Capacitor ditujukan
-untuk development, sehingga Gradle memblokir release APK/AAB yang masih memakai
-konfigurasi ini. Untuk distribusi, siapkan frontend di HTTPS dan wrapper produksi
-yang tetap menyediakan plugin native pemeriksaan GPS. Trusted Web Activity/PWA
-saja tidak menyediakan pemeriksaan mock lokasi ini. Manifest/service worker
-PWA perlu diperiksa sebelum menyatakan aplikasi siap diinstal atau digunakan offline.
+Wrapper **development Android** memakai `server.url` Capacitor. Gradle tetap
+memblokir release APK/AAB yang masih memakai konfigurasi tersebut. Perintah
+`android:apk:release` menyinkronkan konfigurasi wrapper production yang dijelaskan
+di awal dokumen. Aplikasi tetap membutuhkan koneksi ke server untuk presensi.
 
 Origin HTTPS milik sendiri dapat diuji pada debug wrapper dengan variabel proses
 `CAPACITOR_PWA_URL=https://domain-anda` sebelum sinkronisasi. Gunakan origin tanpa

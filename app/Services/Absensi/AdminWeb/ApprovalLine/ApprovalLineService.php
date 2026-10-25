@@ -38,7 +38,8 @@ class ApprovalLineService
 
             if (ApprovalLine::query()->whereHas('jabatans', fn (Builder $query) => $query->whereIn('jabatans.id', $positionIds))->where('type', $type)
                 ->when($line, fn (Builder $query) => $query->whereKeyNot($line->id))->exists()) {
-                throw ValidationException::withMessages(['jabatan_ids' => "Salah satu jabatan sudah memiliki approval line {$type}. Silakan ubah alur tersebut."]);
+                $label = mb_strtolower(ApprovalLine::typeLabels()[$type]);
+                throw ValidationException::withMessages(['jabatan_ids' => "Salah satu jabatan sudah memiliki approval line {$label}. Silakan ubah alur tersebut."]);
             }
 
             if ($line) {

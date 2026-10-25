@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Models\LemburRequest;
+use App\Models\PerubahanShiftRequest;
 use App\Services\Notifications\MobilePushService;
 use App\Services\Notifications\WebPushService;
 use App\Support\AccessPermission;
@@ -22,7 +23,7 @@ class NotificationController extends Controller
     {
         $filters = $request->validate([
             'tab' => ['nullable', Rule::in(['notifications', 'approvals'])],
-            'category' => ['nullable', Rule::in(['cuti', 'lembur'])],
+            'category' => ['nullable', Rule::in(['cuti', 'lembur', 'perubahan-shift'])],
         ]);
         if (($filters['category'] ?? null) === 'cuti') {
             return to_route('absensi.mobile.notifikasi.cuti');
@@ -30,16 +31,21 @@ class NotificationController extends Controller
         if (($filters['category'] ?? null) === 'lembur') {
             return to_route('absensi.mobile.notifikasi.lembur');
         }
+        if (($filters['category'] ?? null) === 'perubahan-shift') {
+            return to_route('absensi.mobile.notifikasi.perubahan-shift');
+        }
         $cutiCount = $request->user()->can(AccessPermission::MOBILE_CUTI_VIEW)
             ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0;
         $lemburCount = LemburRequest::query()->awaitingApprovalBy($request->user())->count();
+        $shiftCount = PerubahanShiftRequest::query()->awaitingApprovalBy($request->user())->count();
 
         return Inertia::render('absensi/absensi-mobile/Notifications', [
             'activeTab' => $filters['tab'] ?? 'notifications',
             'unreadCount' => $this->query($request)->whereNull('read_at')->count(),
-            'pendingApprovalCount' => $cutiCount + $lemburCount,
+            'pendingApprovalCount' => $cutiCount + $lemburCount + $shiftCount,
             'cutiPendingApprovalCount' => $cutiCount,
             'lemburPendingApprovalCount' => $lemburCount,
+            'perubahanShiftPendingApprovalCount' => $shiftCount,
             'today' => now()->toDateString(),
             'notifications' => $this->query($request)->latest()->paginate(20)->withQueryString()->through($this->serialize(...)),
         ]);
@@ -65,6 +71,13 @@ class NotificationController extends Controller
     public function open(Request $request, string $notification): RedirectResponse
     {
         $notice = $this->query($request)->findOrFail($notification);
+        if (($notice->data['request_type'] ?? null) === 'perubahan-shift') {
+            $item = PerubahanShiftRequest::query()->findOrFail($notice->data['request_id']);
+            abort_unless($item->canBeViewedBy($request->user()), 403);
+            $notice->markAsRead();
+
+            return to_route('absensi.mobile.perubahan-shift.show', $item);
+        }
         if (($notice->data['request_type'] ?? null) === 'lembur') {
             $lembur = LemburRequest::query()->findOrFail($notice->data['request_id']);
             abort_unless($lembur->canBeViewedBy($request->user()), 403);

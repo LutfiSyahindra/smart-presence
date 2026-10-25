@@ -1,8 +1,8 @@
-# Aproval Line untuk cuti dan lembur
+# Aproval Line untuk cuti, lembur, dan perubahan shift
 
 Modul tersedia di absensi-web:
 
-- **Aproval Line** (`/absensi/admin-web/approval-line`): pilih kategori **Cuti** atau **Lembur**, lalu pilih satu atau beberapa jabatan pemohon untuk menggunakan urutan 1–3 approver yang sama. Setiap jabatan dapat memiliki satu alur cuti dan satu alur lembur dengan approver berbeda.
+- **Aproval Line** (`/absensi/admin-web/approval-line`): pilih kategori **Cuti**, **Lembur**, atau **Perubahan Shift**, lalu pilih satu atau beberapa jabatan pemohon untuk menggunakan urutan 1–3 approver yang sama. Setiap jabatan dapat memiliki satu alur per kategori dengan approver berbeda.
 - Menu **Notifikasi** menggantikan **Pengajuan Cuti** pada navigasi admin-web, dengan submenu **Pengajuan Butuh Approval** dan **Pengajuan Disetujui**. Halaman dan layanan pengajuan cuti lama tetap tersedia untuk integrasi berikutnya.
 
 ## Notifikasi
@@ -14,7 +14,7 @@ Modul tersedia di absensi-web:
 
 ## Pengaturan
 
-Pilih tab kategori sebelum menambah approval line. Daftar, pencarian, jumlah jabatan yang sudah memiliki alur, dan pilihan jabatan mengikuti kategori aktif. Tautan `?type=lembur` membuka kategori lembur; tanpa parameter kategori, halaman membuka cuti. Kategori alur yang sudah tersimpan tetap sama saat diedit. Untuk kategori lain, buat alur baru melalui tab tersebut.
+Pilih tab kategori sebelum menambah approval line. Daftar, pencarian, jumlah jabatan yang sudah memiliki alur, dan pilihan jabatan mengikuti kategori aktif. Tautan `?type=lembur` membuka kategori lembur dan `?type=perubahan-shift` membuka perubahan shift; tanpa parameter kategori, halaman membuka cuti. Kategori alur yang sudah tersimpan tetap sama saat diedit. Untuk kategori lain, buat alur baru melalui tab tersebut.
 
 1. Pastikan akun pemohon sudah terhubung ke master pegawai dengan unit dan jabatan aktif.
 2. Approver bebas dipilih dari seluruh pengguna, tanpa batasan jabatan, unit kerja, role, permission `admin.access`, atau status verifikasi email saat konfigurasi. Login tetap menggunakan verifikasi email yang berlaku pada aplikasi.
@@ -26,7 +26,7 @@ Pengelolaan approval line dilindungi permission `approval-line.view`, `approval-
 
 Semua pengguna yang memiliki akses absensi-web dapat mengajukan cutinya sendiri. Pengguna tidak dapat mengajukan untuk pegawai lain. Pengguna yang ditunjuk sebagai approver cuti dapat login melalui `/absensi/admin-web/login` dan membuka tugas serta riwayat persetujuannya tanpa permission `admin.access`; penugasan ini tidak memberikan akses dashboard, master data, atau pengaturan admin. Identitas approver yang tersimpan menjadi penentu persetujuan.
 
-Kategori lembur menyediakan pengaturan approval line. Pengajuan dan pemrosesan persetujuan lembur belum tersedia. Penugasan hanya pada alur lembur tidak memberikan akses ke tugas cuti, dan pengajuan cuti tetap menggunakan alur kategori cuti.
+Kategori **Perubahan Shift** menyediakan pengaturan approval line. Pengajuan dan pemrosesan persetujuan perubahan shift belum tersedia. Penugasan hanya pada alur perubahan shift tidak memberikan akses ke tugas cuti atau lembur; masing-masing pengajuan tetap menggunakan alur kategorinya sendiri.
 
 ## Alur cuti
 
@@ -46,7 +46,7 @@ Modul ini menangani pengajuan dan persetujuan cuti dasar. Perhitungan durasi di 
 
 ## Migrasi dan verifikasi
 
-Penambahan kategori lembur menggunakan kolom `type` dan batas unik `jabatan_id, type` yang sudah tersedia, sehingga tidak memerlukan migrasi baru.
+Penambahan kategori lembur dan perubahan shift menggunakan kolom `type` dan batas unik `jabatan_id, type` yang sudah tersedia, sehingga tidak memerlukan migrasi baru.
 
 Migrasi `2026_10_08_000003_allow_multiple_positions_per_approval_line` memindahkan relasi jabatan lama ke tabel `approval_line_jabatan` tanpa mengubah urutan approver atau salinan pengajuan. Rollback memecah alur bersama menjadi satu alur per jabatan agar konfigurasi tetap tersimpan.
 

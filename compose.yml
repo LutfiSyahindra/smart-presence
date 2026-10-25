@@ -1,0 +1,149 @@
+name: absensi-rsarsy
+
+x-app: &app
+  image: absensi-rsarsy-app:${IMAGE_TAG:-latest}
+  build:
+    context: .
+    target: app
+    args:
+      VITE_APP_NAME: ${VITE_APP_NAME:-RSARSY Presence}
+  env_file:
+    - .env.docker
+  environment:
+    APP_ENV: production
+    APP_DEBUG: "false"
+    DB_CONNECTION: mysql
+    DB_HOST: mysql
+    DB_PORT: "3306"
+    FACE_VERIFICATION_DRIVER: fastapi
+    FACE_SERVICE_URL: http://face-verification:8001
+    QUEUE_CONNECTION: database
+    CACHE_STORE: database
+    SESSION_DRIVER: database
+    LOG_CHANNEL: stderr
+  volumes:
+    - app-storage:/var/www/html/storage
+  init: true
+  restart: unless-stopped
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-absensi_rsarsy}
+      MYSQL_USER: ${DB_USERNAME:-absensi}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Jalankan scripts/docker-setup.php terlebih dahulu}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Jalankan scripts/docker-setup.php terlebih dahulu}
+      TZ: Asia/Jakarta
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # Authenticate as the application user; mysqladmin ping also succeeds on access denied.
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -u\"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 30
+    logging: *logging
+
+  init:
+    <<: *app
+    user: root
+    command: ["init"]
+    restart: "no"
+    healthcheck:
+      disable: true
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      face-verification:
+        condition: service_started
+
+  web:
+    image: absensi-rsarsy-web:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      target: web
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME:-RSARSY Presence}
+    restart: unless-stopped
+    environment:
+      APP_HTTPS: ${APP_HTTPS:-off}
+      NGINX_HOST: ${NGINX_HOST:-localhost}
+      NGINX_TRUSTED_PROXY_CIDR: ${NGINX_TRUSTED_PROXY_CIDR:-127.0.0.1}
+      NGINX_ENVSUBST_FILTER: "^(APP_HTTPS|NGINX_HOST|NGINX_TRUSTED_PROXY_CIDR)$$"
+    ports:
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8080}:80"
+    volumes:
+      - app-storage:/var/www/html/storage:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    logging: *logging
+
+  queue:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=60", "--max-time=3600", "--no-interaction"]
+    stop_grace_period: 90s
+    healthcheck:
+      disable: true
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work", "--no-interaction"]
+    stop_grace_period: 90s
+    healthcheck:
+      disable: true
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  face-verification:
+    image: absensi-rsarsy-face:${IMAGE_TAG:-latest}
+    build:
+      context: ./services/face-verification
+    restart: unless-stopped
+    # Only face-service settings are shared with Python, never database/app secrets.
+    environment:
+      DEEPFACE_HOME: /home/face-service
+      FACE_SERVICE_TOKEN: ${FACE_SERVICE_TOKEN:?Jalankan scripts/docker-setup.php terlebih dahulu}
+      FACE_SERVICE_MODEL_NAME: ${FACE_SERVICE_MODEL_NAME:-Facenet512}
+      FACE_SERVICE_DETECTOR_BACKEND: ${FACE_SERVICE_DETECTOR_BACKEND:-opencv}
+      FACE_SERVICE_DISTANCE_METRIC: ${FACE_SERVICE_DISTANCE_METRIC:-cosine}
+      FACE_SERVICE_MIN_SIMILARITY: ${FACE_SERVICE_MIN_SIMILARITY:-70}
+      FACE_SERVICE_ANTI_SPOOFING: ${FACE_SERVICE_ANTI_SPOOFING:-true}
+      FACE_SERVICE_MAX_UPLOAD_BYTES: ${FACE_SERVICE_MAX_UPLOAD_BYTES:-5242880}
+      FACE_SERVICE_MIN_IMAGE_DIMENSION: ${FACE_SERVICE_MIN_IMAGE_DIMENSION:-160}
+      FACE_SERVICE_MAX_IMAGE_DIMENSION: ${FACE_SERVICE_MAX_IMAGE_DIMENSION:-6000}
+      FACE_SERVICE_INFERENCE_MAX_DIMENSION: ${FACE_SERVICE_INFERENCE_MAX_DIMENSION:-1280}
+      FACE_SERVICE_PROFILE_EMBEDDING_CACHE_SIZE: ${FACE_SERVICE_PROFILE_EMBEDDING_CACHE_SIZE:-512}
+      FACE_SERVICE_WARMUP: "true"
+    volumes:
+      - face-verification-models:/home/face-service/.deepface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/v1/health/ready', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 900s
+      retries: 5
+    logging: *logging
+
+volumes:
+  mysql-data:
+  app-storage:
+  face-verification-models:

@@ -54,6 +54,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Optional public base URL for employee account activation emails.
+    'account_activation_url' => env('ACCOUNT_ACTIVATION_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

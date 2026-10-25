@@ -1,14 +1,26 @@
 apply plugin: 'com.android.application'
 
+def productionConfig = new groovy.json.JsonSlurper().parse(rootProject.file('../production.json'))
+def productionOrigin = new URI(productionConfig.origin)
+def signingFile = rootProject.file('../.tooling/signing/release-signing.properties')
+def releaseSigning = new Properties()
+if (signingFile.exists()) {
+    signingFile.withInputStream { releaseSigning.load(it) }
+}
+
 android {
     namespace = "id.rsarsy.presensi"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "id.rsarsy.presensi"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField 'String', 'PRESENSI_ORIGIN', groovy.json.JsonOutput.toJson(productionConfig.origin)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +28,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (signingFile.exists()) {
+                storeFile new File(signingFile.parentFile, releaseSigning.getProperty('storeFile'))
+                storeType 'PKCS12'
+                storePassword releaseSigning.getProperty('storePassword')
+                keyAlias releaseSigning.getProperty('keyAlias')
+                keyPassword releaseSigning.getProperty('keyPassword')
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -35,6 +59,7 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
@@ -44,13 +69,26 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-// server.url is only supported for development by Capacitor. Do not accidentally
-// publish the localhost development wrapper as a release APK/AAB.
+// Keep live-reload URLs out of release. MainActivity fetches only the approved
+// HTTPS origin while Capacitor serves the bundled offline page and native bridge.
 tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
     doFirst {
         def capConfig = new groovy.json.JsonSlurper().parse(file('src/main/assets/capacitor.config.json'))
-        if (capConfig.server?.url) {
-            throw new GradleException('APK ini memakai frontend Laravel/Vue untuk development. Siapkan PWA HTTPS dan wrapper produksi (misalnya Trusted Web Activity) sebelum membuat release.')
+        if (capConfig.server?.url || capConfig.server?.hostname != productionOrigin.host
+            || capConfig.server?.androidScheme != 'https' || capConfig.server?.cleartext != false
+            || capConfig.android?.allowMixedContent != false
+            || capConfig.android?.resolveServiceWorkerRequests != false
+            || capConfig.android?.useLegacyBridge != false
+            || capConfig.android?.webContentsDebuggingEnabled != false) {
+            throw new GradleException('Release wajib memakai wrapper HTTPS production. Jalankan npm run android:apk:release.')
+        }
+        if (productionOrigin.scheme != 'https' || productionOrigin.userInfo != null
+            || productionOrigin.port != -1 || productionOrigin.path != ''
+            || productionOrigin.query != null || productionOrigin.fragment != null) {
+            throw new GradleException('production.json harus berisi origin HTTPS tanpa port, path atau kredensial.')
+        }
+        if (!signingFile.exists()) {
+            throw new GradleException('Signing release belum tersedia. Jalankan npm run android:apk:release.')
         }
     }
 }

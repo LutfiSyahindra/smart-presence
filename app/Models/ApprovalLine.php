@@ -12,12 +12,24 @@ class ApprovalLine extends Model
 
     public const TYPE_LEMBUR = 'lembur';
 
+    public const TYPE_PERUBAHAN_SHIFT = 'perubahan-shift';
+
     protected $fillable = ['type'];
 
     /** @return list<string> */
     public static function types(): array
     {
-        return [self::TYPE_CUTI, self::TYPE_LEMBUR];
+        return array_keys(self::typeLabels());
+    }
+
+    /** @return array<string, string> */
+    public static function typeLabels(): array
+    {
+        return [
+            self::TYPE_CUTI => 'Cuti',
+            self::TYPE_LEMBUR => 'Lembur',
+            self::TYPE_PERUBAHAN_SHIFT => 'Perubahan Shift',
+        ];
     }
 
     public function jabatans(): BelongsToMany

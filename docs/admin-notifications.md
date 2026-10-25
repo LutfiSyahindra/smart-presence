@@ -53,6 +53,14 @@ melalui `request_ids`, dan ID lembur melalui `lembur_request_ids`, sehingga ID
 yang sama pada kedua jenis pengajuan tidak tertukar. Seluruh batch, termasuk
 campuran cuti dan lembur, diproses dalam satu transaksi.
 
+Tab **Pengajuan Butuh Approval** menyediakan bagian **Semua pengajuan**,
+**Pengajuan Cuti**, **Pengajuan Lembur**, dan **Perubahan Shift**. Jumlah pada setiap
+bagian mengikuti giliran approver pengguna dan tidak dipengaruhi pencarian atau
+paginasi. Filter jenis diproses sebelum paginasi dan tetap digunakan saat mencari
+atau berpindah halaman. Berpindah bagian membersihkan pilihan persetujuan massal
+dan menutup detail yang terbuka. Bagian **Perubahan Shift** menampilkan kondisi
+kosong dengan jumlah nol karena alur pengajuan perubahan shift belum tersedia.
+
 ## Menjalankan
 
 Notifikasi pemohon untuk PWA, Android, dan iOS dijelaskan pada

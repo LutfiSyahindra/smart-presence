@@ -65,7 +65,7 @@ class ApprovalLineController extends Controller
                 'approvers' => $users->count(),
             ],
             'filters' => ['type' => $type, 'search' => $search],
-            'typeOptions' => collect(ApprovalLine::types())->map(fn (string $type) => ['value' => $type, 'label' => ucfirst($type)]),
+            'typeOptions' => collect(ApprovalLine::typeLabels())->map(fn (string $label, string $type) => ['value' => $type, 'label' => $label])->values(),
             'can' => [
                 'create' => $request->user()->can(AccessPermission::APPROVAL_LINE_CREATE),
                 'update' => $request->user()->can(AccessPermission::APPROVAL_LINE_UPDATE),
@@ -77,8 +77,9 @@ class ApprovalLineController extends Controller
     public function store(SaveApprovalLineRequest $request): RedirectResponse
     {
         $line = $this->service->save($request->validated());
+        $label = mb_strtolower(ApprovalLine::typeLabels()[$line->type]);
 
-        return back()->with('success', "Approval line {$line->type} berhasil ditambahkan.");
+        return back()->with('success', "Approval line {$label} berhasil ditambahkan.");
     }
 
     public function update(SaveApprovalLineRequest $request, ApprovalLine $approvalLine): RedirectResponse

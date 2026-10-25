@@ -122,7 +122,20 @@ class LemburNotificationApprovalTest extends TestCase
             ->where('requests.total', 11)->where('overview.inbox', 12)->where('adminNotificationCounts.pending_approval_count', 12));
         $this->get(self::URL.'/butuh-approval?search=Pemohon')->assertInertia(fn (Assert $page) => $page
             ->where('requests.total', 1)->where('requests.data.0.request_type', 'cuti'));
-        $this->actingAs($this->stranger)->get(self::URL.'/butuh-approval')->assertInertia(fn (Assert $page) => $page->where('requests.total', 0));
+        $this->get(self::URL.'/butuh-approval?request_type=cuti')->assertInertia(fn (Assert $page) => $page
+            ->where('filters.request_type', 'cuti')->where('requests.total', 1)->where('requests.data.0.request_type', 'cuti')
+            ->where('requestTypeCounts.cuti', 1)->where('requestTypeCounts.lembur', 11)->where('requestTypeCounts.perubahan-shift', 0));
+        $this->get(self::URL.'/butuh-approval?request_type=lembur&page=2')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 11)->has('requests.data', 1)->where('requests.data.0.request_type', 'lembur')
+            ->where('requests.prev_page_url', fn ($url) => str_contains($url, 'request_type=lembur')));
+        $this->get(self::URL.'/butuh-approval?request_type=lembur&search=Pemohon')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 0)->where('filters.search', 'Pemohon')
+            ->where('requestTypeCounts.cuti', 1)->where('requestTypeCounts.lembur', 11)->where('overview.inbox', 12));
+        $this->get(self::URL.'/butuh-approval?request_type=perubahan-shift')->assertInertia(fn (Assert $page) => $page
+            ->where('filters.request_type', 'perubahan-shift')->where('requests.total', 0)->where('overview.inbox', 12));
+        $this->getJson(self::URL.'/butuh-approval?request_type=unknown')->assertUnprocessable()->assertJsonValidationErrors('request_type');
+        $this->actingAs($this->stranger)->get(self::URL.'/butuh-approval?request_type=lembur')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 0)->where('requestTypeCounts.cuti', 0)->where('requestTypeCounts.lembur', 0));
         $this->actingAs($this->admin)->get(self::URL.'/butuh-approval')->assertInertia(fn (Assert $page) => $page->where('requests.total', 0));
     }
 
@@ -141,6 +154,8 @@ class LemburNotificationApprovalTest extends TestCase
         $this->assertSame('approved', $lembur->fresh()->status);
         $this->actingAs($this->first)->get(self::URL.'/disetujui')->assertInertia(fn (Assert $page) => $page
             ->where('requests.total', 1)->where('requests.data.0.request_type', 'lembur')->where('requests.data.0.can_decide', false));
+        $this->get(self::URL.'/disetujui?request_type=perubahan-shift')->assertInertia(fn (Assert $page) => $page
+            ->where('filters.request_type', 'all')->where('requests.total', 1));
     }
 
     public function test_lembur_history_keeps_notification_access_after_line_is_removed_without_cuti_access(): void

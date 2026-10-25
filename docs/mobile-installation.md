@@ -8,6 +8,12 @@ mengarah ke halaman login.
 
 ## APK Android
 
+Build release dari root repository dengan `npm run mobile:apk:release`.
+Perintah ini otomatis menaruh APK bertanda tangan di
+`public/downloads/arsy-presensi.apk`, dengan domain production dari
+`apps/absensi-mobile/production.json`. Backup direktori
+`apps/absensi-mobile/.tooling/signing/` untuk build pembaruan berikutnya.
+
 Letakkan APK distribusi di `public/downloads/arsy-presensi.apk`. Tombol unduh di
 landing page otomatis aktif jika file tersedia. File APK tidak disimpan di Git.
 Alternatifnya, isi `MOBILE_ANDROID_APK_URL` dengan URL APK distribusi di `.env`;

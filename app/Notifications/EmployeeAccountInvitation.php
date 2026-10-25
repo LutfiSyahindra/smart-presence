@@ -26,7 +26,8 @@ class EmployeeAccountInvitation extends Notification
             'email' => $notifiable->getEmailForPasswordReset(),
             'invitation' => 1,
         ], absolute: false);
-        $url = rtrim((string) config('app.url'), '/').$path;
+        $baseUrl = trim((string) config('app.account_activation_url'));
+        $url = rtrim($baseUrl !== '' ? $baseUrl : (string) config('app.url'), '/').$path;
 
         return (new MailMessage)
             ->subject('Aktivasi Akun Pegawai RSARSY')

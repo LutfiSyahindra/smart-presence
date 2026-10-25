@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, SharedData } from '@/types';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { Bell, CheckCheck, CheckCircle2, Inbox, Search } from 'lucide-vue-next';
+import { ArrowRightLeft, Bell, CalendarDays, CheckCheck, CheckCircle2, ClipboardList, Inbox, Search, Timer } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import '../approval-workflow.css';
 import CutiRequestDetail from '../cuti/components/CutiRequestDetail.vue';
@@ -12,13 +12,14 @@ import CrudModal from '../setting/components/CrudModal.vue';
 import FlashMessage from '../setting/components/FlashMessage.vue';
 import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
-import { duration, requestCode, type ApprovalRequestRow } from './types';
+import { duration, requestCode, type ApprovalRequestRow, type ApprovalRequestType } from './types';
 
 const props = defineProps<{
     requests: Paginated<ApprovalRequestRow>;
     category: 'butuh-approval' | 'disetujui';
-    filters: { search: string };
+    filters: { search: string; request_type: ApprovalRequestType };
     overview: { inbox: number; approved: number };
+    requestTypeCounts: Record<Exclude<ApprovalRequestType, 'all'>, number>;
 }>();
 const page = usePage<SharedData>();
 const baseUrl = '/absensi/admin-web/notifikasi';
@@ -27,17 +28,39 @@ const categories = computed(() => [
     { key: 'disetujui', title: 'Pengajuan Disetujui', count: props.overview.approved, icon: CheckCircle2 },
 ]);
 const activeCategory = computed(() => categories.value.find((item) => item.key === props.category)!);
+const requestTypes = computed(() => [
+    { key: 'all' as const, title: 'Semua pengajuan', name: 'pengajuan', count: props.overview.inbox, icon: ClipboardList },
+    { key: 'cuti' as const, title: 'Pengajuan Cuti', name: 'pengajuan cuti', count: props.requestTypeCounts.cuti, icon: CalendarDays },
+    { key: 'lembur' as const, title: 'Pengajuan Lembur', name: 'pengajuan lembur', count: props.requestTypeCounts.lembur, icon: Timer },
+    {
+        key: 'perubahan-shift' as const,
+        title: 'Perubahan Shift',
+        name: 'pengajuan perubahan shift',
+        count: props.requestTypeCounts['perubahan-shift'],
+        icon: ArrowRightLeft,
+    },
+]);
+const activeRequestType = computed(() => props.filters.request_type ?? 'all');
+const activeRequestSection = computed(() => requestTypes.value.find((item) => item.key === activeRequestType.value)!);
+const sectionTitle = computed(() =>
+    props.category === 'butuh-approval' && activeRequestType.value !== 'all' ? activeRequestSection.value.title : activeCategory.value.title,
+);
 const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     ...(page.props.portal.can_access_admin ? [{ title: 'Dashboard', href: '/absensi/admin-web/dashboard' }] : []),
     { title: 'Notifikasi', href: `${baseUrl}/butuh-approval` },
     { title: activeCategory.value.title, href: `${baseUrl}/${props.category}` },
 ]);
 const selected = ref<CutiRow | null>(null);
-const bulkForm = useForm({ request_ids: [] as number[], lembur_request_ids: [] as number[] });
+const bulkForm = useForm({ request_ids: [] as number[], lembur_request_ids: [] as number[], perubahan_shift_request_ids: [] as number[] });
 const bulkReviewOpen = ref(false);
 const selectableRequests = computed(() => (props.category === 'butuh-approval' ? props.requests.data.filter((cuti) => cuti.can_decide) : []));
 const isSelected = (request: ApprovalRequestRow) =>
-    (request.request_type === 'lembur' ? bulkForm.lembur_request_ids : bulkForm.request_ids).includes(request.id);
+    (request.request_type === 'perubahan-shift'
+        ? bulkForm.perubahan_shift_request_ids
+        : request.request_type === 'lembur'
+          ? bulkForm.lembur_request_ids
+          : bulkForm.request_ids
+    ).includes(request.id);
 const selectedRequests = computed(() => selectableRequests.value.filter(isSelected));
 const allSelected = computed(() => selectableRequests.value.length > 0 && selectedRequests.value.length === selectableRequests.value.length);
 const someSelected = computed(() => selectedRequests.value.length > 0 && !allSelected.value);
@@ -45,8 +68,13 @@ const bulkError = computed(() => Object.values(bulkForm.errors)[0]);
 const toggleAll = (event: Event) => {
     bulkForm.clearErrors();
     const checked = (event.target as HTMLInputElement).checked;
-    bulkForm.request_ids = checked ? selectableRequests.value.filter((row) => row.request_type !== 'lembur').map((row) => row.id) : [];
+    bulkForm.request_ids = checked
+        ? selectableRequests.value.filter((row) => row.request_type !== 'lembur' && row.request_type !== 'perubahan-shift').map((row) => row.id)
+        : [];
     bulkForm.lembur_request_ids = checked ? selectableRequests.value.filter((row) => row.request_type === 'lembur').map((row) => row.id) : [];
+    bulkForm.perubahan_shift_request_ids = checked
+        ? selectableRequests.value.filter((row) => row.request_type === 'perubahan-shift').map((row) => row.id)
+        : [];
 };
 const closeBulkReview = () => {
     if (!bulkForm.processing) bulkReviewOpen.value = false;
@@ -65,15 +93,16 @@ const approveSelected = () => {
 };
 const search = ref(props.filters.search);
 let timer: ReturnType<typeof setTimeout> | undefined;
-const applySearch = () => {
+const visitRequestType = (requestType: ApprovalRequestType) => {
     if (timer) clearTimeout(timer);
     if (bulkForm.processing) return;
     router.get(
         `${baseUrl}/${props.category}`,
-        { search: search.value.trim() || undefined },
+        { search: search.value.trim() || undefined, request_type: props.category === 'butuh-approval' ? requestType : undefined },
         { preserveState: true, preserveScroll: true, replace: true },
     );
 };
+const applySearch = () => visitRequestType(activeRequestType.value);
 watch(search, () => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(applySearch, 400);
@@ -85,14 +114,15 @@ watch(
     },
 );
 watch(
-    () => props.category,
+    () => [props.category, activeRequestType.value],
     () => {
         if (timer) clearTimeout(timer);
         selected.value = null;
+        bulkForm.clearErrors();
     },
 );
 watch(
-    () => [props.requests, props.category],
+    () => [props.requests, props.category, activeRequestType.value],
     () => {
         bulkForm.reset();
         bulkReviewOpen.value = false;
@@ -130,13 +160,29 @@ onBeforeUnmount(() => {
                         {{ item.title }} ({{ item.count }})
                     </Link>
                 </nav>
+                <nav v-if="category === 'butuh-approval'" class="request-type-nav" aria-label="Jenis pengajuan butuh approval">
+                    <button
+                        v-for="item in requestTypes"
+                        :key="item.key"
+                        type="button"
+                        class="request-type-button"
+                        :class="{ active: activeRequestType === item.key }"
+                        :aria-pressed="activeRequestType === item.key"
+                        :disabled="bulkForm.processing"
+                        @click="visitRequestType(item.key)"
+                    >
+                        <component :is="item.icon" aria-hidden="true" />
+                        <span>{{ item.title }}</span>
+                        <strong>{{ item.count }}</strong>
+                    </button>
+                </nav>
                 <header class="al-panel-header">
                     <div>
-                        <h2>{{ activeCategory.title }}</h2>
+                        <h2>{{ sectionTitle }}</h2>
                         <p>
                             {{
                                 category === 'butuh-approval'
-                                    ? 'Pengajuan yang sudah mencapai giliran approval Anda.'
+                                    ? `${activeRequestSection.title} yang sudah mencapai giliran approval Anda.`
                                     : 'Pengajuan yang telah disetujui oleh seluruh approver.'
                             }}
                         </p>
@@ -198,7 +244,7 @@ onBeforeUnmount(() => {
                                     />
                                 </th>
                                 <th>Pemohon</th>
-                                <th>Pengajuan cuti / lembur</th>
+                                <th>{{ category === 'butuh-approval' && activeRequestType !== 'all' ? activeRequestSection.title : 'Pengajuan' }}</th>
                                 <th>Status & progres</th>
                                 <th class="text-end">Aksi</th>
                             </tr>
@@ -207,7 +253,7 @@ onBeforeUnmount(() => {
                             <tr v-for="cuti in requests.data" :key="requestCode(cuti)" :class="{ 'bulk-selected-row': isSelected(cuti) }">
                                 <td v-if="category === 'butuh-approval'" class="bulk-select-cell">
                                     <input
-                                        v-if="cuti.can_decide && cuti.request_type !== 'lembur'"
+                                        v-if="cuti.can_decide && cuti.request_type !== 'lembur' && cuti.request_type !== 'perubahan-shift'"
                                         v-model="bulkForm.request_ids"
                                         type="checkbox"
                                         class="bulk-checkbox"
@@ -217,8 +263,18 @@ onBeforeUnmount(() => {
                                         @change="bulkForm.clearErrors()"
                                     />
                                     <input
-                                        v-else-if="cuti.can_decide"
+                                        v-else-if="cuti.can_decide && cuti.request_type === 'lembur'"
                                         v-model="bulkForm.lembur_request_ids"
+                                        type="checkbox"
+                                        class="bulk-checkbox"
+                                        :value="cuti.id"
+                                        :disabled="bulkForm.processing"
+                                        :aria-label="`Pilih pengajuan #${requestCode(cuti)} dari ${cuti.nama_pegawai}`"
+                                        @change="bulkForm.clearErrors()"
+                                    />
+                                    <input
+                                        v-else-if="cuti.can_decide && cuti.request_type === 'perubahan-shift'"
+                                        v-model="bulkForm.perubahan_shift_request_ids"
                                         type="checkbox"
                                         class="bulk-checkbox"
                                         :value="cuti.id"
@@ -244,6 +300,14 @@ onBeforeUnmount(() => {
                                         <small>{{ date(cuti.tanggal_mulai) }}</small>
                                         <small>Shift {{ cuti.shift_name }}</small>
                                     </template>
+                                    <template v-else-if="cuti.request_type === 'perubahan-shift'"
+                                        ><strong>Perubahan shift</strong><small>{{ date(cuti.tanggal_mulai) }}</small
+                                        ><small>{{ cuti.original_shift?.name }} → {{ cuti.requested_shift?.name }}</small
+                                        ><small
+                                            >{{ cuti.requested_shift?.start_time }} – {{ cuti.requested_shift?.end_time
+                                            }}{{ cuti.requested_shift?.next_day ? ' (+1 hari)' : '' }}</small
+                                        ></template
+                                    >
                                     <template v-else>
                                         <strong>{{ cuti.nama_cuti || 'Cuti' }}</strong>
                                         <small>{{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</small>
@@ -257,8 +321,8 @@ onBeforeUnmount(() => {
                                 </td>
                                 <td class="text-end">
                                     <Link
-                                        v-if="cuti.request_type === 'lembur'"
-                                        :href="`${baseUrl}/pengajuan/lembur/${cuti.id}`"
+                                        v-if="cuti.request_type === 'lembur' || cuti.request_type === 'perubahan-shift'"
+                                        :href="`${baseUrl}/pengajuan/${cuti.request_type}/${cuti.id}`"
                                         class="btn btn-sm"
                                         :class="cuti.can_decide ? 'btn-primary' : 'btn-outline-secondary'"
                                     >
@@ -280,13 +344,13 @@ onBeforeUnmount(() => {
                     </table>
                 </div>
                 <div v-else class="al-empty">
-                    <component :is="activeCategory.icon" />
+                    <component :is="category === 'butuh-approval' ? activeRequestSection.icon : activeCategory.icon" />
                     <h3>
                         {{
                             search
                                 ? 'Pengajuan tidak ditemukan'
                                 : category === 'butuh-approval'
-                                  ? 'Tidak ada pengajuan yang butuh approval'
+                                  ? `Tidak ada ${activeRequestSection.name} yang butuh approval`
                                   : 'Belum ada pengajuan disetujui'
                         }}
                     </h3>
@@ -295,7 +359,9 @@ onBeforeUnmount(() => {
                             search
                                 ? 'Coba cari nama pegawai, jabatan, atau unit lain.'
                                 : category === 'butuh-approval'
-                                  ? 'Pengajuan akan tampil saat mencapai giliran approval Anda.'
+                                  ? activeRequestType === 'perubahan-shift'
+                                      ? 'Belum ada pengajuan perubahan shift untuk ditinjau.'
+                                      : 'Pengajuan akan tampil saat mencapai giliran approval Anda.'
                                   : 'Pengajuan akan tampil setelah seluruh approver menyetujui.'
                         }}
                     </p>
@@ -323,6 +389,10 @@ onBeforeUnmount(() => {
                                 >{{ cuti.request_kind === 'usage' ? 'Penggunaan lembur' : 'Lembur' }} · {{ date(cuti.tanggal_mulai) }} ·
                                 {{ duration(cuti.duration_minutes ?? 0) }}</span
                             >
+                            <span v-else-if="cuti.request_type === 'perubahan-shift'"
+                                >Perubahan shift · {{ date(cuti.tanggal_mulai) }} · {{ cuti.original_shift?.name }} →
+                                {{ cuti.requested_shift?.name }}</span
+                            >
                             <span v-else>{{ cuti.nama_cuti || 'Cuti' }} · {{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</span>
                             <small>Persetujuan tingkat {{ cuti.current_level }}</small>
                         </li>
@@ -340,6 +410,66 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.request-type-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    padding: 24px 24px 0;
+}
+.request-type-button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--rs-border);
+    border-radius: 12px;
+    background: var(--rs-canvas);
+    color: var(--rs-muted);
+    font-size: 12px;
+    text-align: left;
+}
+.request-type-button svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+.request-type-button span {
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+.request-type-button strong {
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    padding: 4px 7px;
+    border-radius: 7px;
+    background: #fff;
+}
+.request-type-button.active {
+    border-color: var(--rs-primary);
+    background: var(--rs-primary-soft);
+    color: var(--rs-primary);
+    font-weight: 650;
+}
+.request-type-button:focus-visible {
+    outline: 2px solid var(--rs-primary);
+    outline-offset: 2px;
+}
+.request-type-button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+@media (max-width: 1100px) {
+    .request-type-nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 480px) {
+    .request-type-nav {
+        grid-template-columns: 1fr;
+    }
+}
 .bulk-approval-bar,
 .bulk-approval-actions {
     display: flex;

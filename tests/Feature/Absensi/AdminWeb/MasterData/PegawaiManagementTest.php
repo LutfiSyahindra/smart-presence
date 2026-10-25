@@ -524,6 +524,7 @@ class PegawaiManagementTest extends TestCase
 
     public function test_employee_can_set_password_and_verify_email_from_invitation(): void
     {
+        config()->set('app.account_activation_url', 'https://presensi.example.com');
         Notification::fake();
         $pegawai = Pegawai::query()->create([
             'nama' => 'Aktivasi Akun',
@@ -536,11 +537,7 @@ class PegawaiManagementTest extends TestCase
 
         $user = $pegawai->refresh()->user;
         Notification::assertSentTo($user, EmployeeAccountInvitation::class, function (EmployeeAccountInvitation $notification) use ($user) {
-            $this->get(route('password.reset', [
-                'token' => $notification->token,
-                'email' => $user->email,
-                'invitation' => 1,
-            ], absolute: false))
+            $this->get($notification->toMail($user)->actionUrl)
                 ->assertOk()
                 ->assertSee('rel="manifest"', escape: false)
                 ->assertInertia(fn (Assert $page) => $page

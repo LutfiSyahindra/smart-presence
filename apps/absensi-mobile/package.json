@@ -24,6 +24,7 @@
         "android:run": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action run",
         "android:connect": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pwa-connect.ps1",
         "android:apk": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action apk",
+        "android:apk:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action apk -Release",
         "android:apk:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/android.ps1 -Action apk -Development",
         "android:emulator:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/emulator.ps1 -Action setup",
         "android:emulator": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/emulator.ps1 -Action start",

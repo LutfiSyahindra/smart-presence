@@ -15,11 +15,13 @@ const compile = (source) => ts.transpileModule(source, {
 
 function approvalPage(category = 'butuh-approval', rows = [{ id: 1, can_decide: true }, { id: 2, can_decide: true }, { id: 3, can_decide: false }]) {
     const calls = [];
+    const visits = [];
     const props = vue.reactive({
         category,
         requests: { data: rows },
-        filters: { search: '' },
+        filters: { search: '', request_type: 'all' },
         overview: { inbox: 2, approved: 0 },
+        requestTypeCounts: { cuti: 1, lembur: 1, 'perubahan-shift': 0 },
     });
     const exports = {};
     vm.runInNewContext(compile(compiledPage), {
@@ -30,16 +32,16 @@ function approvalPage(category = 'butuh-approval', rows = [{ id: 1, can_decide: 
             if (name === 'vue') return { ...vue, onBeforeUnmount() {} };
             if (name === '@inertiajs/vue3') return {
                 usePage: () => ({ props: { portal: { can_access_admin: true } } }),
-                router: { get() {} },
+                router: { get(url, data, options) { visits.push({ url, data, options }); } },
                 useForm(initial) {
                     const form = vue.reactive({
                         ...initial,
                         processing: false,
                         errors: {},
-                        reset() { form.request_ids = []; form.lembur_request_ids = []; },
+                        reset() { form.request_ids = []; form.lembur_request_ids = []; form.perubahan_shift_request_ids = []; },
                         clearErrors() { form.errors = {}; },
                         post(url, options) {
-                            calls.push({ url, ids: [...form.request_ids], lemburIds: [...form.lembur_request_ids], options });
+                            calls.push({ url, ids: [...form.request_ids], lemburIds: [...form.lembur_request_ids], shiftIds: [...form.perubahan_shift_request_ids], options });
                             form.processing = true;
                         },
                     });
@@ -51,8 +53,52 @@ function approvalPage(category = 'butuh-approval', rows = [{ id: 1, can_decide: 
     });
     const scope = vue.effectScope();
     const state = scope.run(() => exports.default.setup(props, { expose() {} }));
-    return { props, state, calls, close: () => scope.stop() };
+    return { props, state, calls, visits, close: () => scope.stop() };
 }
+
+test('request sections show separate counts and keep the selected type when searching', () => {
+    const app = approvalPage();
+    try {
+        assert.deepEqual(Array.from(app.state.requestTypes.value, (item) => [item.key, item.count]), [
+            ['all', 2], ['cuti', 1], ['lembur', 1], ['perubahan-shift', 0],
+        ]);
+        app.props.filters.request_type = 'lembur';
+        app.state.search.value = '  Nadia  ';
+        app.state.applySearch();
+        assert.equal(app.visits[0].url, '/absensi/admin-web/notifikasi/butuh-approval');
+        assert.equal(app.visits[0].data.request_type, 'lembur');
+        assert.equal(app.visits[0].data.search, 'Nadia');
+        assert.equal(app.visits[0].data.page, undefined);
+        assert.equal(app.state.sectionTitle.value, 'Pengajuan Lembur');
+        app.state.visitRequestType('perubahan-shift');
+        assert.equal(app.visits[1].data.request_type, 'perubahan-shift');
+        assert.equal(app.visits[1].data.search, 'Nadia');
+        app.state.bulkForm.processing = true;
+        app.state.visitRequestType('cuti');
+        assert.equal(app.visits.length, 2);
+    } finally { app.close(); }
+});
+
+test('switching request sections clears selections, open reviews, and stale errors', async () => {
+    const app = approvalPage();
+    try {
+        app.state.toggleAll({ target: { checked: true } });
+        app.state.bulkReviewOpen.value = true;
+        app.state.selected.value = { id: 1 };
+        app.state.bulkForm.errors = { decision: 'Pengajuan sudah diproses.' };
+        app.props.filters.request_type = 'perubahan-shift';
+        app.props.requests = { data: [] };
+        await vue.nextTick();
+        assert.equal(app.state.bulkForm.request_ids.length, 0);
+        assert.equal(app.state.bulkForm.lembur_request_ids.length, 0);
+        assert.equal(app.state.bulkReviewOpen.value, false);
+        assert.equal(app.state.selected.value, null);
+        assert.equal(app.state.bulkError.value, undefined);
+        assert.equal(app.state.activeRequestSection.value.name, 'pengajuan perubahan shift');
+        app.state.approveSelected();
+        assert.equal(app.calls.length, 0);
+    } finally { app.close(); }
+});
 
 test('select all includes only requests available for approval on the current page', () => {
     const app = approvalPage();
@@ -111,6 +157,29 @@ test('cuti and lembur with the same ID are selected and submitted independently'
         app.calls[0].options.onSuccess();
         assert.equal(app.state.selectedRequests.value.length, 0);
         assert.equal(app.state.bulkForm.lembur_request_ids.length, 0);
+    } finally { app.close(); }
+});
+
+test('shift, cuti, and lembur with identical IDs keep separate selections and clear them after approval', () => {
+    const app = approvalPage('butuh-approval', [
+        { id: 1, request_type: 'cuti', can_decide: true },
+        { id: 1, request_type: 'lembur', can_decide: true },
+        { id: 1, request_type: 'perubahan-shift', can_decide: true },
+        { id: 2, request_type: 'perubahan-shift', can_decide: false },
+    ]);
+    try {
+        app.state.bulkForm.perubahan_shift_request_ids = [1];
+        assert.equal(app.state.selectedRequests.value.length, 1);
+        assert.equal(app.state.selectedRequests.value[0].request_type, 'perubahan-shift');
+        app.state.toggleAll({ target: { checked: true } });
+        assert.equal(app.state.selectedRequests.value.length, 3);
+        app.state.approveSelected();
+        assert.deepEqual(app.calls[0].ids, [1]);
+        assert.deepEqual(app.calls[0].lemburIds, [1]);
+        assert.deepEqual(app.calls[0].shiftIds, [1]);
+        app.calls[0].options.onSuccess();
+        assert.equal(app.state.selectedRequests.value.length, 0);
+        assert.equal(app.state.bulkForm.perubahan_shift_request_ids.length, 0);
     } finally { app.close(); }
 });
 

@@ -44,7 +44,7 @@ const { can } = usePermission();
             <span class="ambient ambient-two" aria-hidden="true"></span>
 
             <header class="success-header">
-                <Link :href="route('absensi.mobile.home')" class="close-button" aria-label="Kembali ke beranda"><X /></Link>
+                <Link :href="route('absensi.mobile.home')" replace class="close-button" aria-label="Kembali ke beranda"><X /></Link>
                 <div class="brand-mark">
                     <AppLogoIcon variant="full" class="size-16" />
                 </div>
@@ -131,8 +131,10 @@ const { can } = usePermission();
             </section>
 
             <footer class="success-actions">
-                <Link :href="route('absensi.mobile.home')" class="home-action"> <Home /> <span>Kembali ke beranda</span> <ArrowRight /> </Link>
-                <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" class="summary-action"
+                <Link :href="route('absensi.mobile.home')" replace class="home-action">
+                    <Home /> <span>Kembali ke beranda</span> <ArrowRight />
+                </Link>
+                <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" replace class="summary-action"
                     >Lihat ringkasan presensi</Link
                 >
             </footer>

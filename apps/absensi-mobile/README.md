@@ -148,8 +148,13 @@ Wrapper Android menangani tombol kembali serta gestur sistem melalui AndroidX
 `OnBackPressedDispatcher`. Pada Clock In/Out, dialog lokasi ditutup lebih dahulu,
 atau tahap kamera kembali ke tahap lokasi sambil mematikan kamera. Saat verifikasi
 sedang dikirim/diperiksa, tombol kembali menunggu proses tersebut selesai. Setelah
-tidak ada halaman mobile sebelumnya di beranda, tombol kembali memindahkan aplikasi
-ke latar belakang. Perubahan native ini memerlukan pemasangan APK terbaru.
+presensi berhasil, tombol kembali langsung menuju beranda untuk Clock In maupun
+Clock Out. Pengiriman presensi mengganti entri GPS/kamera dengan halaman proses
+atau hasil; tautan keluar dari halaman berhasil juga mengganti entri hasil.
+Di beranda, tombol kembali memindahkan aplikasi ke latar belakang, termasuk setelah
+menyelesaikan presensi. Perbaikan alur presensi ini cukup dengan build frontend
+server, tanpa APK baru. Dukungan tombol/gestur native memerlukan APK yang sudah
+memakai `OnBackPressedDispatcher` di atas.
 
 PWA memakai riwayat browser untuk tombol/gestur sistem serta tombol kembali di
 header. Wrapper iOS mengaktifkan gestur geser kembali bawaan `WKWebView`, untuk

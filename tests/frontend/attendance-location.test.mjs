@@ -86,7 +86,7 @@ function load({
                 },
                 post(url, options) {
                     this.processing = true;
-                    posts.push({ url, token: this.location_token, samples: this.location_samples.map((sample) => ({ ...sample })) });
+                    posts.push({ url, options, token: this.location_token, samples: this.location_samples.map((sample) => ({ ...sample })) });
                     options.onStart();
                     if (photoRejected && posts.length === 1) {
                         this.errors = { photo: 'Wajah tidak cocok.' };
@@ -299,6 +299,7 @@ test('clock-in and clock-out refresh the challenge and replace old GPS before su
         await submitting;
         assert.equal(state.posts.length, 1);
         assert.equal(state.posts[0].url, `absensi.mobile.clock-${mode}.store`);
+        assert.equal(state.posts[0].options.replace, true);
         assert.equal(state.posts[0].token, '1'.repeat(64));
         assert.equal(state.posts[0].samples.length, 1);
         assert.ok(state.posts[0].samples[0].captured_at > oldTimestamp + 350_000);

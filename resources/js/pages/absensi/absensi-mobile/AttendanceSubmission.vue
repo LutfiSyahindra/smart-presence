@@ -114,14 +114,14 @@ onUnmounted(() => {
                 Catatan lokasi di luar radius turut tersimpan.
             </p>
             <p v-if="connectionMessage" class="connection-message" role="status">{{ connectionMessage }}</p>
-            <Link v-if="submission.status === 'succeeded' && submission.success_url" :href="submission.success_url" class="primary-action">
+            <Link v-if="submission.status === 'succeeded' && submission.success_url" :href="submission.success_url" replace class="primary-action">
                 Lihat ringkasan presensi
             </Link>
             <Link v-if="submission.status === 'failed'" :href="submission.retry_url" class="primary-action">Ambil foto dan coba kembali</Link>
             <button v-if="pending" type="button" class="secondary-action" :disabled="refreshing" @click="refresh">
                 <RefreshCw :class="{ spin: refreshing }" />Periksa status
             </button>
-            <Link :href="route('absensi.mobile.home')" class="home-action"><Home />Kembali ke beranda</Link>
+            <Link :href="route('absensi.mobile.home')" replace class="home-action"><Home />Kembali ke beranda</Link>
         </section>
     </main>
 </template>

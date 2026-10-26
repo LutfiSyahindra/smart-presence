@@ -47,7 +47,11 @@ function browser(initial = page(home), { earlier = [], storage = new Map(), bloc
         on(name, listener) {
             const listeners = events.get(name) ?? [];
             events.set(name, [...listeners, listener]);
-            return () => events.set(name, listeners.filter((item) => item !== listener));
+            return () =>
+                events.set(
+                    name,
+                    listeners.filter((item) => item !== listener),
+                );
         },
         remember(value, key) {
             entries[index].rememberedState[key] = value;
@@ -130,6 +134,60 @@ test('the PWA/iOS back link follows history and preserves the previous query str
     assert.equal(app.navigation.mobileGoBack(`${home}/notifikasi?tab=approvals`), true);
     app.flushBack();
     assert.equal(app.url, `${home}/notifikasi?tab=approvals&page=2`);
+});
+
+for (const action of ['clock-in', 'clock-out']) {
+    test(`Android back from completed ${action} goes straight home, including existing GPS history`, () => {
+        const app = browser();
+        app.router.visit(`${home}/presensi`);
+        app.router.visit(`${home}/${action}`);
+        app.router.visit(`${home}/presensi/proses/private-id`);
+        app.router.visit(`${home}/${action}/berhasil?submission=private-id`, { replace: true });
+
+        assert.equal(app.nativeBack(), true);
+        assert.equal(app.url, home);
+        assert.equal(app.backCalls, 0);
+        assert.equal(app.visits.at(-1).options.replace, true);
+        assert.equal(app.nativeBack(), false);
+    });
+
+    test(`${action} success still returns home after reload or a direct link`, () => {
+        const app = browser();
+        app.router.visit(`${home}/${action}`);
+        app.router.visit(`${home}/${action}/berhasil?submission=private-id`);
+        for (const result of [app.reload(), browser(page(`${home}/${action}/berhasil?submission=private-id`), { earlier: [page('/login')] })]) {
+            assert.equal(result.nativeBack(), true);
+            assert.equal(result.url, home);
+            assert.equal(result.backCalls, 0);
+            assert.equal(result.nativeBack(), false);
+        }
+    });
+
+    test(`completed ${action} replaces GPS and verification entries for browser back`, () => {
+        for (const queued of [false, true]) {
+            const app = browser();
+            app.router.visit(`${home}/presensi`);
+            app.router.visit(`${home}/${action}`);
+            if (queued) app.router.visit(`${home}/presensi/proses/private-id`, { replace: true });
+            app.router.visit(`${home}/${action}/berhasil?submission=private-id`, { replace: true });
+            app.router.visit(home, { replace: true });
+            assert.equal(app.nativeBack(), false);
+            app.traverse(-1);
+            assert.equal(app.url, `${home}/presensi`);
+            app.traverse(1);
+            assert.equal(app.url, home);
+        }
+    });
+}
+
+test('returning home from success does not reopen a completed flow on Android back', () => {
+    const app = browser();
+    app.router.visit(`${home}/clock-in`);
+    app.router.visit(`${home}/clock-in/berhasil`);
+    app.router.visit(home);
+    assert.equal(app.nativeBack(), false);
+    assert.equal(app.backCalls, 0);
+    assert.equal(app.url, home);
 });
 
 test('direct links fall back to home without traversing login or external browser history', () => {

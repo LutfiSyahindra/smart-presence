@@ -117,13 +117,16 @@ export function mobileGoBack(fallback = home): boolean {
     if (typeof window === 'undefined') return false;
     const url = mobileUrl(window.location.href);
     if (!url) return false;
+    // Home is the Android task root, even when a completed flow led here.
+    if (window.location.pathname === home) return false;
     if (pending) return true;
-    if (previous && window.history.length > 1) {
+    const attendanceComplete = [`${home}/clock-in/berhasil`, `${home}/clock-out/berhasil`].includes(window.location.pathname);
+    if (!attendanceComplete && previous && window.history.length > 1) {
         pending = true;
         window.history.back();
         return true;
     }
-    const destination = mobileUrl(fallback) ?? home;
+    const destination = attendanceComplete ? home : (mobileUrl(fallback) ?? home);
     if (destination === url || (destination === home && window.location.pathname === home)) return false;
     router.visit(destination, { replace: true });
     return true;

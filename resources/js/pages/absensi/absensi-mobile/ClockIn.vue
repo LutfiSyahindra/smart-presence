@@ -688,6 +688,7 @@ const submitClockIn = async () => {
         form.outside_radius_note = isInsideRadius.value === false ? outsideNote.value.trim() : '';
         form.photo = photo;
         form.post(route(`absensi.mobile.${actionSlug.value}.store`), {
+            replace: true,
             forceFormData: true,
             preserveScroll: true,
             onStart: () => {

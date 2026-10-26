@@ -14,6 +14,9 @@ berhasil, termasuk bila worker baru selesai pada hari berikutnya.
   membuka halaman status, dan beranda menyediakan tautan untuk melanjutkan.
 - Halaman status memperbarui hasil setiap 3 detik saat terlihat. Gangguan koneksi
   memperlambat pemeriksaan menjadi 10 detik; halaman tersembunyi berhenti polling.
+- Setelah verifikasi berhasil, halaman status otomatis membuka ringkasan clock-in
+  atau clock-out seperti pada verifikasi langsung. Ringkasan memakai presensi
+  dari permintaan tersebut, termasuk bila antrean selesai pada hari berikutnya.
 - API mengembalikan HTTP **202**, ID permintaan, dan status. HTTP 202 berarti
   diterima untuk diproses; aplikasi tidak boleh langsung menganggapnya berhasil.
 - `GET /api/mobile/v1/attendance-submissions/latest?action=clock-in` (atau

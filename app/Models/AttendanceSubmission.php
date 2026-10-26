@@ -72,6 +72,8 @@ class AttendanceSubmission extends Model
             },
             'status_url' => route('absensi.mobile.attendance-submissions.show', $this->id, absolute: false),
             'api_status_url' => route('api.mobile.attendance-submissions.show', $this->id, absolute: false),
+            'success_url' => $attendance
+                ? route("absensi.mobile.{$this->action}.success", ['submission' => $this->id], absolute: false) : null,
             'retry_url' => route("absensi.mobile.{$this->action}.create", absolute: false),
         ];
     }

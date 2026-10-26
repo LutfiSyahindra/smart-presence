@@ -65,6 +65,7 @@ class QueuedAttendanceTest extends TestCase
         $this->mock(FaceVerifier::class)->shouldNotReceive('compare');
         $submission = $this->submit();
         $this->assertSame('pending', $submission->status);
+        $this->assertNull($submission->statusPayload()['success_url']);
         $this->assertDatabaseCount('presensis', 0);
         Queue::assertPushedOn('attendance', ProcessAttendanceSubmission::class);
         $this->assertNull(session('attendance.location_challenges.clock-in'));
@@ -86,6 +87,18 @@ class QueuedAttendanceTest extends TestCase
         $this->assertSame('2026-10-26 23:58:00', $attendance->clock_in_at->toDateTimeString());
         $this->assertSame('succeeded', $submission->fresh()->status);
         $this->assertNull($submission->fresh()->active_key);
+
+        // Reopening yesterday's result must not show today's attendance instead.
+        Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-10-27', 'clock_in_at' => '2026-10-27 07:00:00']);
+        $payload = $submission->fresh()->statusPayload();
+        $this->get($payload['status_url'])->assertRedirect($payload['success_url']);
+        $this->get($payload['success_url'])->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('absensi/absensi-mobile/ClockInSuccess')
+            ->where('attendance.date', '2026-10-26')->where('attendance.clock_in_time', '23:58')
+            ->where('attendance.shift_name', 'Pagi')->where('attendance.start_time', '07:00')
+            ->where('attendance.end_time', '15:00')->where('attendance.location_name', 'RSARSY')
+            ->where('attendance.face_verified', true)->where('attendance.face_similarity', 96));
     }
 
     public function test_a_retry_uses_the_profile_photo_snapshot_from_submission_time(): void
@@ -109,6 +122,18 @@ class QueuedAttendanceTest extends TestCase
         $this->assertSame('2026-10-26 06:58:00', $attendance->fresh()->clock_out_at->toDateTimeString());
         $this->assertSame(2, $attendance->fresh()->earlyDepartureMinutes());
         $this->assertDatabaseCount('presensis', 1);
+
+        $payload = $submission->fresh()->statusPayload();
+        $this->getJson($payload['status_url'])->assertOk()->assertJsonPath('data.status', 'succeeded')
+            ->assertJsonPath('data.success_url', $payload['success_url']);
+        $this->get($payload['status_url'])->assertRedirect($payload['success_url']);
+        $this->get($payload['success_url'])->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('absensi/absensi-mobile/ClockOutSuccess')
+            ->where('attendance.date', '2026-10-25')->where('attendance.clock_out_time', '06:58')
+            ->where('attendance.early_departure_minutes', 2)->where('attendance.shift_name', 'Pagi')
+            ->where('attendance.start_time', '22:00')->where('attendance.end_time', '07:00')
+            ->where('attendance.location_name', 'RSARSY')->where('attendance.face_verified', true)
+            ->where('attendance.face_similarity', 96));
     }
 
     public function test_network_failure_is_retried_without_changing_the_received_time(): void
@@ -137,6 +162,9 @@ class QueuedAttendanceTest extends TestCase
         $this->process($submission);
         $this->assertSame('failed', $submission->fresh()->status);
         $this->assertSame('photo', $submission->fresh()->error_field);
+        $this->assertNull($submission->fresh()->statusPayload()['success_url']);
+        $this->get($submission->statusPayload()['status_url'])->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('absensi/absensi-mobile/AttendanceSubmission')->where('submission.status', 'failed'));
         $this->assertDatabaseCount('presensis', 0);
         $replacement = $this->submit('clock-in', 'b');
         $this->assertNotSame($submission->id, $replacement->id);
@@ -185,6 +213,21 @@ class QueuedAttendanceTest extends TestCase
         $this->actingAs($other)->get($url)->assertNotFound();
         Sanctum::actingAs($other);
         $this->getJson('/api/mobile/v1/attendance-submissions/'.$submission->id)->assertNotFound();
+    }
+
+    public function test_summary_requires_a_successful_submission_owned_by_the_employee_and_matching_action(): void
+    {
+        $submission = $this->submit();
+        $summaryUrl = '/absensi/mobile/clock-in/berhasil?submission='.$submission->id;
+        $this->get($summaryUrl)->assertNotFound();
+        $this->succeed($submission);
+        $this->get($summaryUrl)->assertOk();
+        $this->get('/absensi/mobile/clock-out/berhasil?submission='.$submission->id)->assertNotFound();
+
+        $other = User::factory()->create();
+        $other->assignRole('pegawai');
+        $this->actingAs($other)->get($summaryUrl)->assertNotFound();
+        $this->get($submission->statusPayload()['status_url'])->assertNotFound();
     }
 
     public function test_api_returns_accepted_and_can_resume_after_reopening(): void

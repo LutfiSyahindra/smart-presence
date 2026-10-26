@@ -10,5 +10,6 @@ export interface AttendanceSubmissionStatus {
     message: string;
     status_url: string;
     api_status_url: string;
+    success_url: string | null;
     retry_url: string;
 }

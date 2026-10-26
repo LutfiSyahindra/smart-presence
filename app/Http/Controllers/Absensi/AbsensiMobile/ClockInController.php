@@ -97,7 +97,15 @@ class ClockInController extends Controller
     public function success(Request $request): Response|RedirectResponse
     {
         $pegawai = $this->pegawai($request);
-        $attendance = $pegawai ? $this->todayPresensi($pegawai) : null;
+        $submissionId = $request->validate(['submission' => ['sometimes', 'required', 'uuid']])['submission'] ?? null;
+        if ($submissionId) {
+            $submission = AttendanceSubmission::query()->where('user_id', $request->user()->id)
+                ->where('pegawai_id', $pegawai?->id)->where('action', 'clock-in')->where('status', 'succeeded')
+                ->findOrFail($submissionId);
+            $attendance = Presensi::query()->where('pegawai_id', $pegawai?->id)->findOrFail($submission->presensi_id);
+        } else {
+            $attendance = $pegawai ? $this->todayPresensi($pegawai) : null;
+        }
 
         if (! $attendance?->clock_in_at) {
             return to_route('absensi.mobile.home')->with('error', 'Data clock-in hari ini belum ditemukan.');

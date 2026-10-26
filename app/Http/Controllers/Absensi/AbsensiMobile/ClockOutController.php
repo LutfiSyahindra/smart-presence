@@ -100,7 +100,15 @@ class ClockOutController extends Controller
     public function success(Request $request): Response|RedirectResponse
     {
         $pegawai = $this->pegawai($request);
-        $attendance = $pegawai ? $this->attendanceForClockOut($pegawai) : null;
+        $submissionId = $request->validate(['submission' => ['sometimes', 'required', 'uuid']])['submission'] ?? null;
+        if ($submissionId) {
+            $submission = AttendanceSubmission::query()->where('user_id', $request->user()->id)
+                ->where('pegawai_id', $pegawai?->id)->where('action', 'clock-out')->where('status', 'succeeded')
+                ->findOrFail($submissionId);
+            $attendance = Presensi::query()->where('pegawai_id', $pegawai?->id)->findOrFail($submission->presensi_id);
+        } else {
+            $attendance = $pegawai ? $this->attendanceForClockOut($pegawai) : null;
+        }
 
         if (! $attendance?->clock_out_at) {
             return to_route('absensi.mobile.home')->with('error', 'Data clock-out terakhir belum ditemukan.');

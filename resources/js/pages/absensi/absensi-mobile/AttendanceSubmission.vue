@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import type { AttendanceSubmissionStatus } from '@/types/attendance-submission';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { CheckCircle2, CircleAlert, Clock3, Home, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -46,6 +46,7 @@ async function refresh() {
         if (!response.ok) throw new Error(String(response.status));
         submission.value = (await response.json()).data;
         connectionMessage.value = '';
+        openSummary();
     } catch (error) {
         if (disposed) return;
         connectionMessage.value =
@@ -59,6 +60,12 @@ async function refresh() {
     }
 }
 
+function openSummary() {
+    if (!disposed && submission.value.status === 'succeeded' && submission.value.success_url) {
+        router.visit(submission.value.success_url, { replace: true });
+    }
+}
+
 function resume() {
     clearTimeout(timer);
     if (!document.hidden && pending.value) void refresh();
@@ -66,6 +73,7 @@ function resume() {
 
 onMounted(() => {
     if (pending.value) void refresh();
+    else openSummary();
     document.addEventListener('visibilitychange', resume);
     window.addEventListener('online', resume);
 });
@@ -106,6 +114,9 @@ onUnmounted(() => {
                 Catatan lokasi di luar radius turut tersimpan.
             </p>
             <p v-if="connectionMessage" class="connection-message" role="status">{{ connectionMessage }}</p>
+            <Link v-if="submission.status === 'succeeded' && submission.success_url" :href="submission.success_url" class="primary-action">
+                Lihat ringkasan presensi
+            </Link>
             <Link v-if="submission.status === 'failed'" :href="submission.retry_url" class="primary-action">Ambil foto dan coba kembali</Link>
             <button v-if="pending" type="button" class="secondary-action" :disabled="refreshing" @click="refresh">
                 <RefreshCw :class="{ spin: refreshing }" />Periksa status

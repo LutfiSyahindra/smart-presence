@@ -5,20 +5,21 @@ namespace App\Services\Absensi;
 use App\Models\CutiRequest;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
 
 class CutiScheduleService
 {
     public const BLOCKED_MESSAGE = 'Cuti Anda telah disetujui. Clock-in dan clock-out tidak dapat dilakukan selama cuti.';
 
-    public function isOnCuti(?Pegawai $pegawai, ?Presensi $attendance = null): bool
+    public function isOnCuti(?Pegawai $pegawai, ?Presensi $attendance = null, ?CarbonInterface $at = null): bool
     {
         if (! $pegawai) {
             return false;
         }
 
         $dates = array_unique(array_filter([
-            now()->toDateString(),
+            ($at ?? now())->toDateString(),
             $attendance?->tanggal_presensi?->toDateString(),
         ]));
 
@@ -35,9 +36,9 @@ class CutiScheduleService
             ->exists();
     }
 
-    public function ensureCanAttend(Pegawai $pegawai, ?Presensi $attendance = null): void
+    public function ensureCanAttend(Pegawai $pegawai, ?Presensi $attendance = null, ?CarbonInterface $at = null): void
     {
-        if ($this->isOnCuti($pegawai, $attendance)) {
+        if ($this->isOnCuti($pegawai, $attendance, $at)) {
             throw ValidationException::withMessages(['attendance' => self::BLOCKED_MESSAGE]);
         }
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\AttendanceSubmission;
 use App\Models\OfficeLocation;
 use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
@@ -74,6 +75,9 @@ class HomeController extends Controller
         $schedule = $this->schedules->resolve($pegawai?->id, $shift, $todayPresensi?->tanggal_presensi ?? now());
 
         return Inertia::render('absensi/absensi-mobile/Home', [
+            'attendanceSubmissions' => AttendanceSubmission::query()->visibleTo($user)->latest('received_at')->latest('id')->get()
+                ->unique('action')->filter(fn (AttendanceSubmission $submission) => $submission->status !== 'succeeded')
+                ->map(fn (AttendanceSubmission $submission) => $submission->statusPayload())->values()->all(),
             'canAccessAdmin' => Portal::canAccessAdmin($request),
             'canAccessAccount' => $canAccessAccount,
             'profilePhotoUrl' => $hasPhoto

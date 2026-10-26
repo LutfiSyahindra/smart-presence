@@ -4,6 +4,10 @@ Stack ini menjalankan Nginx, PHP-FPM 8.3, MySQL 8.4, queue worker,
 scheduler Laravel, Reverb untuk sinkronisasi mobile, dan FastAPI/DeepFace. Vue dibangun di image memakai Node;
 tidak ada Vite development server atau container Redis.
 
+Verifikasi absensi menggunakan queue khusus dengan dua worker; push pengajuan
+memakai worker terpisah. Alur, konfigurasi, dan deployment perubahan ini ada pada
+[antrean absensi](attendance-queue.md).
+
 ## 1. Buat konfigurasi
 
 Gunakan Docker Engine/Desktop dengan **Linux containers** dan Docker Compose
@@ -58,7 +62,7 @@ Untuk instalasi tanpa Docker, atur variabel yang sama di `.env`, lalu jalankan
 container Laravel dengan perintah berikut agar environment terbaru digunakan:
 
 ```sh
-docker compose --env-file .env.docker up -d --force-recreate app queue scheduler
+docker compose --env-file .env.docker up -d --force-recreate app queue queue-attendance queue-attendance-2 scheduler
 ```
 
 Jika memakai HTTPS langsung pada Nginx Docker, tambahkan pasangan
@@ -99,7 +103,7 @@ menit. Halaman web dapat digunakan ketika layanan wajah masih memuat model;
 presensi dengan verifikasi wajah memerlukan layanan itu siap.
 
 ```sh
-docker compose --env-file .env.docker logs -f init app web queue scheduler face-verification
+docker compose --env-file .env.docker logs -f init app web queue queue-attendance queue-attendance-2 scheduler face-verification
 docker compose --env-file .env.docker exec web wget -qO- http://127.0.0.1/up
 docker compose --env-file .env.docker exec face-verification python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8001/api/v1/health/ready').read().decode())"
 ```
@@ -206,7 +210,7 @@ Sebelum startup pertama, import SQL ke MySQL lalu salin isi direktori storage
 lama ke volume, atau setelah startup jalankan pada waktu pemeliharaan:
 
 ```sh
-docker compose --env-file .env.docker stop app web queue scheduler
+docker compose --env-file .env.docker stop app web queue queue-attendance queue-attendance-2 scheduler
 docker compose --env-file .env.docker cp ./storage/. init:/var/www/html/storage
 docker compose --env-file .env.docker run --rm init
 docker compose --env-file .env.docker up -d
@@ -240,7 +244,7 @@ lakukan deployment pada waktu pemeliharaan setelah backup:
 
 ```sh
 docker compose --env-file .env.docker build
-docker compose --env-file .env.docker stop web app queue scheduler
+docker compose --env-file .env.docker stop web app queue queue-attendance queue-attendance-2 scheduler
 docker compose --env-file .env.docker up -d --force-recreate init
 docker compose --env-file .env.docker wait init
 docker compose --env-file .env.docker up -d

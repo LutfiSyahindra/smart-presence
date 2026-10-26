@@ -3,6 +3,7 @@
 use App\Http\Controllers\Absensi\AbsensiMobile\AccountController as MobileAccountController;
 use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceController as MobileAttendanceController;
 use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceLogController;
+use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceSubmissionController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockInController as MobileClockInController;
 use App\Http\Controllers\Absensi\AbsensiMobile\ClockOutController as MobileClockOutController;
 use App\Http\Controllers\Absensi\AbsensiMobile\CutiApprovalController as MobileCutiApprovalController;
@@ -22,9 +23,9 @@ use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\HariLiburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\LemburController as WebLemburController;
-use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\PerubahanShiftController as WebPerubahanShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotificationInboxController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotifikasiController;
+use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\PerubahanShiftController as WebPerubahanShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\WebPushSubscriptionController;
 use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
@@ -66,6 +67,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
         Route::get('notifikasi/lembur', fn () => to_route('absensi.mobile.lembur.index', ['scope' => 'delegation']))->name('notifikasi.lembur');
         Route::get('presensi', MobileAttendanceController::class)->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance');
         Route::get('presensi/log', AttendanceLogController::class)->middleware('can:'.AccessPermission::MOBILE_HISTORY)->name('attendance.log');
+        Route::get('presensi/proses/{attendanceSubmission}', [AttendanceSubmissionController::class, 'show'])
+            ->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance-submissions.show');
         Route::get('cuti', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.index');
         Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.show');
         Route::get('notifikasi', [MobileNotificationController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.index');

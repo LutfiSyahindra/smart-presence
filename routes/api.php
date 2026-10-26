@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Absensi\AbsensiMobile\AttendanceSubmissionController;
 use App\Http\Controllers\Api\Mobile\AttendanceActionController;
 use App\Http\Controllers\Api\Mobile\MobileAuthController;
 use App\Http\Controllers\Api\Mobile\MobileController;
@@ -19,6 +20,10 @@ Route::prefix('mobile/v1')
             Route::get('home', [MobileController::class, 'home'])->name('home');
             Route::get('attendance', [MobileController::class, 'attendance'])->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance');
             Route::get('attendance/history', [MobileController::class, 'history'])->middleware('can:'.AccessPermission::MOBILE_HISTORY)->name('attendance.history');
+            Route::get('attendance-submissions/latest', [AttendanceSubmissionController::class, 'latest'])
+                ->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance-submissions.latest');
+            Route::get('attendance-submissions/{attendanceSubmission}', [AttendanceSubmissionController::class, 'show'])
+                ->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance-submissions.show');
             Route::get('attendance/{action}', [AttendanceActionController::class, 'show'])
                 ->whereIn('action', ['clock-in', 'clock-out'])
                 ->middleware('can:'.AccessPermission::MOBILE_ATTENDANCE)->name('attendance.action.show');

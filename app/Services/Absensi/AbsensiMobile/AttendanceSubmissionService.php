@@ -6,6 +6,7 @@ use App\Contracts\FaceVerifier;
 use App\Exceptions\FaceVerificationException;
 use App\Http\Requests\Absensi\AbsensiMobile\StoreClockInRequest;
 use App\Http\Requests\Absensi\AbsensiMobile\StoreClockOutRequest;
+use App\Models\AttendanceSubmission;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
@@ -30,9 +31,13 @@ class AttendanceSubmissionService
         private readonly AttendanceScheduleService $schedules,
     ) {}
 
-    /** @return array{attendance: Presensi, message: string, outside_radius: bool} */
+    /** @return array{attendance: ?Presensi, message: string, outside_radius: bool, submission?: AttendanceSubmission} */
     public function clockIn(StoreClockInRequest $request): array
     {
+        if (config('attendance.queue_enabled')) {
+            return app(QueuedAttendanceService::class)->submit($request, 'clock-in');
+        }
+
         $pegawai = $this->pegawai($request);
         if (! $pegawai) {
             $this->fail('attendance', 'Profil pegawai belum terhubung. Hubungi administrator.');
@@ -133,9 +138,13 @@ class AttendanceSubmissionService
         ];
     }
 
-    /** @return array{attendance: Presensi, message: string, outside_radius: bool} */
+    /** @return array{attendance: ?Presensi, message: string, outside_radius: bool, submission?: AttendanceSubmission} */
     public function clockOut(StoreClockOutRequest $request): array
     {
+        if (config('attendance.queue_enabled')) {
+            return app(QueuedAttendanceService::class)->submit($request, 'clock-out');
+        }
+
         $pegawai = $this->pegawai($request);
         if (! $pegawai) {
             $this->fail('attendance', 'Profil pegawai belum terhubung. Hubungi administrator.');

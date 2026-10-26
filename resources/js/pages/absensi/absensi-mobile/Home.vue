@@ -2,6 +2,7 @@
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { usePermission } from '@/composables/usePermission';
 import type { SharedData } from '@/types';
+import type { AttendanceSubmissionStatus } from '@/types/attendance-submission';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     ArrowRightLeft,
@@ -26,6 +27,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import MobileNotificationBell from './components/MobileNotificationBell.vue';
 
 const props = defineProps<{
+    attendanceSubmissions?: AttendanceSubmissionStatus[];
     canAccessAdmin: boolean;
     canAccessAccount: boolean;
     profilePhotoUrl: string | null;
@@ -175,6 +177,26 @@ const { can } = usePermission();
             </header>
 
             <section class="mobile-content">
+                <aside v-if="attendanceSubmissions?.length" class="submission-notices" aria-label="Status verifikasi absensi">
+                    <Link
+                        v-for="submission in attendanceSubmissions"
+                        :key="submission.id"
+                        :href="submission.status_url"
+                        class="submission-notice"
+                        :class="{ failed: submission.status === 'failed' }"
+                    >
+                        <Clock3 aria-hidden="true" />
+                        <span
+                            ><strong>{{ submission.action === 'clock-in' ? 'Absen masuk' : 'Absen pulang' }} · {{ submission.time }}</strong
+                            >{{
+                                submission.status === 'failed'
+                                    ? 'Verifikasi gagal. Lihat hasil dan coba kembali.'
+                                    : 'Permintaan tersimpan. Lihat status verifikasi.'
+                            }}</span
+                        >
+                        <ChevronRight aria-hidden="true" />
+                    </Link>
+                </aside>
                 <article class="schedule-card" aria-labelledby="today-schedule-title">
                     <span class="schedule-glow schedule-glow-one" aria-hidden="true"></span>
                     <span class="schedule-glow schedule-glow-two" aria-hidden="true"></span>
@@ -434,6 +456,41 @@ const { can } = usePermission();
 </template>
 
 <style scoped>
+.submission-notices {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    margin: 0;
+}
+.submission-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 14px 16px;
+    border: 1px solid #cce7de;
+    border-radius: 16px;
+    background: #eaf7f1;
+    color: #176451;
+}
+.submission-notice.failed {
+    border-color: #f0d8c6;
+    background: #fff5ec;
+    color: #954a20;
+}
+.submission-notice > svg {
+    flex: none;
+    width: 20px;
+}
+.submission-notice span {
+    flex: 1;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.submission-notice strong {
+    display: block;
+    font-size: 13px;
+}
 .schedule-adjustment {
     margin: 0 0 16px;
     padding: 13px;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Absensi\AbsensiMobile\UpdateProfilePhotoRequest;
+use App\Models\AttendanceSubmission;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
@@ -57,6 +58,8 @@ class MobileController extends Controller
                     'location_name' => $office?->name,
                 ],
                 'attendance' => $this->attendancePayload($pegawai, $attendance, $office, $isOnCuti),
+                'attendance_submissions' => AttendanceSubmission::query()->visibleTo($request->user())->latest('received_at')->latest('id')->get()
+                    ->unique('action')->map(fn (AttendanceSubmission $submission) => $submission->statusPayload())->values()->all(),
             ],
         ]);
     }

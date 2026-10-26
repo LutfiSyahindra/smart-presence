@@ -100,7 +100,7 @@ services:
 
   queue:
     <<: *app
-    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=60", "--max-time=3600", "--no-interaction"]
+    command: ["php", "artisan", "queue:work", "--queue=notifications,default", "--sleep=1", "--tries=3", "--timeout=60", "--max-time=3600", "--no-interaction"]
     stop_grace_period: 90s
     healthcheck:
       disable: true
@@ -117,6 +117,21 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+
+  queue-attendance: &attendance-worker
+    <<: *app
+    command: ["php", "artisan", "queue:work", "--queue=attendance", "--sleep=1", "--tries=3", "--timeout=60", "--max-time=3600", "--no-interaction"]
+    stop_grace_period: 90s
+    healthcheck:
+      disable: true
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      face-verification:
+        condition: service_healthy
+
+  queue-attendance-2:
+    <<: *attendance-worker
 
   reverb:
     <<: *app
@@ -139,6 +154,11 @@ services:
     # Only face-service settings are shared with Python, never database/app secrets.
     environment:
       DEEPFACE_HOME: /home/face-service
+      FACE_SERVICE_WORKERS: ${FACE_SERVICE_WORKERS:-2}
+      TF_NUM_INTRAOP_THREADS: ${FACE_SERVICE_INTRAOP_THREADS:-2}
+      TF_NUM_INTEROP_THREADS: "1"
+      OMP_NUM_THREADS: ${FACE_SERVICE_INTRAOP_THREADS:-2}
+      OPENBLAS_NUM_THREADS: ${FACE_SERVICE_INTRAOP_THREADS:-2}
       FACE_SERVICE_TOKEN: ${FACE_SERVICE_TOKEN:?Jalankan scripts/docker-setup.php terlebih dahulu}
       FACE_SERVICE_MODEL_NAME: ${FACE_SERVICE_MODEL_NAME:-Facenet512}
       FACE_SERVICE_DETECTOR_BACKEND: ${FACE_SERVICE_DETECTOR_BACKEND:-opencv}

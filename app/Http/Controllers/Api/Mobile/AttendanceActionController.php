@@ -95,6 +95,10 @@ class AttendanceActionController extends Controller
     {
         $result = $this->submissionService->clockIn($request);
 
+        if (isset($result['submission'])) {
+            return response()->json(['message' => $result['message'], 'data' => $result['submission']->statusPayload()], 202);
+        }
+
         return response()->json([
             'message' => $result['message'],
             'data' => $this->successPayload($result['attendance'], 'clock-in', $result['outside_radius']),
@@ -104,6 +108,10 @@ class AttendanceActionController extends Controller
     public function clockOut(StoreClockOutRequest $request): JsonResponse
     {
         $result = $this->submissionService->clockOut($request);
+
+        if (isset($result['submission'])) {
+            return response()->json(['message' => $result['message'], 'data' => $result['submission']->statusPayload()], 202);
+        }
 
         return response()->json([
             'message' => $result['message'],

@@ -72,7 +72,7 @@ php artisan migrate
 php artisan notifications:vapid
 php artisan config:clear
 npm run build
-php artisan queue:work --tries=3
+php artisan queue:work --queue=notifications,default --tries=3
 ```
 
 Perintah `notifications:vapid` menyimpan pasangan kunci di `.env` dan menolak
@@ -103,7 +103,7 @@ untuk instalasi Laragon yang dipakai proyek ini:
 ```powershell
 $env:OPENSSL_CONF = 'D:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\extras\ssl\openssl.cnf'
 php artisan notifications:vapid
-php artisan queue:work --tries=3
+php artisan queue:work --queue=notifications,default --tries=3
 ```
 
 Sesuaikan path dengan instalasi PHP server. Variabel ini perlu diwariskan ke

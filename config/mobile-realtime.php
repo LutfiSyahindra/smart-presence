@@ -13,5 +13,7 @@ return [
         'migrations', 'password_reset_tokens', 'sessions', 'cache', 'cache_locks',
         'jobs', 'job_batches', 'failed_jobs', 'personal_access_tokens',
         'web_push_subscriptions', 'mobile_push_devices',
+        // Verification status is polled by its owner; final presensi writes still broadcast.
+        'attendance_submissions',
     ],
 ];

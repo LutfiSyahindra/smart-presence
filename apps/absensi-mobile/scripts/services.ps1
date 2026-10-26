@@ -98,6 +98,22 @@ if (-not (Get-ServiceHealth 'http://127.0.0.1:8001/api/v1/health/live')) {
     $face = Start-Process -FilePath $python -ArgumentList @('-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8001','--workers','1') -WorkingDirectory $faceRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'face.stdout.log') -RedirectStandardError (Join-Path $logsRoot 'face.stderr.log') -PassThru
     $processRecords += [PSCustomObject]@{Name='Face';Id=$face.Id;StartTime=$face.StartTime.ToUniversalTime().ToString('o')}
 }
+$existingQueue = $processRecords | Where-Object {
+    $tracked = Get-Process -Id $_.Id -ErrorAction SilentlyContinue
+    $_.Name -eq 'Queue' -and $tracked -and $tracked.StartTime.ToUniversalTime().ToString('o') -eq $_.StartTime
+}
+if (-not $existingQueue) {
+    $queue = Start-Process -FilePath $php -ArgumentList @('artisan','queue:work','--queue=attendance,notifications,default','--sleep=1','--tries=3','--timeout=60','--no-interaction') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'queue.stdout.log') -RedirectStandardError (Join-Path $logsRoot 'queue.stderr.log') -PassThru
+    $processRecords += [PSCustomObject]@{Name='Queue';Id=$queue.Id;StartTime=$queue.StartTime.ToUniversalTime().ToString('o')}
+}
+$existingScheduler = $processRecords | Where-Object {
+    $tracked = Get-Process -Id $_.Id -ErrorAction SilentlyContinue
+    $_.Name -eq 'Scheduler' -and $tracked -and $tracked.StartTime.ToUniversalTime().ToString('o') -eq $_.StartTime
+}
+if (-not $existingScheduler) {
+    $scheduler = Start-Process -FilePath $php -ArgumentList @('artisan','schedule:work','--no-interaction') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'scheduler.stdout.log') -RedirectStandardError (Join-Path $logsRoot 'scheduler.stderr.log') -PassThru
+    $processRecords += [PSCustomObject]@{Name='Scheduler';Id=$scheduler.Id;StartTime=$scheduler.StartTime.ToUniversalTime().ToString('o')}
+}
 ConvertTo-Json -InputObject @($processRecords) | Set-Content -LiteralPath $stateFile -Encoding UTF8
 Write-Output 'Vue/Laravel development: http://localhost:8600/login'
 Write-Output "API prototipe mobile: $apiUrl"

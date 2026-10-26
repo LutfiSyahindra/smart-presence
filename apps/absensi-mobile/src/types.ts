@@ -45,6 +45,7 @@ export interface Attendance {
 }
 
 export interface HomeData {
+    attendance_submissions?: AttendanceSubmissionStatus[];
     user: UserSummary;
     date: { value: string; label: string };
     schedule: {
@@ -82,6 +83,17 @@ export interface AttendanceActionData {
         radius_meters: number;
     };
     location_challenge: LocationChallenge;
+}
+
+export interface AttendanceSubmissionStatus {
+    id: string;
+    action: 'clock-in' | 'clock-out';
+    status: 'pending' | 'processing' | 'succeeded' | 'failed';
+    received_at: string;
+    date: string;
+    time: string;
+    message: string;
+    face_similarity: number | null;
 }
 
 export interface LocationSample {

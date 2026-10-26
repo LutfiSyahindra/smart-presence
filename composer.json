@@ -62,7 +62,7 @@
             "Composer\\Config::disableProcessTimeout",
             "@php scripts/realtime-setup.php",
             "@php artisan config:clear",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#67e8f9\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" \"php artisan reverb:start --host=127.0.0.1 --port=8080\" --names=server,queue,logs,vite,realtime"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#67e8f9\" \"php artisan serve\" \"php artisan queue:listen --queue=attendance,notifications,default --tries=3 --timeout=60\" \"php artisan pail --timeout=0\" \"npm run dev\" \"php artisan reverb:start --host=127.0.0.1 --port=8080\" --names=server,queue,logs,vite,realtime"
         ]
     },
     "extra": {

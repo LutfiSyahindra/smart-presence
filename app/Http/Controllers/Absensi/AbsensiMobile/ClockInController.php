@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Absensi\AbsensiMobile\StoreClockInRequest;
+use App\Models\AttendanceSubmission;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
@@ -32,6 +33,11 @@ class ClockInController extends Controller
 
     public function create(Request $request): Response|RedirectResponse
     {
+        if ($pending = AttendanceSubmission::query()->where('user_id', $request->user()->id)->where('action', 'clock-in')
+            ->whereIn('status', ['pending', 'processing'])->first()) {
+            return to_route('absensi.mobile.attendance-submissions.show', $pending->id);
+        }
+
         $pegawai = $this->pegawai($request);
         if (! $pegawai) {
             return to_route('absensi.mobile.home')->with('error', 'Profil pegawai belum terhubung. Hubungi administrator sebelum melakukan presensi.');
@@ -136,6 +142,10 @@ class ClockInController extends Controller
     public function store(StoreClockInRequest $request): RedirectResponse
     {
         $result = $this->submissionService->clockIn($request);
+
+        if (isset($result['submission'])) {
+            return to_route('absensi.mobile.attendance-submissions.show', $result['submission']->id);
+        }
 
         return to_route('absensi.mobile.clock-in.success')->with('success', $result['message']);
     }

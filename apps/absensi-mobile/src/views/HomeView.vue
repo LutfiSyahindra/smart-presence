@@ -16,11 +16,15 @@ const error = ref('');
 
 const firstName = computed(() => data.value?.user.name.split(' ')[0] || 'Sahabat');
 const action = computed(() => {
+    const pending = data.value?.attendance_submissions?.find((item) => item.status !== 'succeeded');
+    if (pending) return { slug: pending.action, label: 'Lihat hasil verifikasi', icon: Clock3 };
     if (data.value?.attendance.status === 'ready_to_clock_in') return { slug: 'clock-in', label: 'Clock-in sekarang', icon: LogIn };
     if (data.value?.attendance.status === 'ready_to_clock_out') return { slug: 'clock-out', label: 'Clock-out sekarang', icon: LogOut };
     return null;
 });
 const statusCopy = computed(() => {
+    const pending = data.value?.attendance_submissions?.find((item) => item.status !== 'succeeded');
+    if (pending) return [pending.status === 'failed' ? 'Verifikasi gagal' : 'Absensi sedang diproses', pending.message];
     switch (data.value?.attendance.status) {
         case 'on_leave':
             return ['Cuti Anda telah disetujui', 'Clock-in dan clock-out dinonaktifkan selama cuti.'];

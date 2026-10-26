@@ -77,7 +77,7 @@ php artisan migrate
 php artisan notifications:vapid
 php artisan config:clear
 npm run build
-php artisan queue:work --tries=3
+php artisan queue:work --queue=notifications,default --tries=3
 ```
 
 Jika VAPID sudah diisi, jangan mengganti pasangan kuncinya. Panduan VAPID/OpenSSL

@@ -6,6 +6,7 @@ $trustedNetworks = array_values(array_filter(array_map(
 )));
 
 return [
+    'queue_enabled' => (bool) env('ATTENDANCE_QUEUE_ENABLED', true),
     'location' => [
         // A short-lived, session-bound challenge prevents replaying an old GPS payload.
         'proof_ttl_seconds' => (int) env('ATTENDANCE_LOCATION_PROOF_TTL', 600),

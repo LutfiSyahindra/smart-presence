@@ -13,7 +13,10 @@ class SendWebPushNotification implements ShouldQueue
 
     public int $tries = 3;
 
-    public function __construct(public readonly string $notificationId) {}
+    public function __construct(public readonly string $notificationId)
+    {
+        $this->onQueue('notifications');
+    }
 
     public function backoff(): array
     {

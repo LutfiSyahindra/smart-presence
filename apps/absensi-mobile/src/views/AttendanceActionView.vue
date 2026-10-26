@@ -2,13 +2,13 @@
 import { Camera as CameraIcon, Check, CheckCircle2, Clock3, Crosshair, MapPin, RefreshCw, Send, ShieldCheck } from '@lucide/vue';
 import { Camera, CameraDirection, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import ErrorState from '@/components/ErrorState.vue';
 import LoadingState from '@/components/LoadingState.vue';
 import MobileShell from '@/components/MobileShell.vue';
 import { ApiError, apiRequest } from '@/lib/api';
-import type { ApiEnvelope, AttendanceActionData, LocationSample } from '@/types';
+import type { ApiEnvelope, AttendanceActionData, AttendanceSubmissionStatus, LocationSample } from '@/types';
 
 const route = useRoute();
 const action = computed(() => route.params.action as 'clock-in' | 'clock-out');
@@ -25,6 +25,44 @@ const submitting = ref(false);
 const error = ref('');
 const progress = ref('');
 const success = ref<{ message: string; time: string; face_similarity: number | null } | null>(null);
+const submission = ref<AttendanceSubmissionStatus | null>(null);
+const pendingSubmission = computed(() => submission.value && ['pending', 'processing'].includes(submission.value.status));
+let statusTimer: ReturnType<typeof setTimeout> | undefined;
+let disposed = false;
+let polling = false;
+
+function applyStatus(value: AttendanceSubmissionStatus) {
+    submission.value = value;
+    if (value.status === 'succeeded') success.value = { message: value.message, time: value.time, face_similarity: value.face_similarity };
+}
+
+async function pollStatus() {
+    if (disposed || polling || !pendingSubmission.value || !submission.value) return;
+    clearTimeout(statusTimer);
+    polling = true;
+    try {
+        const result = await apiRequest<ApiEnvelope<AttendanceSubmissionStatus>>(`/attendance-submissions/${submission.value.id}`);
+        if (!disposed) { applyStatus(result.data); error.value = ''; }
+    } catch {
+        if (!disposed) error.value = 'Status belum dapat diperbarui. Permintaan tersimpan; periksa kembali saat koneksi tersedia.';
+    } finally {
+        polling = false;
+        if (!disposed && pendingSubmission.value && !document.hidden) statusTimer = setTimeout(pollStatus, error.value ? 10000 : 3000);
+    }
+}
+
+function resumeStatus() {
+    clearTimeout(statusTimer);
+    if (!document.hidden) void pollStatus();
+}
+
+async function prepareAgain() {
+    submission.value = null;
+    error.value = '';
+    resetEvidence();
+    try { context.value = (await apiRequest<ApiEnvelope<AttendanceActionData>>(`/attendance/${action.value}`)).data; }
+    catch (caught) { error.value = caught instanceof ApiError ? caught.message : 'Persiapan presensi belum berhasil.'; }
+}
 
 const accurateSamples = computed(() => samples.value.filter((sample) => sample.accuracy <= (context.value?.location_challenge.max_accuracy_meters || 100)));
 const bestAccuracy = computed(() => accurateSamples.value.length ? Math.min(...accurateSamples.value.map((sample) => sample.accuracy)) : null);
@@ -35,6 +73,12 @@ async function load() {
     error.value = '';
     resetEvidence();
     try {
+        const latest = (await apiRequest<ApiEnvelope<AttendanceSubmissionStatus | null>>(`/attendance-submissions/latest?action=${action.value}`)).data;
+        if (latest) {
+            applyStatus(latest);
+            if (pendingSubmission.value) void pollStatus();
+            return;
+        }
         context.value = (await apiRequest<ApiEnvelope<AttendanceActionData>>(`/attendance/${action.value}`)).data;
     } catch (caught) {
         error.value = caught instanceof ApiError ? caught.message : 'Persiapan presensi belum berhasil.';
@@ -176,11 +220,14 @@ async function submit() {
             form.append(`location_samples[${index}][captured_at]`, String(sample.captured_at));
         });
 
-        const response = await apiRequest<{ message: string; data: { time: string; face_similarity: number | null } }>(`/attendance/${action.value}`, {
+        const response = await apiRequest<{ message: string; data: AttendanceSubmissionStatus | { time: string; face_similarity: number | null } }>(`/attendance/${action.value}`, {
             method: 'POST',
             body: form,
         });
-        success.value = { message: response.message, ...response.data };
+        if ('status' in response.data) {
+            applyStatus(response.data);
+            if (pendingSubmission.value) void pollStatus();
+        } else success.value = { message: response.message, ...response.data };
         progress.value = '';
     } catch (caught) {
         error.value = caught instanceof ApiError ? caught.message : 'Presensi belum berhasil disimpan.';
@@ -204,13 +251,36 @@ function distanceInMeters(fromLat: number, fromLng: number, toLat: number, toLng
     return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-onMounted(load);
+onMounted(() => {
+    void load();
+    document.addEventListener('visibilitychange', resumeStatus);
+    window.addEventListener('online', resumeStatus);
+});
+onUnmounted(() => {
+    disposed = true;
+    clearTimeout(statusTimer);
+    document.removeEventListener('visibilitychange', resumeStatus);
+    window.removeEventListener('online', resumeStatus);
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+});
 </script>
 
 <template>
     <MobileShell :title="title" subtitle="Verifikasi lokasi dan wajah">
         <LoadingState v-if="loading" />
-        <ErrorState v-else-if="error && !context" :message="error" @retry="load" />
+        <ErrorState v-else-if="error && !context && !submission" :message="error" @retry="load" />
+
+        <section v-else-if="submission && submission.status !== 'succeeded'" class="success-screen">
+            <span class="success-mark"><Clock3 :size="42" /></span>
+            <p class="app-eyebrow">{{ submission.status === 'failed' ? 'Verifikasi gagal' : 'Permintaan tersimpan' }}</p>
+            <h2>{{ submission.time }} WIB</h2>
+            <p>{{ submission.message }}</p>
+            <p v-if="pendingSubmission">Waktu pengiriman sudah tersimpan. Anda dapat kembali ke beranda dan melihat hasilnya nanti.</p>
+            <p v-if="error" class="form-error" role="status">{{ error }}</p>
+            <button v-if="submission.status === 'failed'" type="button" class="button primary full" @click="prepareAgain">Ambil foto dan coba kembali</button>
+            <button v-else type="button" class="button text full" @click="pollStatus">Periksa status</button>
+            <RouterLink :to="{ name: 'home' }" class="button primary full">Kembali ke beranda</RouterLink>
+        </section>
 
         <section v-else-if="success" class="success-screen">
             <span class="success-mark"><Check :size="42" /></span>

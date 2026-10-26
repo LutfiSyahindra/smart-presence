@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Support\Portal;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -63,6 +64,61 @@ class AuthenticationTest extends TestCase
 
         $response->assertRedirect(route('absensi.mobile.home', absolute: false));
         $response->assertSessionHas(Portal::SESSION_KEY, Portal::PRESENSI);
+    }
+
+    public function test_web_logins_are_remembered_without_an_optional_checkbox(): void
+    {
+        $user = User::factory()->create();
+        $cookieName = Auth::guard('web')->getRecallerName();
+
+        foreach (['/login', '/absensi/admin-web/login'] as $loginUrl) {
+            $this->flushSession();
+            Auth::forgetGuards();
+
+            $response = $this->post($loginUrl, [
+                'email' => $user->email,
+                'password' => 'password',
+                'remember' => false,
+            ]);
+
+            $response->assertRedirect()->assertCookieNotExpired($cookieName);
+            $this->assertAuthenticatedAs($user);
+            $this->assertGreaterThan(now()->addDays(30)->timestamp, $response->getCookie($cookieName)->getExpiresTime());
+            $this->assertNotEmpty($user->fresh()->getRememberToken());
+        }
+    }
+
+    public function test_remembered_login_survives_an_expired_session_and_logout_revokes_it(): void
+    {
+        $user = User::factory()->create();
+        $cookieName = Auth::guard('web')->getRecallerName();
+        $login = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+        $rememberCookie = $login->getCookie($cookieName)->getValue();
+
+        // A fresh browser session has no server-side login state.
+        $this->flushSession();
+        Auth::forgetGuards();
+        $this->travel(45)->days();
+
+        $this->withCookie($cookieName, $rememberCookie)
+            ->get('/login')
+            ->assertRedirect('/absensi/mobile');
+        $this->assertAuthenticatedAs($user);
+        $this->assertTrue(Auth::guard('web')->viaRemember());
+
+        $this->post('/logout')
+            ->assertRedirect('/login')
+            ->assertCookieExpired($cookieName);
+        $this->assertGuest();
+
+        // Even replaying the old cookie cannot sign the user back in.
+        $this->flushSession();
+        Auth::forgetGuards();
+        $this->withCookie($cookieName, $rememberCookie)->get('/login')->assertOk();
+        $this->assertGuest();
     }
 
     public function test_employee_who_is_also_an_admin_can_explicitly_enter_the_admin_portal()

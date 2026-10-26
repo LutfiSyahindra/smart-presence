@@ -32,7 +32,7 @@ async function submit() {
         <section class="login-hero">
             <img src="/images/arsy-presensi-logo.png" alt="ARSY Presensi" width="500" height="500" class="login-logo" />
             <div>
-                <p class="app-eyebrow light">Rumah Sakit AR. Sayyid</p>
+                <p class="app-eyebrow light">RS ABDURRAHMAN SYAMSURI</p>
                 <h1>Presensi yang aman, langsung dari genggaman.</h1>
                 <p>Verifikasi lokasi dan wajah dalam satu alur yang sederhana.</p>
             </div>

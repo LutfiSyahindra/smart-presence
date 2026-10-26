@@ -9,6 +9,7 @@ use App\Models\User;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -63,11 +64,52 @@ class MobileApiTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('user.email', $this->user->email)
             ->assertJsonPath('user.can_access_account', true)
+            ->assertJsonPath('expires_at', null)
             ->assertJsonStructure(['token', 'token_type', 'expires_at']);
         $this->assertDatabaseHas('personal_access_tokens', [
             'tokenable_id' => $this->user->id,
             'name' => 'Test Android',
+            'expires_at' => null,
         ]);
+    }
+
+    public function test_mobile_token_survives_inactivity_until_explicit_logout(): void
+    {
+        $token = $this->postJson('/api/mobile/v1/auth/login', [
+            'email' => $this->user->email,
+            'password' => 'password',
+            'device_name' => 'Test Android',
+        ])->assertOk()->json('token');
+
+        $this->travel(60)->days();
+        Auth::forgetGuards();
+
+        $this->withToken($token)->getJson('/api/mobile/v1/auth/user')
+            ->assertOk()
+            ->assertJsonPath('user.id', $this->user->id);
+
+        Auth::forgetGuards();
+        $this->withToken($token)->postJson('/api/mobile/v1/auth/logout')->assertOk();
+        Auth::forgetGuards();
+        $this->withToken($token)->getJson('/api/mobile/v1/auth/user')->assertUnauthorized();
+    }
+
+    public function test_login_on_a_device_with_the_same_name_preserves_the_other_device_session(): void
+    {
+        $credentials = [
+            'email' => $this->user->email,
+            'password' => 'password',
+            'device_name' => 'Same Android Model',
+        ];
+        $firstToken = $this->postJson('/api/mobile/v1/auth/login', $credentials)->assertOk()->json('token');
+        $secondToken = $this->postJson('/api/mobile/v1/auth/login', $credentials)->assertOk()->json('token');
+
+        Auth::forgetGuards();
+        $this->withToken($firstToken)->getJson('/api/mobile/v1/auth/user')->assertOk();
+        Auth::forgetGuards();
+        $this->withToken($secondToken)->postJson('/api/mobile/v1/auth/logout')->assertOk();
+        Auth::forgetGuards();
+        $this->withToken($firstToken)->getJson('/api/mobile/v1/auth/user')->assertOk();
     }
 
     public function test_invalid_mobile_credentials_are_rejected(): void

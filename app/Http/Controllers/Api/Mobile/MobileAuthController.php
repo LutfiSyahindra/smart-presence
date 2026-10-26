@@ -38,8 +38,7 @@ class MobileAuthController extends Controller
         }
 
         $deviceName = trim($credentials['device_name']);
-        $user->tokens()->where('name', $deviceName)->delete();
-        $token = $user->createToken($deviceName, ['mobile'], now()->addDays(30));
+        $token = $user->createToken($deviceName, ['mobile']);
 
         return response()->json([
             'message' => 'Login berhasil.',

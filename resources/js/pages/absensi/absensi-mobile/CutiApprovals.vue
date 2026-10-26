@@ -155,7 +155,20 @@ watch(
     () => props.filters.search,
     (value) => (search.value = value),
 );
-watch([() => props.requests, () => props.filters], cancelSelection);
+watch(
+    [
+        () => props.requests.data.map((item) => `${item.id}:${item.can_decide}:${item.current_level}`).join('|'),
+        () => props.requests.current_page,
+        () => props.filters,
+    ],
+    cancelSelection,
+);
+watch(
+    () => props.requests.data,
+    (requests) => {
+        if (selected.value) selected.value = requests.find((item) => item.id === selected.value?.id) ?? null;
+    },
+);
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer);
 });

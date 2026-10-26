@@ -80,10 +80,11 @@ class AccountProfilePhotoTest extends TestCase
         $this->assertStringStartsWith("profile-photos/{$user->id}/", $user->profile_photo_path);
         Storage::disk('local')->assertExists($user->profile_photo_path);
 
-        $this->get('/absensi/mobile/akun/foto-profil')
+        $photo = $this->get('/absensi/mobile/akun/foto-profil')
             ->assertOk()
-            ->assertHeader('cache-control', 'private, max-age=86400')
             ->assertHeader('x-content-type-options', 'nosniff');
+        $this->assertTrue($photo->headers->hasCacheControlDirective('private'));
+        $this->assertSame('86400', (string) $photo->headers->getCacheControlDirective('max-age'));
     }
 
     public function test_replacing_profile_photo_removes_the_previous_private_file(): void

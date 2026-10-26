@@ -146,6 +146,27 @@ test('requests that lose approval eligibility cannot be included in the submitte
     } finally { app.close(); }
 });
 
+test('background updates retain unchanged bulk selections and refresh an open detail', async () => {
+    const app = approvalPage();
+    try {
+        app.state.selectAll();
+        app.state.reviewSelection();
+        app.state.openDetail(app.props.requests.data[0]);
+        app.props.requests = {
+            ...app.props.requests,
+            data: app.props.requests.data.map((item) => ({ ...item, status: 'pending' })),
+        };
+        await vue.nextTick();
+        assert.deepEqual([...app.state.selectedIds.value], [1, 2]);
+        assert.equal(app.state.confirmingBulk.value, true);
+        assert.equal(app.state.selected.value.status, 'pending');
+        app.props.requests.data = app.props.requests.data.filter((item) => item.id !== 1);
+        await vue.nextTick();
+        assert.equal(app.state.selected.value, null);
+        assert.equal(app.state.confirmingBulk.value, false);
+    } finally { app.close(); }
+});
+
 test('server errors stay visible after the refreshed queue clears the previous selection', async () => {
     const app = approvalPage();
     try {

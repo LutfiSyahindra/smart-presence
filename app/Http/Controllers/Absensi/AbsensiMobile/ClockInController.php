@@ -83,7 +83,7 @@ class ClockInController extends Controller
                 'longitude' => $office->longitude,
                 'radius_meters' => $office->radius_meters,
             ],
-            'locationChallenge' => $this->locationVerifier->issueChallenge($request, 'clock-in'),
+            'locationChallenge' => fn () => $this->locationVerifier->issueChallenge($request, 'clock-in'),
             'profilePhotoUrl' => $this->profilePhotoUrl($request),
         ]);
     }

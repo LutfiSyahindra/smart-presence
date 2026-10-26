@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { usePermission } from '@/composables/usePermission';
+import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import type { SharedData } from '@/types';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -22,7 +23,7 @@ import {
     Sparkles,
     UsersRound,
 } from 'lucide-vue-next';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { date, days, labels } from '../admin-web/cuti/formatters';
 import type { CutiRow } from '../admin-web/cuti/types';
 import CutiSheet from './components/CutiSheet.vue';
@@ -93,6 +94,7 @@ function create() {
 }
 function submit() {
     form.post(route('absensi.mobile.cuti.store'), {
+        replace: true,
         preserveScroll: true,
         onError: () => nextTick(() => document.querySelector<HTMLElement>('#cuti-request-form [aria-invalid="true"]')?.focus()),
         onSuccess: () => {
@@ -130,11 +132,28 @@ function decide() {
 }
 watch(
     () => props.initialRequest,
-    (cuti) => {
-        if (cuti) openDetail(cuti);
+    (cuti, previous) => {
+        if (cuti && cuti.id !== previous?.id) openDetail(cuti);
+        else if (cuti && selected.value?.id === cuti.id) selected.value = cuti;
     },
     { immediate: true },
 );
+watch(
+    () => props.requests.data,
+    (requests) => {
+        const updated = requests.find((cuti) => cuti.id === selected.value?.id);
+        if (updated) selected.value = updated;
+    },
+);
+const removeBackHandler = registerMobileBackHandler(() => {
+    if (form.processing || decision.processing || cancellation.processing) return true;
+    if (confirmingCancellation.value) confirmingCancellation.value = false;
+    else if (selected.value) selected.value = null;
+    else if (sheet.value) sheet.value = null;
+    else return false;
+    return true;
+});
+onUnmounted(removeBackHandler);
 const { can } = usePermission();
 </script>
 

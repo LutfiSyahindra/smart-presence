@@ -128,6 +128,22 @@ class ClockOutTest extends TestCase
                 ->where('attendance.face_similarity', 97.25));
     }
 
+    public function test_realtime_refresh_keeps_the_active_location_challenge_valid(): void
+    {
+        $this->travelTo('2026-09-16 14:30:00');
+        $this->attendance(['clock_in_at' => '2026-09-16 07:00:00']);
+        $initial = $this->actingAs($this->user)->get('/absensi/mobile/clock-out')->assertOk();
+        $challenge = session('attendance.location_challenges.clock-out');
+        $this->assertNotNull($challenge);
+        $this->get('/absensi/mobile/clock-out', [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => $initial->viewData('page')['version'],
+            'X-Inertia-Partial-Component' => 'absensi/absensi-mobile/ClockOut',
+            'X-Inertia-Partial-Data' => 'schedule,office,profilePhotoUrl',
+        ])->assertOk()->assertJsonMissingPath('props.locationChallenge');
+        $this->assertSame($challenge, session('attendance.location_challenges.clock-out'));
+    }
+
     public function test_clock_out_at_or_after_shift_end_is_not_early(): void
     {
         $this->travelTo('2026-09-16 15:05:00');

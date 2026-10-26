@@ -86,7 +86,7 @@ class ClockOutController extends Controller
                 'longitude' => $office->longitude,
                 'radius_meters' => $office->radius_meters,
             ],
-            'locationChallenge' => $this->locationVerifier->issueChallenge($request, 'clock-out'),
+            'locationChallenge' => fn () => $this->locationVerifier->issueChallenge($request, 'clock-out'),
             'profilePhotoUrl' => $this->profilePhotoUrl($request),
         ]);
     }

@@ -21,6 +21,8 @@ if ($Target) {
 foreach ($serial in $devices) {
     & $adb -s $serial reverse 'tcp:8600' 'tcp:8600'
     if ($LASTEXITCODE -ne 0) { throw "Gagal menghubungkan Laravel ke $serial." }
+    & $adb -s $serial reverse 'tcp:8080' 'tcp:8080'
+    if ($LASTEXITCODE -ne 0) { throw "Gagal menghubungkan WebSocket realtime ke $serial." }
     if ($Vite) {
         & $adb -s $serial reverse 'tcp:5173' 'tcp:5173'
         if ($LASTEXITCODE -ne 0) { throw "Gagal menghubungkan Vite ke $serial." }

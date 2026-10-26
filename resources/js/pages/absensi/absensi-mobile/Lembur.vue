@@ -140,8 +140,15 @@ onMounted(() => {
 onUnmounted(() => removeBackHandler?.());
 watch(
     () => props.initialRequest,
-    (request) => {
-        if (request) selected.value = request;
+    (request, previous) => {
+        if (request && (request.id !== previous?.id || selected.value?.id === request.id)) selected.value = request;
+    },
+);
+watch(
+    () => props.requests.data,
+    (requests) => {
+        const updated = requests.find((item) => item.id === selected.value?.id);
+        if (updated) selected.value = updated;
     },
 );
 </script>

@@ -6,6 +6,8 @@
 .idea
 .vscode
 .npm-cache
+.composer-cache
+.composer-cache
 node_modules
 vendor
 apps

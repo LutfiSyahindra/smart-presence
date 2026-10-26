@@ -14,10 +14,22 @@ function Get-ServiceHealth {
     catch { return $false }
 }
 
+function Get-ReverbHealth {
+    $connection = [Net.Sockets.TcpClient]::new()
+    try {
+        $attempt = $connection.BeginConnect('127.0.0.1', 8080, $null, $null)
+        if (-not $attempt.AsyncWaitHandle.WaitOne(1000)) { return $false }
+        $connection.EndConnect($attempt)
+        return $true
+    } catch { return $false }
+    finally { $connection.Dispose() }
+}
+
 if ($Action -eq 'status') {
     [PSCustomObject]@{
         Laravel = Get-ServiceHealth 'http://127.0.0.1:8600/up'
         FaceReady = Get-ServiceHealth 'http://127.0.0.1:8001/api/v1/health/ready'
+        Realtime = Get-ReverbHealth
         Logs = $logsRoot
     } | Format-List
     exit 0
@@ -66,8 +78,16 @@ if ($envContent -match '(?m)^VITE_API_URL=.*$') {
 } else { $envContent += "`nVITE_API_URL=$apiUrl`n" }
 [IO.File]::WriteAllText($mobileEnv, $envContent, [Text.UTF8Encoding]::new($false))
 
+$php = (Get-Command php -ErrorAction Stop).Source
+& $php (Join-Path $projectRoot 'scripts\realtime-setup.php')
+if ($LASTEXITCODE -ne 0) { throw 'Konfigurasi realtime belum berhasil disiapkan.' }
+& $php artisan config:clear --no-interaction
+if ($LASTEXITCODE -ne 0) { throw 'Cache konfigurasi belum berhasil diperbarui.' }
+if (-not (Get-ReverbHealth)) {
+    $reverb = Start-Process -FilePath $php -ArgumentList @('artisan','reverb:start','--host=127.0.0.1','--port=8080','--no-interaction') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'reverb.stdout.log') -RedirectStandardError (Join-Path $logsRoot 'reverb.stderr.log') -PassThru
+    $processRecords += [PSCustomObject]@{Name='Reverb';Id=$reverb.Id;StartTime=$reverb.StartTime.ToUniversalTime().ToString('o')}
+}
 if (-not (Get-ServiceHealth 'http://127.0.0.1:8600/up')) {
-    $php = (Get-Command php -ErrorAction Stop).Source
     $laravel = Start-Process -FilePath $php -ArgumentList @('artisan','serve','--host=0.0.0.0','--port=8600','--no-reload') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'laravel.stdout.log') -RedirectStandardError (Join-Path $logsRoot 'laravel.stderr.log') -PassThru
     $processRecords += [PSCustomObject]@{Name='Laravel';Id=$laravel.Id;StartTime=$laravel.StartTime.ToUniversalTime().ToString('o')}
 }

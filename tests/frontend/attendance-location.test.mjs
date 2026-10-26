@@ -52,6 +52,7 @@ function load({
             },
         }),
         onMounted: () => {},
+        watch: () => {},
         onUnmounted: (callback) => {
             callbacks.unmount = callback;
         },
@@ -113,6 +114,13 @@ function load({
                 callbacks.back = handler;
                 return () => { delete callbacks.back; };
             },
+        },
+        '@/lib/mobile-refresh': {
+            registerMobileRefreshGuard: (canRefresh) => {
+                callbacks.canRefresh = canRefresh;
+                return () => { delete callbacks.canRefresh; };
+            },
+            resumeMobileRefresh: () => {},
         },
     };
     vm.runInNewContext(outputText, {

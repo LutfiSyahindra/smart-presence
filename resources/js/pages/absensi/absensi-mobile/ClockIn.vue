@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
 import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
+import { registerMobileRefreshGuard, resumeMobileRefresh } from '@/lib/mobile-refresh';
 import type { SharedData } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -24,7 +25,7 @@ import {
     Sparkles,
     X,
 } from 'lucide-vue-next';
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import ClockInMap from './ClockInMap.vue';
 
 interface CurrentLocation {
@@ -724,6 +725,11 @@ const submitClockIn = async () => {
 };
 
 onMounted(() => void requestLocation());
+const refreshReady = computed(() => !form.processing && !checkingLocation.value && !capturingPhoto.value && !locating.value);
+const removeRefreshGuard = registerMobileRefreshGuard(() => refreshReady.value);
+watch(refreshReady, (ready) => {
+    if (ready) resumeMobileRefresh();
+});
 const removeBackHandler = registerMobileBackHandler(() => {
     if (form.processing || checkingLocation.value) return true;
     if (outsideDialogOpen.value) {
@@ -737,6 +743,7 @@ const removeBackHandler = registerMobileBackHandler(() => {
     return false;
 });
 onUnmounted(() => {
+    removeRefreshGuard();
     removeBackHandler();
     locationRequestId += 1;
     stopLocationCollection();

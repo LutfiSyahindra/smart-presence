@@ -2,7 +2,7 @@
 import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, ArrowRight, Clock3, Info, ShieldCheck, Sunrise, Sunset, Timer } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CutiSheet from './components/CutiSheet.vue';
 import { lemburDuration as duration, type LemburBalance } from './lembur/types';
 
@@ -22,6 +22,9 @@ const form = useForm({
     alasan: '',
 });
 const errors = computed(() => form.errors as Record<string, string | undefined>);
+watch(() => props.shift?.id, (id) => {
+    form.shift_id = id ?? null;
+});
 const discardOpen = ref(false);
 let submitted = false;
 let removeBack: (() => void) | undefined;
@@ -75,6 +78,7 @@ function submit() {
     if (!form.alasan.trim()) form.setError('alasan', 'Alasan penggunaan wajib diisi.');
     if (form.hasErrors) return;
     form.transform((data) => ({ ...data, alasan: data.alasan.trim() })).post(route('absensi.mobile.lembur.usage.store'), {
+        replace: true,
         onSuccess: () => {
             submitted = true;
         },
@@ -94,6 +98,7 @@ onMounted(() => {
         return false;
     });
     removeGuard = router.on('before', (event) => {
+        if (event.detail.visit.headers?.['X-Mobile-Refresh']) return;
         if (event.detail.visit.method !== 'get') return;
         if (form.processing) return false;
         if (form.isDirty && !submitted) {

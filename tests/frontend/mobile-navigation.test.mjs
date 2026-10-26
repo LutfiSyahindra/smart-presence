@@ -160,6 +160,27 @@ test('replace visits for filters do not introduce phantom back entries', () => {
     assert.equal(app.navigation.mobileGoBack(), false);
 });
 
+test('submitting leave for another month replaces the form entry so back returns home', () => {
+    const app = browser();
+    app.router.visit(`${home}/cuti`);
+    app.router.visit(`${home}/cuti?month=2026-12`, { replace: true });
+    app.navigation.mobileGoBack();
+    app.flushBack();
+    assert.equal(app.url, home);
+    assert.equal(app.navigation.mobileGoBack(), false);
+});
+
+test('a completed standalone request is not restored by browser back or iOS swipe', () => {
+    const app = browser();
+    app.router.visit(`${home}/lembur`);
+    app.router.visit(`${home}/lembur/ajukan`);
+    app.router.visit(`${home}/lembur?month=2026-12`, { replace: true });
+    app.traverse(-1);
+    assert.equal(app.url, `${home}/lembur`);
+    app.traverse(1);
+    assert.equal(app.url, `${home}/lembur?month=2026-12`);
+});
+
 test('browser back and iOS swipe traversal restore each entry before the next back action', () => {
     const app = browser();
     app.router.visit(`${home}/cuti`);

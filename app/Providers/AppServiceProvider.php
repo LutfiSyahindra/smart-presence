@@ -21,9 +21,16 @@ use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepository;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepositoryInterface;
 use App\Services\Absensi\AbsensiMobile\FastApiFaceVerifier;
+use App\Services\MobileDataChanges;
 use App\Support\CutiAccess;
 use App\Support\PengajuanAccess;
+use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Queue\Events\JobExceptionOccurred;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -34,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->scoped(MobileDataChanges::class);
         $this->app->bind(JabatanRepositoryInterface::class, JabatanRepository::class);
         $this->app->bind(UnitKerjaRepositoryInterface::class, UnitKerjaRepository::class);
         $this->app->bind(PegawaiRepositoryInterface::class, PegawaiRepository::class);
@@ -66,6 +74,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        DB::listen(fn (QueryExecuted $query) => app(MobileDataChanges::class)->record($query));
+        $flush = fn () => app(MobileDataChanges::class)->flush();
+        // Coalesce writes from an entire HTTP request / queue job / CLI command.
+        $this->app->terminating($flush);
+        Event::listen(CommandFinished::class, $flush);
+        Event::listen(JobProcessed::class, $flush);
+        Event::listen(JobExceptionOccurred::class, $flush);
+
         Gate::define('cuti.access', fn (User $user): bool => CutiAccess::allows($user));
         Gate::define('pengajuan.access', fn (User $user): bool => PengajuanAccess::allows($user));
 

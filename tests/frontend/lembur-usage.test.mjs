@@ -15,6 +15,7 @@ function runtime(overrides = {}) {
     const backs = [];
     let backHandler;
     let guard;
+    const watchers = [];
     const props = {
         today: '2026-10-23',
         balance: { earned_minutes: 180, available_minutes: 120, reserved_minutes: 60, used_minutes: 0 },
@@ -38,6 +39,7 @@ function runtime(overrides = {}) {
                     ref: (value) => ({ value }),
                     onMounted: (fn) => fn(),
                     onUnmounted: () => {},
+                    watch: (source, callback) => watchers.push({ source, callback, previous: source() }),
                 };
             if (name === '@/lib/mobile-navigation')
                 return {
@@ -82,7 +84,17 @@ function runtime(overrides = {}) {
     };
     vm.createContext(context);
     vm.runInContext(outputText, context);
-    return { ...context.usage, posts, backs, back: () => backHandler(), navigate: () => guard({ detail: { visit: { method: 'get' } } }) };
+    return {
+        ...context.usage, posts, backs, back: () => backHandler(), navigate: (headers = {}) => guard({ detail: { visit: { method: 'get', headers } } }),
+        updateShift(shift) {
+            props.shift = shift;
+            for (const watcher of watchers) {
+                const next = watcher.source();
+                if (next !== watcher.previous) watcher.callback(next, watcher.previous);
+                watcher.previous = next;
+            }
+        },
+    };
 }
 
 test('one hour previews the approved arrival or departure boundary in WIB', () => {
@@ -128,9 +140,43 @@ test('valid usage submits the selected purpose and trimmed reason once', () => {
     assert.equal(app.posts[0].data.duration_minutes, 60);
     assert.equal(app.posts[0].data.usage_type, 'early_departure');
     assert.equal(app.posts[0].data.alasan, 'Keperluan keluarga');
+    assert.equal(app.posts[0].options.replace, true);
     app.form.processing = true;
     app.submit();
     assert.equal(app.posts.length, 1);
+});
+
+test('admin shift reassignment updates the form schedule without clearing the users draft', () => {
+    const app = runtime();
+    app.form.alasan = 'Keperluan keluarga';
+    app.form.duration_minutes = 45;
+    app.updateShift({ id: 2, start_time: '10:00', end_time: '18:00' });
+    assert.equal(app.form.shift_id, 2);
+    assert.equal(app.form.alasan, 'Keperluan keluarga');
+    assert.equal(app.form.duration_minutes, 45);
+    assert.match(app.range.value.time, /10[.:]45/);
+});
+
+test('background data refreshes preserve a dirty form without opening the discard dialog', () => {
+    const app = runtime();
+    app.form.isDirty = true;
+    app.form.alasan = 'Draf belum dikirim';
+    assert.equal(app.navigate({ 'X-Mobile-Refresh': '1' }), undefined);
+    assert.equal(app.discardOpen.value, false);
+    assert.equal(app.form.alasan, 'Draf belum dikirim');
+    assert.equal(app.navigate(), false);
+    assert.equal(app.discardOpen.value, true);
+});
+
+test('admin shift reassignment updates the form schedule without clearing the users draft', () => {
+    const app = runtime();
+    app.form.alasan = 'Keperluan keluarga';
+    app.form.duration_minutes = 45;
+    app.updateShift({ id: 2, start_time: '10:00', end_time: '18:00' });
+    assert.equal(app.form.shift_id, 2);
+    assert.equal(app.form.alasan, 'Keperluan keluarga');
+    assert.equal(app.form.duration_minutes, 45);
+    assert.match(app.range.value.time, /10[.:]45/);
 });
 
 test('Android back and in-app navigation protect unsent inputs and in-flight requests', () => {

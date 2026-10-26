@@ -1,4 +1,5 @@
 import { mobileNotificationUrl, nativePushPlatform, nativePushPlugin, webPushSubscription } from '@/lib/mobile-push';
+import { mobilePollingInterval, refreshMobilePage } from '@/lib/mobile-refresh';
 import type { AdminNotification } from '@/types/notifications';
 import { router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -25,6 +26,7 @@ let nativeListeners: Promise<void> | undefined;
 let pendingUrl: string | null = null;
 let registration: { resolve(): void; reject(error: Error): void } | undefined;
 let syncing: { owner: number; promise: Promise<void> } | undefined;
+let lastRefresh = 0;
 
 export const mobileCsrfHeaders = (): HeadersInit => ({
     Accept: 'application/json',
@@ -42,6 +44,7 @@ async function save(url: string, body: unknown) {
 }
 async function refresh() {
     if (!userId || document.hidden) return;
+    lastRefresh = Date.now();
     abort?.abort();
     const owner = userId;
     const controller = new AbortController();
@@ -89,6 +92,7 @@ async function listenNative() {
         );
         await plugin.addListener('pushNotificationReceived', () => {
             void refresh();
+            refreshMobilePage();
         });
         await plugin.addListener('pushNotificationActionPerformed', (action) => {
             const notification = action.notification as { data?: { url?: unknown } } | undefined;
@@ -171,13 +175,14 @@ export function startMobileNotifications(initialPage: { url: string; props: Reco
         (window.isSecureContext && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
     // Register native tap listeners on every page, including a cold start at login.
     if (nativePushPlatform()) void listenNative().catch(() => {});
-    const navigate = async (page: typeof initialPage) => {
+    const navigate = async (page: typeof initialPage, refreshFeed = true) => {
         const auth = page.props.auth as { user?: { id: number }; roles?: string[]; permissions?: string[] } | undefined;
         const canNotify = auth?.roles?.includes('super-admin') || auth?.permissions?.includes('mobile.notifications');
         authenticatedUserId = canNotify ? (auth?.user?.id ?? null) : null;
         const path = new URL(page.url, window.location.origin).pathname;
         const next = canNotify && (path === '/absensi/mobile' || path.startsWith('/absensi/mobile/')) ? authenticatedUserId : null;
         if (next === userId) {
+            if (next && refreshFeed) void refresh();
             openPending();
             return;
         }
@@ -190,8 +195,8 @@ export function startMobileNotifications(initialPage: { url: string; props: Reco
         feedback.value = '';
         if (!next) return;
         polling = setInterval(() => {
-            void refresh();
-        }, 20000);
+            if (Date.now() - lastRefresh >= mobilePollingInterval()) void refresh();
+        }, 10000);
         await refresh();
         if (next !== userId) return;
         openPending();
@@ -203,6 +208,10 @@ export function startMobileNotifications(initialPage: { url: string; props: Reco
     };
     router.on('navigate', (event) => {
         void navigate(event.detail.page);
+    });
+    router.on('success', (event) => {
+        // Replace visits (including an expired session) do not emit navigate.
+        void navigate(event.detail.page, false);
     });
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden)
@@ -219,8 +228,12 @@ export function startMobileNotifications(initialPage: { url: string; props: Reco
                 pushActive.value = false;
             });
     });
+    window.addEventListener('rsarsy:mobile-data', () => void refresh());
     navigator.serviceWorker?.addEventListener('message', (event) => {
-        if (event.data?.type === 'mobile-notification') void refresh();
+        if (event.data?.type === 'mobile-notification') {
+            void refresh();
+            refreshMobilePage();
+        }
     });
     void navigate(initialPage);
 }

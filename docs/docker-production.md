@@ -1,7 +1,7 @@
 # Docker production
 
 Stack ini menjalankan Nginx, PHP-FPM 8.3, MySQL 8.4, queue worker,
-scheduler Laravel, dan FastAPI/DeepFace. Vue dibangun di image memakai Node;
+scheduler Laravel, Reverb untuk sinkronisasi mobile, dan FastAPI/DeepFace. Vue dibangun di image memakai Node;
 tidak ada Vite development server atau container Redis.
 
 ## 1. Buat konfigurasi
@@ -23,9 +23,13 @@ docker run --rm -v "${PWD}:/workspace" -w /workspace php:8.3-cli php scripts/doc
 ```
 
 Script membuat `.env.docker` dari `.env.docker.example`, termasuk `APP_KEY`,
-password MySQL, token layanan wajah, dan pasangan kunci VAPID acak.
+password MySQL, token layanan wajah, credential Reverb, dan pasangan kunci VAPID acak.
 File yang sudah ada tidak ditimpa. `.env` lokal tidak diubah dan tidak ikut
 masuk image; `.env.docker` juga diabaikan Git. Simpan backup `.env.docker`.
+
+Jika memperbarui instalasi yang sudah memiliki `.env.docker`, jalankan
+`php scripts/realtime-setup.php --env-file=.env.docker --docker` sebelum rebuild.
+Panduan endpoint dan pengujian tersedia pada [sinkronisasi mobile](mobile-realtime.md).
 
 Pada PHP portable Windows, jika OpenSSL tidak dapat membuat kunci, atur
 `OPENSSL_CONF` ke file `extras/ssl/openssl.cnf` milik instalasi PHP, atau gunakan
@@ -141,7 +145,9 @@ docker compose --env-file .env.docker -f compose.yml -f compose.https.yml exec w
 Gunakan `compose.yml` saja, pertahankan binding `127.0.0.1:8080`, lalu arahkan
 reverse proxy HTTPS ke `http://127.0.0.1:8080`. `APP_HTTPS=on` membuat Laravel
 mengenali request sebagai HTTPS tanpa mempercayai header skema dari publik.
-Proxy harus meneruskan `Host` domain asli dan `X-Forwarded-For`.
+Proxy harus meneruskan `Host` domain asli dan `X-Forwarded-For`, serta mendukung
+WebSocket upgrade (`Upgrade`/`Connection`) untuk `/app/`. Reverb diakses melalui
+origin HTTPS aplikasi yang sama; port internalnya tidak perlu dipublikasikan.
 
 Jika fitur presensi membatasi IP jaringan, isi `NGINX_TRUSTED_PROXY_CIDR`
 dengan **IP proxy yang benar-benar terlihat oleh Nginx** (pada Docker Linux,

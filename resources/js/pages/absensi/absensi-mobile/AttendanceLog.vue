@@ -20,7 +20,7 @@ import {
     MapPin,
     ShieldCheck,
 } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CutiSheet from './components/CutiSheet.vue';
 import MobileBackLink from './components/MobileBackLink.vue';
 
@@ -69,6 +69,12 @@ const error = ref('');
 const monthOpen = ref(false);
 const pickerYear = ref(Number(props.month.slice(0, 4)));
 const selectedDay = ref<LogDay | null>(null);
+watch(
+    () => props.days,
+    (days) => {
+        if (selectedDay.value) selectedDay.value = days.find((day) => day.date === selectedDay.value?.date) ?? null;
+    },
+);
 const content = ref<HTMLElement | null>(null);
 const activeFilter = ref('all');
 let removeBackHandler: (() => void) | undefined;

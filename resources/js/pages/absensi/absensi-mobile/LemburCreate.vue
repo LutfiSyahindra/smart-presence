@@ -24,7 +24,7 @@ import {
     UserRound,
     Wallet,
 } from 'lucide-vue-next';
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import CutiSheet from './components/CutiSheet.vue';
 import LemburAttachmentPreview from './components/LemburAttachmentPreview.vue';
 import { lemburDuration } from './lembur/types';
@@ -50,6 +50,9 @@ const form = useForm({
     attachments: [] as File[],
 });
 const errors = computed(() => form.errors as Record<string, string | undefined>);
+watch(() => props.defaultShiftId, (id, previous) => {
+    if (form.shift_id === (previous ? String(previous) : '')) form.shift_id = id ? String(id) : '';
+});
 const fileInput = ref<HTMLInputElement | null>(null);
 const fileError = ref('');
 const previewFile = ref<File | null>(null);
@@ -184,6 +187,7 @@ function submit() {
         after_minutes: Number(data.after_minutes || 0),
         after_break_minutes: Number(data.after_break_minutes || 0),
     })).post(route('absensi.mobile.lembur.store'), {
+        replace: true,
         forceFormData: true,
         onError: () => {
             void focusError();
@@ -212,6 +216,7 @@ onMounted(() => {
         return false;
     });
     removeNavigationGuard = router.on('before', (event) => {
+        if (event.detail.visit.headers?.['X-Mobile-Refresh']) return;
         if (form.processing && event.detail.visit.method === 'get' && !submitted.value) event.preventDefault();
     });
 });

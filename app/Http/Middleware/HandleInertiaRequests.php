@@ -9,6 +9,7 @@ use App\Support\AccessPermission;
 use App\Support\Portal;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -52,6 +53,14 @@ class HandleInertiaRequests extends Middleware
                 'roles' => fn () => $request->user()?->getRoleNames()->values()->all() ?? [],
                 'permissions' => fn () => $request->user()?->getAllPermissions()->pluck('name')->values()->all() ?? [],
             ],
+            'mobileRealtime' => Inertia::always(fn () => [
+                'enabled' => (bool) config('mobile-realtime.enabled') && filled(config('broadcasting.connections.reverb.key')),
+                'key' => config('broadcasting.connections.reverb.key'),
+                'host' => config('mobile-realtime.host') ?: $request->getHost(),
+                'port' => (int) (config('mobile-realtime.port') ?: $request->getPort()),
+                'secure' => (config('mobile-realtime.scheme') ?: $request->getScheme()) === 'https',
+                'path' => config('mobile-realtime.path', ''),
+            ]),
             'portal' => [
                 'active' => fn () => Portal::current($request),
                 'can_access_admin' => fn () => Portal::canAccessAdmin($request),

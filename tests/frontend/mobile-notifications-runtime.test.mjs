@@ -15,7 +15,9 @@ function runtime({ native = true, permission = 'granted', pluginAvailable = true
     const listeners = {};
     const visited = [];
     const requests = [];
-    let onNavigate;
+    let pageRefreshes = 0;
+    const routeListeners = {};
+    const workerListeners = {};
     let prompts = 0;
     const notification = {
         get permission() {
@@ -53,7 +55,7 @@ function runtime({ native = true, permission = 'granted', pluginAvailable = true
         setInterval: () => 1,
         clearInterval() {},
         document: { hidden: false, cookie: 'XSRF-TOKEN=test-csrf', addEventListener() {} },
-        navigator: { serviceWorker: { addEventListener() {} } },
+        navigator: { serviceWorker: { addEventListener: (event, callback) => (workerListeners[event] = callback) } },
         Notification: notification,
         window: {
             isSecureContext: true,
@@ -83,12 +85,13 @@ function runtime({ native = true, permission = 'granted', pluginAvailable = true
             if (name === '@inertiajs/vue3')
                 return {
                     router: {
-                        on: (_, callback) => {
-                            onNavigate = callback;
+                        on: (event, callback) => {
+                            routeListeners[event] = callback;
                         },
                         visit: (url) => visited.push(url),
                     },
                 };
+            if (name === '@/lib/mobile-refresh') return { refreshMobilePage: () => pageRefreshes++, mobilePollingInterval: () => 10000 };
             if (name === '@/lib/mobile-push')
                 return {
                     nativePushPlatform: () => (native ? 'android' : null),
@@ -109,10 +112,15 @@ function runtime({ native = true, permission = 'granted', pluginAvailable = true
         requests,
         visited,
         listeners,
+        get pageRefreshes() {
+            return pageRefreshes;
+        },
         get prompts() {
             return prompts;
         },
-        navigate: (next) => onNavigate({ detail: { page: next } }),
+        navigate: (next) => routeListeners.navigate({ detail: { page: next } }),
+        replace: (next) => routeListeners.success({ detail: { page: next } }),
+        webPush: () => workerListeners.message({ data: { type: 'mobile-notification' } }),
     };
 }
 
@@ -202,4 +210,44 @@ test('an unavailable native plugin gives an app update message instead of blamin
         app.requests.some((request) => request.url.endsWith('/devices')),
         false,
     );
+});
+
+test('foreground push refreshes the page and returning from an opened notification refreshes the bell', async () => {
+    const app = runtime();
+    app.exports.startMobileNotifications(page());
+    await flush();
+    app.listeners.pushNotificationReceived();
+    await flush();
+    assert.equal(app.pageRefreshes, 1);
+    const before = app.requests.filter((request) => request.url.endsWith('/feed')).length;
+    app.navigate(page(1, '/absensi/mobile/cuti/1'));
+    await flush();
+    app.navigate(page(1, '/absensi/mobile/notifikasi'));
+    await flush();
+    assert.equal(app.requests.filter((request) => request.url.endsWith('/feed')).length, before + 2);
+});
+
+test('an expired session during a background replace clears notification state', async () => {
+    const app = runtime();
+    app.exports.startMobileNotifications(page());
+    await flush();
+    assert.equal(app.state.feed.value.unread_count, 3);
+    app.replace(page(null, '/login'));
+    await flush();
+    assert.equal(app.state.feed.value.unread_count, 0);
+    assert.equal(app.state.pushActive.value, false);
+    const before = app.requests.length;
+    await app.state.refresh();
+    assert.equal(app.requests.length, before);
+});
+
+test('PWA service-worker push refreshes the current page and notification feed', async () => {
+    const app = runtime({ native: false });
+    app.exports.startMobileNotifications(page());
+    await flush();
+    const before = app.requests.filter((request) => request.url.endsWith('/feed')).length;
+    app.webPush();
+    await flush();
+    assert.equal(app.pageRefreshes, 1);
+    assert.equal(app.requests.filter((request) => request.url.endsWith('/feed')).length, before + 1);
 });

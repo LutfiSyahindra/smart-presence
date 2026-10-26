@@ -133,6 +133,20 @@ class ClockInTest extends TestCase
                 ->where('attendance.face_similarity', 96.42));
     }
 
+    public function test_realtime_refresh_keeps_the_active_location_challenge_valid(): void
+    {
+        $initial = $this->actingAs($this->user)->get('/absensi/mobile/clock-in')->assertOk();
+        $challenge = session('attendance.location_challenges.clock-in');
+        $this->assertNotNull($challenge);
+        $this->get('/absensi/mobile/clock-in', [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => $initial->viewData('page')['version'],
+            'X-Inertia-Partial-Component' => 'absensi/absensi-mobile/ClockIn',
+            'X-Inertia-Partial-Data' => 'schedule,office,profilePhotoUrl',
+        ])->assertOk()->assertJsonMissingPath('props.locationChallenge');
+        $this->assertSame($challenge, session('attendance.location_challenges.clock-in'));
+    }
+
     public function test_clock_in_success_reports_late_minutes_from_the_shift_start_time(): void
     {
         Presensi::query()->create([

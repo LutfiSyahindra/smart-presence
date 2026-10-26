@@ -44,6 +44,9 @@ try {
         'DB_PASSWORD' => bin2hex(random_bytes(32)),
         'MYSQL_ROOT_PASSWORD' => bin2hex(random_bytes(32)),
         'FACE_SERVICE_TOKEN' => bin2hex(random_bytes(32)),
+        'REVERB_APP_ID' => bin2hex(random_bytes(8)),
+        'REVERB_APP_KEY' => bin2hex(random_bytes(16)),
+        'REVERB_APP_SECRET' => bin2hex(random_bytes(32)),
         'WEBPUSH_VAPID_PUBLIC_KEY' => $encode("\x04".$pad($ec['x']).$pad($ec['y'])),
         'WEBPUSH_VAPID_PRIVATE_KEY' => $encode($pad($ec['d'])),
     ];
@@ -54,7 +57,7 @@ try {
     }
 
     $contents = preg_replace_callback(
-        '/^(APP_KEY|DB_PASSWORD|MYSQL_ROOT_PASSWORD|FACE_SERVICE_TOKEN|WEBPUSH_VAPID_PUBLIC_KEY|WEBPUSH_VAPID_PRIVATE_KEY)=.*$/m',
+        '/^(APP_KEY|DB_PASSWORD|MYSQL_ROOT_PASSWORD|FACE_SERVICE_TOKEN|REVERB_APP_ID|REVERB_APP_KEY|REVERB_APP_SECRET|WEBPUSH_VAPID_PUBLIC_KEY|WEBPUSH_VAPID_PRIVATE_KEY)=.*$/m',
         static fn (array $match): string => $match[1].'='.$values[$match[1]],
         $template,
     );

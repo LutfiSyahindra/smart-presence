@@ -108,6 +108,35 @@ Mode build di atas tidak memerlukan Vite/HMR yang berjalan.
 
 ## Navigasi kembali Android, PWA, dan iOS
 
+### Pembaruan data dan pengajuan selesai
+
+Seluruh halaman mobile menggunakan WebSocket untuk mengambil perubahan data
+aplikasi, termasuk perubahan langsung oleh admin seperti penugasan shift,
+profil, lokasi, saldo, presensi, pengajuan, dan notifikasi. Polling cadangan
+berjalan setiap 60 detik saat kanal tersambung atau 10 detik saat terputus.
+Data juga disegarkan saat kembali dari latar belakang, koneksi pulih, push
+diterima, atau halaman dipulihkan lewat tombol/gestur kembali.
+Inbox mengambil ulang status baca dan jumlah notifikasi saat kembali dari detail.
+
+Pembaruan mempertahankan posisi gulir, filter, isian formulir, dan catatan
+persetujuan. Detail yang sedang terbuka mengikuti status terbaru; detail yang
+sudah ditutup tidak dibuka lagi oleh pembaruan berkala. Pembaruan menunggu
+pengiriman pengajuan selesai. Pengambilan GPS/verifikasi menunda pembaruan
+hingga selesai; token bukti lokasi dipertahankan. Tidak ada penyegaran halaman
+saat offline. Formulir lembur mempertahankan isian ketika data server diperbarui.
+
+Pengiriman cuti, perubahan shift, lembur, dan penggunaan waktu lembur mengganti
+entri riwayat formulir. Tombol kembali tidak memulihkan formulir pengajuan yang
+sudah berhasil dikirim. Pada Cuti, tombol kembali Android menutup konfirmasi,
+detail, atau panel aktif lebih dahulu.
+
+Konfigurasi layanan Reverb dan langkah deploy tersedia pada
+[panduan sinkronisasi realtime](../../docs/mobile-realtime.md).
+Tidak diperlukan perubahan native atau APK baru. Uji regresi tambahan:
+`node --test tests/frontend/mobile-refresh.test.mjs tests/frontend/mobile-cuti-state.test.mjs`.
+
+### Perilaku tombol kembali
+
 Frontend utama memakai riwayat Inertia yang sama di semua platform. Tombol kembali
 di header menuju halaman mobile sebelumnya, termasuk filter/query asal. Tautan
 yang dibuka langsung tanpa riwayat mobile kembali ke beranda; halaman persetujuan

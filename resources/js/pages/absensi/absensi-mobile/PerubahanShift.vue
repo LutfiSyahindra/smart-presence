@@ -81,6 +81,10 @@ const draftStatus = ref<Status>(props.status);
 const loading = ref(false);
 const error = ref('');
 const form = useForm({ tanggal_perubahan: props.today, original_shift_id: props.currentShift?.id ?? null, requested_shift_id: '', alasan: '' });
+watch(() => props.currentShift?.id, (id) => {
+    form.original_shift_id = id ?? null;
+    if (Number(form.requested_shift_id) === id) form.requested_shift_id = '';
+});
 const submissionError = computed(() => (form.errors as Record<string, string | undefined>).pengajuan);
 const statuses: { value: Status; label: string; description: string }[] = [
     { value: '', label: 'Semua', description: 'Seluruh pengajuan pada periode pilihan' },
@@ -214,6 +218,7 @@ function discard() {
 function submit() {
     if (!ready.value) return;
     form.transform((data) => ({ ...data, alasan: data.alasan.trim() })).post(route('absensi.mobile.perubahan-shift.store'), {
+        replace: true,
         preserveScroll: true,
         onSuccess: () => {
             sheet.value = null;
@@ -240,8 +245,16 @@ onMounted(() => {
 onUnmounted(() => removeBackHandler?.());
 watch(
     () => props.initialRequest,
-    (item) => {
-        if (item) openDetail(item);
+    (item, previous) => {
+        if (item && item.id !== previous?.id) openDetail(item);
+        else if (item && selected.value?.id === item.id) selected.value = item;
+    },
+);
+watch(
+    () => props.requests.data,
+    (requests) => {
+        const updated = requests.find((item) => item.id === selected.value?.id);
+        if (updated) selected.value = updated;
     },
 );
 </script>

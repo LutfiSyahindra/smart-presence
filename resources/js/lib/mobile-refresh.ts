@@ -1,5 +1,6 @@
 import type { Page } from '@inertiajs/core';
 import { router } from '@inertiajs/vue3';
+import { createAppUpdateRealtime } from './app-update-realtime';
 import { createMobileRealtime } from './mobile-realtime';
 
 // Refresh every server-provided mobile property, including future screens.
@@ -87,7 +88,9 @@ export function startMobileRefresh(initialPage: Page): void {
         },
         (active) => (connected = active),
     );
+    const releases = createAppUpdateRealtime(() => window.dispatchEvent(new Event('rsarsy:app-release')));
     realtime.update(initialPage);
+    releases.update(initialPage);
     router.on('before', ({ detail: { visit } }) => {
         if (visit.headers[refreshHeader]) return;
         queued = false;
@@ -103,6 +106,7 @@ export function startMobileRefresh(initialPage: Page): void {
     const update = (page: Page) => {
         currentPage = page;
         realtime.update(page);
+        releases.update(page);
         if (restoring) {
             restoring = false;
             refreshMobilePage();
@@ -122,28 +126,37 @@ export function startMobileRefresh(initialPage: Page): void {
         if (document.hidden) {
             cancelRefresh?.();
             realtime.pause();
+            releases.pause();
         } else {
             realtime.resume();
+            releases.resume();
             refreshMobilePage();
         }
     });
     window.addEventListener('focus', refreshMobilePage);
     window.addEventListener('online', () => {
         realtime.resume();
+        releases.resume();
         refreshMobilePage();
     });
     window.addEventListener('offline', () => {
         cancelRefresh?.();
         realtime.pause();
+        releases.pause();
     });
-    window.addEventListener('pagehide', () => realtime.pause());
+    window.addEventListener('pagehide', () => {
+        realtime.pause();
+        releases.pause();
+    });
     window.addEventListener('pageshow', (event) => {
         if (event.persisted) {
             realtime.resume();
+            releases.resume();
             refreshMobilePage();
         }
     });
     setInterval(() => {
+        releases.resume();
         if (Date.now() - lastRefresh >= mobilePollingInterval()) refreshMobilePage();
     }, 10000);
 }

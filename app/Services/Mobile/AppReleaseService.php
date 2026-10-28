@@ -4,10 +4,13 @@ namespace App\Services\Mobile;
 
 use App\Models\MobileAppRelease;
 use App\Models\User;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -81,6 +84,9 @@ class AppReleaseService
             }
             $this->validatePolicy($data, $release->version_code);
             $release->update($this->normalizePolicy($data));
+            if ((int) $channel->release_id === $release->id) {
+                $this->notifyChanged();
+            }
         });
     }
 
@@ -118,6 +124,7 @@ class AppReleaseService
             DB::table('mobile_app_distribution')->where('id', 1)->update([
                 'release_id' => $release->id, 'highest_version_code' => $release->version_code,
             ]);
+            $this->notifyChanged();
         });
     }
 
@@ -130,6 +137,26 @@ class AppReleaseService
             }
             $release->update(['withdrawn_at' => now(), 'withdrawn_by' => $user->id]);
             DB::table('mobile_app_distribution')->where('id', 1)->update(['release_id' => null]);
+            $this->notifyChanged();
+        });
+    }
+
+    private function notifyChanged(): void
+    {
+        DB::afterCommit(function (): void {
+            if (! config('mobile-realtime.enabled')) {
+                return;
+            }
+            try {
+                // Public invalidation only: clients fetch the current, published policy.
+                Broadcast::connection('reverb')->broadcast(
+                    [new Channel('mobile.app-releases')],
+                    'mobile.app-release.changed',
+                    ['version' => (string) Str::ulid()],
+                );
+            } catch (Throwable $exception) {
+                Log::warning('Realtime rilis APK tidak tersedia; polling tetap aktif.', ['exception' => $exception::class]);
+            }
         });
     }
 

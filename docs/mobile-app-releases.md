@@ -33,7 +33,7 @@ masa tenggang; kosong berarti langsung saat publikasi. Waktu masukan WIB dinorma
 ke timezone aplikasi sebelum disimpan. Kebijakan dapat disunting pada rilis aktif.
 
 Android build 3 (1.2.0) mendukung pembaruan dari dalam aplikasi. Pengguna mengetuk
-**Perbarui sekarang**, melihat progres unduhan, lalu langsung mendapat konfirmasi
+**Unduh pembaruan**, melihat progres unduhan, lalu langsung mendapat konfirmasi
 **Perbarui / Pasang** dari Android tanpa membuka browser atau mencari file APK.
 Jika izin pemasangan belum aktif, aplikasi membuka pengaturan **Izinkan dari sumber ini**
 dan melanjutkan pemasangan setelah pengguna kembali. Konfirmasi sistem tetap diperlukan;
@@ -47,8 +47,16 @@ terpasang. Rilis aktif diperiksa lagi sebelum pemasangan. File parsial dihapus
 jika unduhan gagal; pengguna dapat mencoba kembali. APK yang selesai diunduh
 tidak dapat diakses aplikasi lain kecuali installer yang diberi izin baca sementara.
 
-Frontend memeriksa versi saat aplikasi
-dibuka, kembali aktif, koneksi pulih, dan setiap menit selama aktif. Dialog ditampilkan
+Frontend menerima sinyal realtime melalui kanal publik `mobile.app-releases` saat
+rilis diterbitkan, kebijakan rilis aktif disunting, atau rilis ditarik. Sinyal hanya
+berisi penanda perubahan, dikirim setelah transaksi database tersimpan, dan tidak
+memerlukan login sehingga layar login juga menerima pembaruan. APK Android yang
+sedang terbuka langsung memeriksa API rilis dan menampilkan modal tanpa perlu ditutup.
+Penarikan rilis menutup modal yang sudah tampil. Jika pemeriksaan sebelumnya masih
+berjalan, sinyal baru dijadwalkan untuk diperiksa sesudahnya.
+
+Frontend juga memeriksa versi saat aplikasi dibuka, kembali aktif, koneksi pulih,
+dan setiap 15 detik selama aktif sebagai cadangan saat realtime terputus. Dialog ditampilkan
 di halaman instalasi, login, beranda, atau akun agar tidak memotong formulir, kamera,
 GPS, atau pengiriman presensi. Permintaan yang sedang dikerjakan dapat diselesaikan
 sebelum dialog wajib ditampilkan pada halaman aman. Gangguan jaringan tidak
@@ -90,12 +98,21 @@ Rujukan alat verifikasi: https://developer.android.com/tools/apksigner
 ## Pengujian pembaruan Android
 
 Tes frontend: `node --test tests/frontend/mobile-app-update.test.mjs`.
+Tes kanal rilis: `node --test tests/frontend/app-update-realtime.test.mjs`.
 Tes integritas unduhan native: `:app:testDebugUnitTest` atau `:app:testReleaseUnitTest`.
 
 Uji pada perangkat dengan build 3 terpasang dan rilis bertanda tangan sama dengan
-`versionCode` lebih tinggi: buka aplikasi, ketuk Perbarui sekarang, periksa progres,
+`versionCode` lebih tinggi: buka aplikasi, ketuk Unduh pembaruan, periksa progres,
 aktifkan izin pemasangan jika diminta, lalu konfirmasi pemasangan Android. Buka
 kembali aplikasi dan pastikan modal hilang pada versi terbaru serta sesi login tetap ada.
 Ulangi dengan izin ditolak, pemasangan dibatalkan, jaringan terputus, rilis ditarik,
 dan aplikasi dipindahkan ke latar belakang selama unduhan. Browser/PWA/iOS serta
 formulir dan proses presensi yang sedang berjalan tidak boleh mendapat modal APK.
+
+Untuk menguji realtime, biarkan aplikasi terbuka di beranda atau login, lalu terbitkan
+rilis baru dari admin-web. Modal harus tampil tanpa navigasi atau menutup aplikasi.
+Tarik rilis tersebut dan pastikan modal tertutup. Ulangi dengan WebSocket terputus;
+pemeriksaan cadangan mendeteksi perubahan dalam sekitar 15 detik saat jaringan tersedia.
+Pastikan Reverb aktif dan `MOBILE_REALTIME_ENABLED=true` pada server untuk sinyal langsung.
+Build 4 (1.2.1) tersedia sebagai paket berikutnya; build 1/2 tetap harus memasang APK
+yang memiliki plugin pembaruan sekali melalui browser sebelum alur pemasangan langsung tersedia.

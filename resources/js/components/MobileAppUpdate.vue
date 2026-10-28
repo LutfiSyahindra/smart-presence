@@ -65,6 +65,7 @@ const presenting = computed(
         (required.value || dismissed.value !== status.value.release.id),
 );
 let checking = false;
+let checkRequested = false;
 let lastCheck = 0;
 let timer: ReturnType<typeof setInterval> | undefined;
 let progressTimer: ReturnType<typeof setInterval> | undefined;
@@ -74,8 +75,14 @@ let stopNavigation: (() => void) | undefined;
 let stopSuccess: (() => void) | undefined;
 
 async function check(force = false) {
-    if (!isAndroidApp() || document.hidden || navigator.onLine === false || checking || busy.value || (!force && Date.now() - lastCheck < 60000))
+    if (!isAndroidApp() || document.hidden || navigator.onLine === false) return;
+    if (checking || busy.value) {
+        checkRequested ||= force;
         return;
+    }
+    if (!force && !checkRequested && Date.now() - lastCheck < 15000) return;
+    checkRequested = false;
+    lastCheck = Date.now();
     checking = true;
     try {
         const info = await installedApp();
@@ -83,13 +90,13 @@ async function check(force = false) {
         const result = await checkAppUpdate(info);
         if (busy.value) return;
         status.value = result;
-        lastCheck = Date.now();
         ready.value = true;
     } catch {
         // A network failure never locks employees out of attendance.
         ready.value = false;
     } finally {
         checking = false;
+        if (checkRequested && !busy.value) void check(true);
     }
 }
 
@@ -100,12 +107,12 @@ const dismiss = () => {
 const download = async () => {
     if (!status.value?.release || busy.value) return;
     downloading.value = true;
+    autoInstall = false;
     error.value = '';
     try {
         if (inAppUpdates.value) {
             await downloadAppUpdate(status.value.release);
             autoInstall = true;
-            await readProgress();
         } else if (!(await openAppDownload(status.value.release))) {
             manualUrl.value = `${window.location.origin}/mobile-app/android/releases/${status.value.release.id}/download`;
         }
@@ -113,6 +120,7 @@ const download = async () => {
         error.value = exception instanceof Error ? exception.message : 'Unduhan belum berhasil. Coba kembali.';
     } finally {
         downloading.value = false;
+        await readProgress();
     }
 };
 const install = async () => {
@@ -139,7 +147,10 @@ async function readProgress() {
     } finally {
         polling = false;
     }
+    if (currentProgress.value?.stage === 'error') autoInstall = false;
+    if (document.hidden) return;
     if (autoInstall && packageReady.value && !downloading.value && presenting.value) void install();
+    else if (checkRequested && !busy.value) void check(true);
 }
 const copyUrl = async () => {
     try {
@@ -152,7 +163,7 @@ const copyUrl = async () => {
 const visibility = () => {
     if (!document.hidden) {
         void readProgress();
-        void check();
+        void check(true);
     }
 };
 const online = () => {
@@ -173,6 +184,7 @@ const navigated = () => {
     path.value = window.location.pathname;
     void check();
 };
+const releaseChanged = () => void check(true);
 
 watch(presenting, async (show) => {
     await nextTick();
@@ -195,13 +207,14 @@ onMounted(() => {
     stopNavigation = router.on('navigate', navigated);
     stopSuccess = router.on('success', navigated);
     window.addEventListener('rsarsy:back', nativeBack, true);
+    window.addEventListener('rsarsy:app-release', releaseChanged);
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('online', online);
     window.addEventListener('offline', offline);
     window.addEventListener('focus', visibility);
     timer = setInterval(() => {
         void check();
-    }, 60000);
+    }, 15000);
     progressTimer = setInterval(() => {
         if (inAppUpdates.value && (presenting.value || busy.value)) void readProgress();
     }, 500);
@@ -213,6 +226,7 @@ onBeforeUnmount(() => {
     stopNavigation?.();
     stopSuccess?.();
     window.removeEventListener('rsarsy:back', nativeBack, true);
+    window.removeEventListener('rsarsy:app-release', releaseChanged);
     document.removeEventListener('visibilitychange', visibility);
     window.removeEventListener('online', online);
     window.removeEventListener('offline', offline);
@@ -234,11 +248,12 @@ onBeforeUnmount(() => {
                 </p>
                 <p class="update-notes">{{ status.release.release_notes }}</p>
                 <p v-if="inAppUpdates" class="update-hint">
-                    Ketuk Perbarui sekarang. Aplikasi akan mengunduh pembaruan, lalu membuka konfirmasi pemasangan Android. Jika diminta, aktifkan
-                    Izinkan dari sumber ini. Setelah selesai, buka kembali aplikasi.
+                    Ketuk Unduh pembaruan. Setelah unduhan selesai, pemasangan Android terbuka otomatis. Pilih Perbarui / Pasang. Jika diminta,
+                    aktifkan Izinkan dari sumber ini, lalu kembali ke aplikasi untuk melanjutkan pemasangan.
                 </p>
                 <p v-else class="update-hint">
-                    Unduh APK, buka file dari folder Download, lalu pilih Perbarui / Pasang. Setelah selesai, buka kembali aplikasi.
+                    APK lama ini perlu diperbarui sekali melalui browser. Unduh APK, buka file dari folder Download, lalu pilih Perbarui / Pasang.
+                    Setelah versi baru terpasang, pembaruan berikutnya dapat dilakukan langsung dari aplikasi.
                 </p>
                 <p v-if="!required && status.release.required_at" class="update-hint">
                     Batas pembaruan: {{ new Date(status.release.required_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) }} WIB.
@@ -255,7 +270,7 @@ onBeforeUnmount(() => {
                 </div>
                 <button class="update-primary" :disabled="busy" @click="packageReady ? install() : download()">
                     <ArrowDownToLine :size="18" />
-                    {{ busy ? 'Memproses pembaruan…' : packageReady ? 'Pasang pembaruan' : inAppUpdates ? 'Perbarui sekarang' : 'Unduh pembaruan' }}
+                    {{ busy ? 'Memproses pembaruan…' : packageReady ? 'Pasang pembaruan' : 'Unduh pembaruan' }}
                 </button>
                 <button v-if="!required" class="update-secondary" :disabled="busy" @click="dismiss">Nanti</button>
                 <button v-else class="update-secondary" :disabled="busy" @click="check(true)"><RefreshCw :size="15" /> Periksa kembali</button>

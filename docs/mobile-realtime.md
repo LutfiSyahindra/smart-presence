@@ -1,12 +1,15 @@
 # Sinkronisasi data mobile
 
-PWA, Android, dan iOS menggunakan satu koneksi WebSocket Reverb pada frontend
+PWA, Android, dan iOS menggunakan satu koneksi WebSocket Reverb untuk data mobile pada frontend
 Laravel yang sama. Perubahan data melalui aplikasi memicu pengambilan ulang data
 halaman yang terbuka tanpa menutup aplikasi atau memindahkan menu. Ini mencakup
 master dan penugasan shift, kalender libur, profil pegawai, akun dan hak akses,
 lokasi kantor, presensi, kuota/saldo, seluruh pengajuan beserta approval,
 serta notifikasi termasuk status baca. Push perangkat tetap mengikuti aturan
 notifikasi yang sudah ada; sinkronisasi tidak meminta izin notifikasi.
+
+Android juga memakai koneksi publik untuk pemberitahuan rilis APK, termasuk sebelum
+login. Alur ini dijelaskan di [pengelolaan rilis APK](mobile-app-releases.md).
 
 ## Cara kerja
 

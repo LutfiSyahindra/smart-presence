@@ -18,8 +18,8 @@ android {
         applicationId "id.rsarsy.presensi"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.2.0"
+        versionCode 4
+        versionName "1.2.1"
         buildConfigField 'String', 'PRESENSI_ORIGIN', groovy.json.JsonOutput.toJson(productionConfig.origin)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

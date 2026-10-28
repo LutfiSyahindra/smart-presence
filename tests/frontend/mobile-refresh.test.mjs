@@ -91,21 +91,23 @@ function runtime(initial = page()) {
             return intervals.length;
         },
         require: (name) =>
-            name === './mobile-realtime'
-                ? {
-                      createMobileRealtime(changed, status) {
-                          socketChanged = changed;
-                          socketStatus = status;
-                          return {
-                              update() {},
-                              pause() {
-                                  status(false);
-                              },
-                              resume() {},
-                          };
-                      },
-                  }
-                : { router },
+            name === './app-update-realtime'
+                ? { createAppUpdateRealtime: () => ({ update() {}, pause() {}, resume() {} }) }
+                : name === './mobile-realtime'
+                  ? {
+                        createMobileRealtime(changed, status) {
+                            socketChanged = changed;
+                            socketStatus = status;
+                            return {
+                                update() {},
+                                pause() {
+                                    status(false);
+                                },
+                                resume() {},
+                            };
+                        },
+                    }
+                  : { router },
     });
     exports.startMobileRefresh(initial);
     return {

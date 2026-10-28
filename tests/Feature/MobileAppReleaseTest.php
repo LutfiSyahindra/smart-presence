@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Models\MobileAppRelease;
 use App\Models\User;
 use App\Services\Mobile\ApkInspector;
+use App\Services\Mobile\AppReleaseService;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery;
@@ -223,5 +226,62 @@ class MobileAppReleaseTest extends TestCase
         $this->post(self::URL.'/'.$replacement->id.'/withdraw')->assertSessionHasNoErrors();
         $this->delete(self::URL.'/'.$replacement->id)->assertSessionHasErrors('release');
         $this->assertModelExists($replacement);
+    }
+
+    public function test_release_announcements_follow_committed_public_changes_and_never_drafts_or_rollbacks(): void
+    {
+        $release = $this->draft();
+        $this->inspector();
+        $signals = [];
+        $broadcaster = Mockery::mock();
+        $broadcaster->shouldReceive('broadcast')->andReturnUsing(function ($channels, $event, $payload) use (&$signals) {
+            $this->assertSame('mobile.app-releases', (string) $channels[0]);
+            $this->assertSame('mobile.app-release.changed', $event);
+            $this->assertSame(['version'], array_keys($payload));
+            $this->assertMatchesRegularExpression('/^[0-9A-Z]{26}$/', $payload['version']);
+            $signals[] = $payload;
+        });
+        Broadcast::shouldReceive('connection')->with('reverb')->andReturn($broadcaster);
+        config(['mobile-realtime.enabled' => true]);
+        $service = app(AppReleaseService::class);
+        $service->update($release, $this->payload());
+        $this->assertCount(0, $signals);
+
+        DB::transaction(function () use ($service, $release, &$signals) {
+            $service->publish($release, $this->admin);
+            $this->assertCount(0, $signals, 'No signal before the enclosing transaction commits.');
+        });
+        $this->assertCount(1, $signals);
+        $service->update($release, $this->payload(['minimum_version_code' => 2]));
+        $this->assertCount(2, $signals);
+        $service->withdraw($release, $this->admin);
+        $this->assertCount(3, $signals);
+
+        $next = $this->draft(3);
+        $this->inspector(3);
+        $service = app(AppReleaseService::class);
+        DB::beginTransaction();
+        try {
+            $service->publish($next, $this->admin);
+        } finally {
+            DB::rollBack();
+        }
+        $this->assertCount(3, $signals);
+        $this->assertNull($service->active());
+    }
+
+    public function test_release_publication_succeeds_when_realtime_is_unavailable(): void
+    {
+        $release = $this->draft();
+        $this->inspector();
+        $broadcaster = Mockery::mock();
+        $broadcaster->shouldReceive('broadcast')->once()->andThrow(new \RuntimeException('offline'));
+        Broadcast::shouldReceive('connection')->with('reverb')->andReturn($broadcaster);
+        Log::spy();
+        config(['mobile-realtime.enabled' => true]);
+        $service = app(AppReleaseService::class);
+        $service->publish($release, $this->admin);
+        $this->assertSame($release->id, $service->active()->id);
+        Log::shouldHaveReceived('warning')->once();
     }
 }

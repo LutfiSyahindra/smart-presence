@@ -13,16 +13,36 @@ function runtime({ platform = 'android', nativePromise, response = {}, ok = true
     const opened = [];
     const exports = {};
     vm.runInNewContext(outputText, {
-        exports, URLSearchParams, setTimeout, clearTimeout, AbortSignal,
+        exports,
+        URLSearchParams,
+        setTimeout,
+        clearTimeout,
+        AbortSignal,
         window: { Capacitor: { getPlatform: () => platform, nativePromise }, open: (...args) => opened.push(args) },
-        fetch: async (...args) => { requests.push(args); return { ok, json: async () => response }; },
+        fetch: async (...args) => {
+            requests.push(args);
+            return { ok, json: async () => response };
+        },
     });
-    return { ...exports, requests, opened };
+    return {
+        ...exports,
+        requests,
+        opened,
+        setResponse: (value) => {
+            response = value;
+        },
+    };
 }
 
 test('Android reads installed version and OS from native plugin; web and iOS are excluded', async () => {
     const expected = { version_code: 2, version_name: '1.1.0', sdk_int: 36 };
-    const app = runtime({ nativePromise: async (plugin, method) => { assert.equal(plugin, 'AppUpdates'); assert.equal(method, 'getInfo'); return expected; } });
+    const app = runtime({
+        nativePromise: async (plugin, method) => {
+            assert.equal(plugin, 'AppUpdates');
+            assert.equal(method, 'getInfo');
+            return expected;
+        },
+    });
     assert.equal(app.isAndroidApp(), true);
     assert.deepEqual(await app.installedApp(), expected);
     assert.equal(runtime({ platform: 'web' }).isAndroidApp(), false);
@@ -30,7 +50,11 @@ test('Android reads installed version and OS from native plugin; web and iOS are
 });
 
 test('legacy or broken bridge uses unknown version without guessing the installed APK', async () => {
-    const app = runtime({ nativePromise: async () => { throw new Error('UNIMPLEMENTED'); } });
+    const app = runtime({
+        nativePromise: async () => {
+            throw new Error('UNIMPLEMENTED');
+        },
+    });
     assert.equal((await app.installedApp()).version_code, 0);
     assert.equal((await runtime().installedApp()).version_code, 0);
 });
@@ -45,7 +69,11 @@ test('checks the public API with actual version and SDK and avoids stale cached 
 
 test('opens a release in native browser and never accepts a download URL supplied by the API', async () => {
     const calls = [];
-    const app = runtime({ nativePromise: async (...args) => { calls.push(args); } });
+    const app = runtime({
+        nativePromise: async (...args) => {
+            calls.push(args);
+        },
+    });
     assert.equal(await app.openAppDownload({ id: 7, download_url: 'https://attacker.test/app.apk' }), true);
     assert.equal(calls[0][0], 'AppUpdates');
     assert.equal(calls[0][1], 'openDownload');
@@ -55,20 +83,34 @@ test('opens a release in native browser and never accepts a download URL supplie
 });
 
 test('legacy APK requests manual browser update and prompts wait for attendance and forms to finish', async () => {
-    const app = runtime({ nativePromise: async () => { throw new Error('UNIMPLEMENTED'); } });
+    const app = runtime({
+        nativePromise: async () => {
+            throw new Error('UNIMPLEMENTED');
+        },
+    });
     assert.equal(await app.openAppDownload({ id: 7 }), false);
     assert.equal(app.opened.length, 0);
     assert.equal(app.canPresentAppUpdate('/login'), true);
     assert.equal(app.canPresentAppUpdate('/absensi/mobile/'), true);
     assert.equal(app.canPresentAppUpdate('/absensi/mobile/akun'), true);
-    for (const path of ['/absensi/mobile/clock-in', '/absensi/mobile/clock-out', '/absensi/mobile/presensi/proses/2', '/absensi/mobile/lembur/ajukan', '/absensi/mobile/cuti']) {
+    for (const path of [
+        '/absensi/mobile/clock-in',
+        '/absensi/mobile/clock-out',
+        '/absensi/mobile/presensi/proses/2',
+        '/absensi/mobile/lembur/ajukan',
+        '/absensi/mobile/cuti',
+    ]) {
         assert.equal(app.canPresentAppUpdate(path), false);
     }
 });
 
 test('in-app download and installation pass only a release ID to native code', async () => {
     const calls = [];
-    const app = runtime({ nativePromise: async (...args) => { calls.push(args); } });
+    const app = runtime({
+        nativePromise: async (...args) => {
+            calls.push(args);
+        },
+    });
     const release = { id: 9, download_url: 'https://attacker.test/app.apk', sha256: 'untrusted', path: '/sdcard/other.apk' };
     await app.downloadAppUpdate(release);
     await app.installAppUpdate(release);
@@ -85,7 +127,11 @@ test('in-app download and installation pass only a release ID to native code', a
 });
 
 test('download errors are surfaced and never silently redirected to a browser', async () => {
-    const app = runtime({ nativePromise: async () => { throw new Error('Koneksi terputus'); } });
+    const app = runtime({
+        nativePromise: async () => {
+            throw new Error('Koneksi terputus');
+        },
+    });
     await assert.rejects(app.downloadAppUpdate({ id: 7 }), /Koneksi terputus/);
     await assert.rejects(app.installAppUpdate({ id: 7 }), /Koneksi terputus/);
     assert.equal(app.opened.length, 0);
@@ -95,50 +141,172 @@ test('download errors are surfaced and never silently redirected to a browser', 
 
 test('native progress can be restored after resuming the WebView', async () => {
     const progress = { stage: 'ready', release_id: 9, downloaded_bytes: 100, total_bytes: 100, error: '' };
-    const app = runtime({ nativePromise: async (plugin, method) => {
-        assert.equal(plugin, 'AppUpdates');
-        assert.equal(method, 'getUpdateState');
-        return progress;
-    } });
+    const app = runtime({
+        nativePromise: async (plugin, method) => {
+            assert.equal(plugin, 'AppUpdates');
+            assert.equal(method, 'getUpdateState');
+            return progress;
+        },
+    });
     assert.deepEqual(await app.appUpdateProgress(), progress);
 });
 
 const component = await readFile(new URL('../../resources/js/components/MobileAppUpdate.vue', import.meta.url), 'utf8');
 const componentScript = component.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
-const componentCode = ts.transpileModule(`${componentScript}\nexport const api = {
+const componentCode = ts.transpileModule(
+    `${componentScript}\nexport const api = {
     check, download, install, readProgress, dismiss, offline, visibility, status, busy, error, presenting, packageReady, required, path
-};`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+};`,
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+).outputText;
 
 function updateModal({ nativePromise, mandatory = false } = {}) {
     const release = { id: 9, version_code: 4, version_name: '1.3.0', size_bytes: 100, release_notes: 'Perbaikan', required_at: null };
     const app = runtime({ nativePromise, response: { release, update_available: true, compatible: true, update_required: mandatory } });
     const exports = {};
-    const document = { hidden: false };
+    const document = new EventTarget();
+    document.hidden = false;
+    const window = new EventTarget();
+    window.location = new URL('https://presensi.test/absensi/mobile');
+    const intervals = new Map();
+    let nextTimer = 0;
+    let mounted;
+    let unmounted;
     vm.runInNewContext(componentCode, {
-        exports, Error, setInterval, clearInterval, navigator: { onLine: true }, document,
-        window: { location: { pathname: '/absensi/mobile', origin: 'https://presensi.test' } },
+        exports,
+        Error,
+        navigator: { onLine: true },
+        document,
+        window,
+        setInterval: (callback, delay) => {
+            intervals.set(++nextTimer, { callback, delay });
+            return nextTimer;
+        },
+        clearInterval: (id) => intervals.delete(id),
         require(name) {
             if (name === '@/lib/mobile-app-update') return app;
-            if (name === 'vue') return { ...Vue, onMounted() {}, onBeforeUnmount() {} };
-            if (name === '@inertiajs/vue3') return { router: {} };
+            if (name === 'vue')
+                return {
+                    ...Vue,
+                    onMounted(callback) {
+                        mounted = callback;
+                    },
+                    onBeforeUnmount(callback) {
+                        unmounted = callback;
+                    },
+                };
+            if (name === '@inertiajs/vue3') return { router: { on: () => () => {} } };
             if (name === 'lucide-vue-next') return {};
             throw new Error(`Unexpected import: ${name}`);
         },
     });
-    return { ...exports.api, app, document };
+    return {
+        ...exports.api,
+        app,
+        document,
+        window,
+        intervals,
+        release,
+        start: async () => {
+            mounted();
+            await new Promise((resolve) => setImmediate(resolve));
+        },
+        stop: () => unmounted(),
+    };
 }
+
+const updaterInfo = { version_code: 3, sdk_int: 36, in_app_updates: true };
+const releaseStatus = (release) => ({ release, update_available: Boolean(release), compatible: Boolean(release), update_required: false });
+
+test('a release announcement immediately opens the modal without closing or navigating the app', async () => {
+    const modal = updateModal({ nativePromise: async () => updaterInfo });
+    modal.app.setResponse(releaseStatus(null));
+    await modal.start();
+    assert.equal(Boolean(modal.presenting.value), false);
+    modal.app.setResponse(releaseStatus(modal.release));
+    modal.window.dispatchEvent(new Event('rsarsy:app-release'));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(modal.app.requests.length, 2, 'release announcements bypass the normal check interval');
+    assert.equal(Boolean(modal.presenting.value), true);
+
+    modal.dismiss();
+    await Vue.nextTick();
+    modal.app.setResponse(releaseStatus({ ...modal.release, id: 10 }));
+    modal.window.dispatchEvent(new Event('rsarsy:app-release'));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(Boolean(modal.presenting.value), true, 'a newer release is shown after dismissing an older one');
+    modal.app.setResponse(releaseStatus(null));
+    modal.window.dispatchEvent(new Event('rsarsy:app-release'));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(Boolean(modal.presenting.value), false, 'withdrawal closes the outdated prompt');
+    modal.stop();
+    assert.equal(modal.intervals.size, 0);
+    modal.window.dispatchEvent(new Event('rsarsy:app-release'));
+    assert.equal(modal.app.requests.length, 4, 'unmount removes the release listener');
+});
+
+test('release events received during a pending check are recovered after its stale response', async () => {
+    const modal = updateModal({ nativePromise: async () => updaterInfo });
+    await modal.start();
+    let resolveOld;
+    modal.app.setResponse(
+        new Promise((resolve) => {
+            resolveOld = resolve;
+        }),
+    );
+    const checking = modal.check(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    modal.window.dispatchEvent(new Event('rsarsy:app-release'));
+    modal.app.setResponse(releaseStatus({ ...modal.release, id: 10 }));
+    resolveOld(releaseStatus(null));
+    await checking;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(modal.status.value.release.id, 10);
+    assert.equal(Boolean(modal.presenting.value), true);
+    assert.equal(
+        [...modal.intervals.values()].some((timer) => timer.delay === 15000),
+        true,
+    );
+    modal.stop();
+});
+
+test('a download that finishes immediately still opens the installer exactly once', async () => {
+    const calls = [];
+    const modal = updateModal({
+        nativePromise: async (plugin, method) => {
+            calls.push(method);
+            if (method === 'getInfo') return updaterInfo;
+            if (method === 'getUpdateState') return { stage: 'ready', release_id: 9, error: '' };
+        },
+    });
+    await modal.check(true);
+    await Vue.nextTick();
+    await modal.download();
+    await new Promise((resolve) => setImmediate(resolve));
+    await modal.readProgress();
+    assert.equal(calls.filter((method) => method === 'installUpdate').length, 1);
+    assert.equal(calls.includes('openDownload'), false);
+});
 
 test('modal downloads inside the app, automatically opens installer, and can retry after cancellation', async () => {
     const calls = [];
     let stage = 'idle';
-    const modal = updateModal({ nativePromise: async (plugin, method) => {
-        calls.push(method);
-        if (method === 'getInfo') return { version_code: 3, sdk_int: 36, in_app_updates: true };
-        if (method === 'downloadUpdate') { stage = 'downloading'; return; }
-        if (method === 'getUpdateState') return { stage, release_id: 9, downloaded_bytes: 100, total_bytes: 100, error: '' };
-        if (method === 'installUpdate') { stage = 'ready'; return; }
-        throw new Error(`Unexpected native method: ${method}`);
-    } });
+    const modal = updateModal({
+        nativePromise: async (plugin, method) => {
+            calls.push(method);
+            if (method === 'getInfo') return { version_code: 3, sdk_int: 36, in_app_updates: true };
+            if (method === 'downloadUpdate') {
+                stage = 'downloading';
+                return;
+            }
+            if (method === 'getUpdateState') return { stage, release_id: 9, downloaded_bytes: 100, total_bytes: 100, error: '' };
+            if (method === 'installUpdate') {
+                stage = 'ready';
+                return;
+            }
+            throw new Error(`Unexpected native method: ${method}`);
+        },
+    });
     await modal.check(true);
     await Vue.nextTick();
     assert.equal(Boolean(modal.presenting.value), true);
@@ -152,21 +320,23 @@ test('modal downloads inside the app, automatically opens installer, and can ret
     assert.equal(calls.includes('installUpdate'), false, 'installer does not open while backgrounded');
     modal.document.hidden = false;
     await modal.readProgress();
-    await new Promise(resolve => setImmediate(resolve));
-    assert.equal(calls.filter(method => method === 'installUpdate').length, 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.filter((method) => method === 'installUpdate').length, 1);
     assert.equal(modal.packageReady.value, true);
     assert.equal(modal.busy.value, false);
     await modal.install();
-    assert.equal(calls.filter(method => method === 'downloadUpdate').length, 1);
-    assert.equal(calls.filter(method => method === 'installUpdate').length, 2);
+    assert.equal(calls.filter((method) => method === 'downloadUpdate').length, 1);
+    assert.equal(calls.filter((method) => method === 'installUpdate').length, 2);
     assert.equal(calls.includes('openDownload'), false);
 });
 
 test('failed native download stays retryable and reports the error', async () => {
-    const modal = updateModal({ nativePromise: async (plugin, method) => {
-        if (method === 'getInfo') return { version_code: 3, in_app_updates: true };
-        if (method === 'downloadUpdate') throw new Error('Tidak cukup ruang penyimpanan');
-    } });
+    const modal = updateModal({
+        nativePromise: async (plugin, method) => {
+            if (method === 'getInfo') return { version_code: 3, in_app_updates: true };
+            if (method === 'downloadUpdate') throw new Error('Tidak cukup ruang penyimpanan');
+        },
+    });
     await modal.check(true);
     await Vue.nextTick();
     await modal.download();
@@ -191,10 +361,12 @@ test('mandatory prompts wait for safe screens and offline users can continue att
 
 test('build 2 uses its browser fallback until the native updater has been installed once', async () => {
     const calls = [];
-    const modal = updateModal({ nativePromise: async (plugin, method) => {
-        calls.push(method);
-        if (method === 'getInfo') return { version_code: 2, sdk_int: 36 };
-    } });
+    const modal = updateModal({
+        nativePromise: async (plugin, method) => {
+            calls.push(method);
+            if (method === 'getInfo') return { version_code: 2, sdk_int: 36 };
+        },
+    });
     await modal.check(true);
     await Vue.nextTick();
     await modal.download();

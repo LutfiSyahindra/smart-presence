@@ -93,6 +93,37 @@ API publik: `GET /mobile-app/android/release?version_code=2&sdk_int=36`. Respons
 dicache dan hanya menyertakan rilis aktif, kompatibilitas, status pembaruan, dan
 kebijakan yang sudah diterbitkan. URL unduhan: `/mobile-app/android/releases/{id}/download`.
 
+### Pemulihan jika data distribusi terhapus
+
+Tabel `mobile_app_distribution` memakai satu baris permanen dengan `id = 1` untuk
+menyimpan rilis aktif dan nomor build tertinggi yang pernah diterbitkan. Jika baris
+ini terhapus, aplikasi membuatnya kembali saat mengubah draf atau menerbitkan rilis.
+Nomor build tertinggi dipulihkan dari riwayat `mobile_app_releases.published_at`;
+draf yang belum pernah terbit tidak ikut dihitung. Rilis lama tidak otomatis aktif
+kembali. Terbitkan draf dengan `versionCode` lebih tinggi dari riwayat publikasi.
+
+Untuk memulihkan server sebelum kode perbaikan dipasang, buka Tinker dari root
+proyek (`php artisan tinker`), atau gunakan Docker:
+
+```sh
+docker compose --env-file .env.docker exec app php artisan tinker
+```
+
+Jalankan PHP berikut. Baris yang sudah ada tidak ditimpa:
+
+```php
+DB::table('mobile_app_distribution')->insertOrIgnore([
+    'id' => 1,
+    'release_id' => null,
+    'highest_version_code' => (int) App\Models\MobileAppRelease::whereNotNull('published_at')->max('version_code'),
+]);
+DB::table('mobile_app_distribution')->where('id', 1)->first();
+```
+
+Setelah itu, coba terbitkan draf lagi. Migration awal yang sudah tercatat tidak
+mengisi ulang baris yang terhapus ketika `php artisan migrate` dijalankan kembali.
+Simpan tabel distribusi dan riwayat rilis dalam backup yang sama.
+
 Rujukan alat verifikasi: https://developer.android.com/tools/apksigner
 
 ## Pengujian pembaruan Android

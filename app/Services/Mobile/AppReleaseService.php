@@ -34,7 +34,9 @@ class AppReleaseService
             return ['androidApkUrl' => $this->downloadUrl($release), 'androidRelease' => $this->metadata($release)];
         }
         // Once managed releases are used, withdrawing a release must not expose an old APK.
-        $legacy = $release === null && (int) DB::table('mobile_app_distribution')->where('id', 1)->value('highest_version_code') === 0;
+        $highestVersion = DB::table('mobile_app_distribution')->where('id', 1)->value('highest_version_code')
+            ?? MobileAppRelease::whereNotNull('published_at')->max('version_code');
+        $legacy = $release === null && (int) $highestVersion === 0;
 
         return [
             'androidApkUrl' => $legacy ? (config('mobile.android_apk_url')
@@ -77,7 +79,7 @@ class AppReleaseService
     public function update(MobileAppRelease $release, array $data): void
     {
         DB::transaction(function () use ($release, $data) {
-            $channel = DB::table('mobile_app_distribution')->where('id', 1)->lockForUpdate()->first();
+            $channel = $this->lockDistribution();
             $release->refresh();
             if ($release->published_at && (int) $channel->release_id !== $release->id) {
                 throw ValidationException::withMessages(['release' => 'Rilis yang sudah diarsipkan tidak dapat diubah.']);
@@ -93,7 +95,7 @@ class AppReleaseService
     public function discard(MobileAppRelease $release): void
     {
         DB::transaction(function () use ($release) {
-            DB::table('mobile_app_distribution')->where('id', 1)->lockForUpdate()->first();
+            $this->lockDistribution();
             $release->refresh();
             if ($release->published_at) {
                 throw ValidationException::withMessages(['release' => 'Rilis yang pernah diterbitkan harus tetap disimpan sebagai riwayat.']);
@@ -106,7 +108,7 @@ class AppReleaseService
     public function publish(MobileAppRelease $release, User $user): void
     {
         DB::transaction(function () use ($release, $user) {
-            $channel = DB::table('mobile_app_distribution')->where('id', 1)->lockForUpdate()->first();
+            $channel = $this->lockDistribution();
             $release->refresh();
             if ($release->published_at || $release->version_code <= $channel->highest_version_code) {
                 throw ValidationException::withMessages(['release' => 'Rilis harus memiliki versionCode lebih tinggi dari semua rilis yang pernah diterbitkan.']);
@@ -131,7 +133,7 @@ class AppReleaseService
     public function withdraw(MobileAppRelease $release, User $user): void
     {
         DB::transaction(function () use ($release, $user) {
-            $channel = DB::table('mobile_app_distribution')->where('id', 1)->lockForUpdate()->first();
+            $channel = $this->lockDistribution();
             if ((int) $channel->release_id !== $release->id) {
                 throw ValidationException::withMessages(['release' => 'Hanya rilis aktif yang dapat ditarik.']);
             }
@@ -139,6 +141,21 @@ class AppReleaseService
             DB::table('mobile_app_distribution')->where('id', 1)->update(['release_id' => null]);
             $this->notifyChanged();
         });
+    }
+
+    private function lockDistribution(): object
+    {
+        // Recover a deleted singleton without reactivating a release or allowing downgrades.
+        // Check without a gap lock so concurrent recovery can insert the missing row.
+        if (! DB::table('mobile_app_distribution')->where('id', 1)->exists()) {
+            DB::table('mobile_app_distribution')->insertOrIgnore([
+                'id' => 1,
+                'release_id' => null,
+                'highest_version_code' => (int) MobileAppRelease::whereNotNull('published_at')->max('version_code'),
+            ]);
+        }
+
+        return DB::table('mobile_app_distribution')->where('id', 1)->lockForUpdate()->firstOrFail();
     }
 
     private function notifyChanged(): void

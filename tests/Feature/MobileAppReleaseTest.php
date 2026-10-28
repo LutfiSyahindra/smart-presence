@@ -144,6 +144,79 @@ class MobileAppReleaseTest extends TestCase
         $this->put(self::URL.'/'.$first->id, $this->payload())->assertSessionHasErrors('release');
     }
 
+    public function test_first_publication_recovers_deleted_distribution_row(): void
+    {
+        $release = $this->draft();
+        DB::table('mobile_app_distribution')->delete();
+        config()->set('mobile.android_apk_url', 'https://example.com/legacy.apk');
+        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('androidApkUrl', 'https://example.com/legacy.apk'));
+
+        $this->inspector();
+        $this->actingAs($this->admin)->post(self::URL.'/'.$release->id.'/publish')
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('mobile_app_distribution', [
+            'id' => 1, 'release_id' => $release->id, 'highest_version_code' => 2,
+        ]);
+        $this->assertSame($this->admin->id, $release->fresh()->published_by);
+        $this->get('/mobile-app/android/release?version_code=1')->assertJsonPath('release.id', $release->id);
+        $this->get('/mobile-app/android/releases/'.$release->id.'/download')->assertDownload('arsy-presensi-2.apk');
+    }
+
+    public function test_distribution_recovery_preserves_published_version_history_and_keeps_old_downloads_disabled(): void
+    {
+        $previous = $this->draft(3);
+        $older = $this->draft(2);
+        $next = $this->draft(4);
+        $this->draft(5);
+        $this->publish($previous);
+        $this->post(self::URL.'/'.$previous->id.'/withdraw')->assertSessionHasNoErrors();
+        DB::table('mobile_app_distribution')->delete();
+
+        config()->set('mobile.android_apk_url', 'https://example.com/obsolete.apk');
+        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('androidApkUrl', null));
+        $this->get('/mobile-app/android/release?version_code=1')->assertJsonPath('release', null);
+        $this->get('/mobile-app/android/releases/'.$previous->id.'/download')->assertNotFound();
+        $this->post(self::URL.'/'.$older->id.'/publish')->assertRedirect()->assertSessionHasErrors('release');
+        $this->assertNull($older->fresh()->published_at);
+
+        $this->publish($next);
+        $this->assertDatabaseHas('mobile_app_distribution', [
+            'id' => 1, 'release_id' => $next->id, 'highest_version_code' => 4,
+        ]);
+        $this->get('/mobile-app/android/release?version_code=1')->assertJsonPath('release.id', $next->id);
+    }
+
+    public function test_drafts_can_be_edited_and_discarded_when_distribution_row_is_missing(): void
+    {
+        $release = $this->draft();
+        DB::table('mobile_app_distribution')->delete();
+        $this->actingAs($this->admin)->put(self::URL.'/'.$release->id, $this->payload(['release_notes' => 'Catatan baru.']))
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('Catatan baru.', $release->fresh()->release_notes);
+        $this->assertDatabaseHas('mobile_app_distribution', ['id' => 1, 'release_id' => null, 'highest_version_code' => 0]);
+
+        DB::table('mobile_app_distribution')->delete();
+        $this->delete(self::URL.'/'.$release->id)->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertModelMissing($release);
+        Storage::disk('local')->assertMissing($release->path);
+        $this->assertDatabaseHas('mobile_app_distribution', ['id' => 1, 'release_id' => null, 'highest_version_code' => 0]);
+    }
+
+    public function test_missing_distribution_row_rejects_changes_to_inactive_published_release_without_server_error(): void
+    {
+        $release = $this->draft();
+        $this->publish($release);
+        DB::table('mobile_app_distribution')->delete();
+
+        $this->put(self::URL.'/'.$release->id, $this->payload(['release_notes' => 'Tidak boleh berubah.']))
+            ->assertRedirect()->assertSessionHasErrors('release');
+        $this->post(self::URL.'/'.$release->id.'/withdraw')->assertRedirect()->assertSessionHasErrors('release');
+        $this->assertSame($this->payload()['release_notes'], $release->fresh()->release_notes);
+        $this->assertNull($release->fresh()->withdrawn_at);
+        $this->get('/mobile-app/android/release?version_code=1')->assertJsonPath('release', null);
+    }
+
     public function test_required_update_respects_grace_time_timezone_sdk_and_actual_installed_version(): void
     {
         $release = $this->draft();

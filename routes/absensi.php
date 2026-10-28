@@ -28,6 +28,7 @@ use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\NotifikasiController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\PerubahanShiftController as WebPerubahanShiftController;
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\WebPushSubscriptionController;
 use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
+use App\Http\Controllers\Absensi\AdminWeb\Setting\AppReleaseController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\User\UserController;
@@ -164,6 +165,16 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
         });
 
         Route::prefix('setting')->name('setting.')->group(function () {
+            Route::middleware('can:'.AccessPermission::APP_RELEASES_VIEW)->prefix('app-releases')->name('app-releases.')->group(function () {
+                Route::get('/', [AppReleaseController::class, 'index'])->name('index');
+                Route::post('/', [AppReleaseController::class, 'store'])->middleware(['can:'.AccessPermission::APP_RELEASES_MANAGE, 'throttle:10,1'])->name('store');
+                Route::put('{release}', [AppReleaseController::class, 'update'])->whereNumber('release')->middleware('can:'.AccessPermission::APP_RELEASES_MANAGE)->name('update');
+                Route::delete('{release}', [AppReleaseController::class, 'destroy'])->whereNumber('release')->middleware('can:'.AccessPermission::APP_RELEASES_MANAGE)->name('destroy');
+                Route::get('{release}/download', [AppReleaseController::class, 'download'])->whereNumber('release')->name('download');
+                Route::post('{release}/publish', [AppReleaseController::class, 'publish'])->whereNumber('release')->middleware('can:'.AccessPermission::APP_RELEASES_PUBLISH)->name('publish');
+                Route::post('{release}/withdraw', [AppReleaseController::class, 'withdraw'])->whereNumber('release')->middleware('can:'.AccessPermission::APP_RELEASES_PUBLISH)->name('withdraw');
+            });
+
             Route::get('users', [UserController::class, 'index'])->middleware('can:'.AccessPermission::USERS_VIEW)->name('users.index');
             Route::get('users/create', [UserController::class, 'create'])->middleware('can:'.AccessPermission::USERS_CREATE)->name('users.create');
             Route::post('users', [UserController::class, 'store'])->middleware('can:'.AccessPermission::USERS_CREATE)->name('users.store');

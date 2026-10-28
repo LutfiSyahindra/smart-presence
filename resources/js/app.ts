@@ -5,6 +5,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import MobileAppUpdate from './components/MobileAppUpdate.vue';
 import { initializeTheme } from './composables/useAppearance';
 import { startMobileNotifications } from './composables/useMobileNotifications';
 import { startMobileNavigation } from './lib/mobile-navigation';
@@ -31,7 +32,7 @@ createInertiaApp({
     setup({ el, App, props, plugin }) {
         startMobileNavigation(props.initialPage);
         startMobileRefresh(props.initialPage);
-        createApp({ render: () => h(App, props) })
+        createApp({ render: () => [h(App, props), h(MobileAppUpdate)] })
             .use(plugin)
             .use(ZiggyVue)
             .mount(el);

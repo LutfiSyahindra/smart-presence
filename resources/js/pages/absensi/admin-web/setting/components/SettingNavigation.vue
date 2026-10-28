@@ -12,6 +12,7 @@ const items = [
     { title: 'Pengguna', href: '/absensi/admin-web/setting/users', permission: 'users.view' },
     { title: 'Role', href: '/absensi/admin-web/setting/roles', permission: 'roles.view' },
     { title: 'Permission', href: '/absensi/admin-web/setting/permissions', permission: 'permissions.view' },
+    { title: 'Versi Aplikasi', href: '/absensi/admin-web/setting/app-releases', permission: 'app-releases.view' },
 ];
 </script>
 

@@ -5,7 +5,7 @@ FROM php:8.3-fpm-bookworm AS php-base
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         gosu libfreetype6-dev libicu-dev libjpeg62-turbo-dev libonig-dev \
-        libpng-dev libwebp-dev libxml2-dev libzip-dev unzip \
+        libpng-dev libwebp-dev libxml2-dev libzip-dev unzip aapt apksigner default-jre-headless \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath gd intl mbstring opcache pcntl pdo_mysql zip \

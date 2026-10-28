@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -9,6 +10,8 @@ use Tests\TestCase;
 
 class InstallationPageTest extends TestCase
 {
+    use RefreshDatabase;
+
     private string $temporaryPublicPath;
 
     protected function setUp(): void

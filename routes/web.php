@@ -1,18 +1,23 @@
 <?php
 
+use App\Http\Controllers\AppReleaseController;
 use App\Http\Controllers\PortalSwitchController;
+use App\Services\Mobile\AppReleaseService;
 use App\Support\Portal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function (Request $request) {
+Route::get('/', function (Request $request, AppReleaseService $releases) {
     return Inertia::render('Welcome', [
-        'androidApkUrl' => config('mobile.android_apk_url')
-            ?: (is_file(public_path('downloads/arsy-presensi.apk')) ? asset('downloads/arsy-presensi.apk') : null),
+        ...$releases->installation(),
         'status' => $request->session()->get('status'),
     ]);
 })->name('home');
+
+// Also available before login so an outdated APK can always be updated.
+Route::get('mobile-app/android/release', [AppReleaseController::class, 'check'])->middleware('throttle:1200,1')->name('app.android.release');
+Route::get('mobile-app/android/releases/{release}/download', [AppReleaseController::class, 'download'])->whereNumber('release')->name('app.android.download');
 
 Route::get('dashboard', function (Request $request) {
     return to_route(Portal::homeRouteName($request));

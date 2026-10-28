@@ -9,7 +9,15 @@ di `production.json`. Dari root repository, jalankan:
 npm run mobile:apk:release
 ```
 
-Hasil yang siap diunduh berada di `public/downloads/arsy-presensi.apk`.
+Hasil build berada di `artifacts/android/arsy-presensi-build-{versionCode}.apk`.
+Unggah melalui **admin-web → Settings → Versi Aplikasi**, uji APK draf, lalu
+terbitkan agar halaman instalasi dan pemberitahuan pembaruan memakai rilis tersebut.
+Build tidak otomatis mengganti APK publik. Panduan lengkap ada di
+[pengelolaan rilis APK](../../docs/mobile-app-releases.md).
+Mulai build 3 (1.2.0), modal pembaruan Android mengunduh APK di dalam aplikasi dan
+langsung membuka konfirmasi pemasangan Android. Pengguna tidak perlu mencari file
+di folder Download. APK lama perlu memasang build ini sekali melalui jalur unduhan
+sebelumnya untuk mengaktifkan pembaruan berikutnya dari dalam aplikasi.
 Build release ditandatangani memakai keystore khusus, tanpa debug mode dan
 tanpa HTTP. Kunci signing dan password dibuat sekali di
 `apps/absensi-mobile/.tooling/signing/`; **backup seluruh direktori tersebut**

@@ -158,10 +158,14 @@ try {
                 if ($Release) {
                     Invoke-CheckedCommand (Join-Path $androidRoot 'gradlew.bat') '--gradle-user-home' $gradleUserHome ':app:testReleaseUnitTest' ':app:assembleRelease'
                     $releaseApk = Join-Path $androidRoot 'app\build\outputs\apk\release\app-release.apk'
-                    $downloadDirectory = Join-Path $projectRoot 'public\downloads'
-                    New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null
-                    Copy-Item -LiteralPath $releaseApk -Destination (Join-Path $downloadDirectory 'arsy-presensi.apk') -Force
-                    Write-Output 'APK release: public/downloads/arsy-presensi.apk'
+                    $releaseMetadata = Get-Content -LiteralPath (Join-Path $androidRoot 'app\build\outputs\apk\release\output-metadata.json') -Raw | ConvertFrom-Json
+                    $releaseCode = [int]$releaseMetadata.elements[0].versionCode
+                    $artifactDirectory = Join-Path $projectRoot 'artifacts\android'
+                    New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
+                    $artifactPath = Join-Path $artifactDirectory "arsy-presensi-build-$releaseCode.apk"
+                    Copy-Item -LiteralPath $releaseApk -Destination $artifactPath -Force
+                    Write-Output "APK release: $artifactPath"
+                    Write-Output 'Unggah APK melalui admin-web > Settings > Versi Aplikasi, uji draf, lalu terbitkan.'
                 } else {
                     Invoke-CheckedCommand (Join-Path $androidRoot 'gradlew.bat') '--gradle-user-home' $gradleUserHome 'assembleDebug'
                     Write-Output 'APK development memakai Vue/Laravel yang sama dengan browser. Untuk emulator/USB, jalankan npm run android:connect.'

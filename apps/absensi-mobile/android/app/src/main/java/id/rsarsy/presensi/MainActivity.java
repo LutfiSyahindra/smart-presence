@@ -21,6 +21,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void load() {
         registerPlugin(AttendanceLocationPlugin.class);
+        registerPlugin(AppUpdatesPlugin.class);
         super.load();
         final boolean release = !BuildConfig.DEBUG;
         final String origin = release ? BuildConfig.PRESENSI_ORIGIN : bridge.getServerUrl();

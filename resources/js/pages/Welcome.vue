@@ -5,6 +5,7 @@ import { ArrowDownToLine, ArrowUpRight, CheckCircle2, Download, Globe2, PlusSqua
 
 defineProps<{
     androidApkUrl: string | null;
+    androidRelease?: { version_name: string; size_bytes: number; published_at: string; release_notes: string } | null;
     status?: string | null;
 }>();
 </script>
@@ -47,6 +48,16 @@ defineProps<{
                     </div>
                     <h2 id="android-title">Untuk Android</h2>
                     <p class="platform-description">Unduh dan pasang aplikasi ARSY Presensi langsung di ponsel Android Anda.</p>
+
+                    <div v-if="androidRelease" class="availability-note">
+                        <strong>Versi {{ androidRelease.version_name }}</strong> ·
+                        {{ (androidRelease.size_bytes / 1048576).toLocaleString('id-ID', { maximumFractionDigits: 1 }) }} MB ·
+                        {{ new Date(androidRelease.published_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' }) }}
+                        <details class="mt-2">
+                            <summary>Catatan pembaruan</summary>
+                            <p style="white-space: pre-wrap">{{ androidRelease.release_notes }}</p>
+                        </details>
+                    </div>
 
                     <a v-if="androidApkUrl" :href="androidApkUrl" class="install-button android-button" download>
                         <ArrowDownToLine aria-hidden="true" /> Download APK Android

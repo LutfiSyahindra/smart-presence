@@ -17,6 +17,7 @@ import {
     MapPinned,
     ShieldCheck,
     SlidersHorizontal,
+    Smartphone,
     Timer,
     UserCog,
     UserRoundCheck,
@@ -130,6 +131,7 @@ const navigation = computed<NavigationGroup[]>(() => {
                 can('users.view') ? { title: 'Pengguna', href: '/absensi/admin-web/setting/users', icon: UsersRound } : null,
                 can('roles.view') ? { title: 'Role', href: '/absensi/admin-web/setting/roles', icon: ShieldCheck } : null,
                 can('permissions.view') ? { title: 'Permission', href: '/absensi/admin-web/setting/permissions', icon: UserCog } : null,
+                can('app-releases.view') ? { title: 'Versi Aplikasi', href: '/absensi/admin-web/setting/app-releases', icon: Smartphone } : null,
             ].filter((item): item is NonNullable<typeof item> => item !== null),
         },
         {

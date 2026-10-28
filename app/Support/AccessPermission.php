@@ -96,6 +96,12 @@ final class AccessPermission
 
     public const PERMISSIONS_DELETE = 'permissions.delete';
 
+    public const APP_RELEASES_VIEW = 'app-releases.view';
+
+    public const APP_RELEASES_MANAGE = 'app-releases.manage';
+
+    public const APP_RELEASES_PUBLISH = 'app-releases.publish';
+
     public const GEOLOCATION_VIEW = 'geolocation.view';
 
     public const GEOLOCATION_CREATE = 'geolocation.create';
@@ -155,6 +161,9 @@ final class AccessPermission
             self::PERMISSIONS_CREATE,
             self::PERMISSIONS_UPDATE,
             self::PERMISSIONS_DELETE,
+            self::APP_RELEASES_VIEW,
+            self::APP_RELEASES_MANAGE,
+            self::APP_RELEASES_PUBLISH,
             self::GEOLOCATION_VIEW,
             self::GEOLOCATION_CREATE,
             self::GEOLOCATION_UPDATE,

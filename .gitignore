@@ -6,6 +6,7 @@
 /public/hot
 /public/storage
 /public/downloads/*.apk
+/artifacts/android/
 /storage/*.key
 /storage/pail
 /vendor

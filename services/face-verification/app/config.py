@@ -24,10 +24,11 @@ class Settings(BaseSettings):
 
     token: str = ""
     model_name: str = "Facenet512"
-    detector_backend: str = "opencv"
+    detector_backend: str = "yunet"
+    detector_fallback_backend: str = "opencv"
     distance_metric: str = "cosine"
     distance_threshold: float | None = Field(default=None, ge=0)
-    min_similarity: float = Field(default=70.0, ge=0, le=100)
+    min_similarity: float = Field(default=40.0, ge=0, le=100)
     anti_spoofing: bool = True
     max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1024, le=20 * 1024 * 1024)
     min_image_dimension: int = Field(default=160, ge=64, le=2048)
@@ -39,6 +40,12 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> None:
         if len(self.token) < 32:
             raise RuntimeError("FACE_SERVICE_TOKEN wajib diisi minimal 32 karakter.")
+
+        if not self.detector_backend.strip() or any(
+            backend.strip().lower() == "skip"
+            for backend in (self.detector_backend, self.detector_fallback_backend)
+        ):
+            raise RuntimeError("Deteksi wajah wajib menggunakan detector, bukan 'skip'.")
 
         if self.min_image_dimension > self.max_image_dimension:
             raise RuntimeError(

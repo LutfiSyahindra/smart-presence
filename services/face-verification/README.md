@@ -15,9 +15,15 @@ py -3.13 -m venv .venv
 
 Isi variabel `FACE_SERVICE_*` pada `.env` di root proyek. `FACE_SERVICE_TOKEN` harus berupa nilai acak minimal 32 karakter dan nilainya dipakai oleh Laravel serta FastAPI.
 
-Biarkan `FACE_SERVICE_DISTANCE_THRESHOLD` tidak terdefinisi untuk memakai threshold bawaan pasangan model/metric DeepFace. Sebelum mengubahnya, kalibrasikan dengan sampel foto pegawai nyata dan uji false accept serta false reject.
+`FACE_SERVICE_MIN_SIMILARITY=40` menetapkan batas kecocokan minimal **40%**, termasuk skor tepat 40%, untuk clock-in dan clock-out. Laravel dan FastAPI harus memakai nilai yang sama. Keputusan memakai skor confidence DeepFace; keputusan jarak bawaan model tidak menjadi batas tambahan yang menghalangi skor 40%. `FACE_SERVICE_DISTANCE_THRESHOLD` tetap dapat diisi jika diperlukan batas jarak tambahan secara eksplisit. Skor di bawah 40% atau skor yang tidak valid tetap ditolak.
+
+Detektor utama memakai `FACE_SERVICE_DETECTOR_BACKEND=yunet`, dengan `FACE_SERVICE_DETECTOR_FALLBACK_BACKEND=opencv` sebagai cadangan. YuNet menyediakan deteksi wajah dan landmark mata untuk alignment melalui [integrasi DeepFace](https://github.com/serengil/deepface/blob/v0.0.100/deepface/models/face_detection/YuNet.py). Cadangan hanya dicoba bila wajah tidak ditemukan; beberapa wajah, kegagalan anti-spoofing, dan error mesin tetap ditolak tanpa mencoba meloloskannya lewat detektor lain. Kosongkan konfigurasi cadangan untuk menonaktifkannya. Detektor `skip` tidak boleh digunakan untuk ekstraksi wajah.
+
+Saat memakai helm, buka kaca sepenuhnya, arahkan wajah ke kamera dan cahaya, serta pastikan mata, hidung, dan mulut terlihat. Helm yang menutupi bagian utama wajah tetap dapat menghalangi verifikasi. Penurunan batas ke 40% membuat pencocokan lebih longgar; uji foto pegawai yang sama dan berbeda, dengan dan tanpa helm, sebelum penggunaan produksi.
 
 Model pengenalan, detector, dan anti-spoofing DeepFace dimuat saat startup dan disimpan di `DEEPFACE_HOME/.deepface/weights`. Startup pertama karena itu membutuhkan akses internet dan dapat berlangsung beberapa menit.
+
+Setelah memperbarui konfigurasi atau kode, jalankan `php artisan config:clear` dan `php artisan queue:restart` dari root, lalu mulai ulang proses FastAPI (atau rebuild container Docker). Jalankan `npm run build` untuk memperbarui foto kamera dan petunjuk pada Vue utama; perubahan ini tidak memerlukan APK baru.
 
 Untuk menjaga waktu respons, gambar yang lolos validasi diperkecil khusus untuk inferensi sesuai `FACE_SERVICE_INFERENCE_MAX_DIMENSION` (default `1280`) dan embedding foto profil disimpan dalam cache LRU memori. `FACE_SERVICE_PROFILE_EMBEDDING_CACHE_SIZE` menentukan jumlah foto profil yang dicache; isi cache otomatis gugur saat service dimulai ulang dan berubah otomatis ketika isi foto profil berubah.
 

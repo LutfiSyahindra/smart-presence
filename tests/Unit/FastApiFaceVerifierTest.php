@@ -40,7 +40,7 @@ class FastApiFaceVerifierTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'verified' => true,
-                'similarity' => 63.0,
+                'similarity' => 39.99,
                 'provider' => 'deepface-facenet512',
             ]),
         ]);
@@ -48,7 +48,7 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertFalse($result->matched);
-        $this->assertSame(63.0, $result->similarity);
+        $this->assertSame(39.99, $result->similarity);
     }
 
     public function test_it_accepts_a_model_match_at_the_minimum_similarity(): void
@@ -56,7 +56,7 @@ class FastApiFaceVerifierTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'verified' => true,
-                'similarity' => 70.0,
+                'similarity' => 40.0,
                 'provider' => 'deepface-facenet512',
             ]),
         ]);
@@ -64,7 +64,35 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertTrue($result->matched);
-        $this->assertSame(70.0, $result->similarity);
+        $this->assertSame(40.0, $result->similarity);
+    }
+
+    public function test_it_accepts_a_service_match_between_the_new_and_previous_minimum(): void
+    {
+        Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 63.0])]);
+
+        $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
+
+        $this->assertTrue($result->matched);
+    }
+
+    public function test_it_respects_a_service_rejection_above_the_minimum(): void
+    {
+        Http::fake(['*' => Http::response(['verified' => false, 'similarity' => 63.0])]);
+
+        $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
+
+        $this->assertFalse($result->matched);
+    }
+
+    public function test_it_respects_an_explicitly_configured_minimum(): void
+    {
+        Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 63.0])]);
+        $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 70.0);
+
+        $result = $verifier->compare($this->jpeg(), $this->jpeg());
+
+        $this->assertFalse($result->matched);
     }
 
     public function test_it_fails_closed_when_a_model_match_has_no_similarity(): void

@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image, ImageOps, UnidentifiedImageError
+from deepface.modules.exceptions import FaceNotDetected, SpoofDetected
 
 from app.config import Settings
 from app.exceptions import FaceServiceError
@@ -38,10 +39,8 @@ class DeepFaceEngine:
                 model_name=self.settings.model_name,
                 task="facial_recognition",
             )
-            deepface.build_model(
-                model_name=self.settings.detector_backend,
-                task="face_detector",
-            )
+            for backend in self._detector_backends():
+                deepface.build_model(model_name=backend, task="face_detector")
 
             # Building the models does not execute their first forward pass.
             # Prime both batch recognition and anti-spoofing here so users do
@@ -128,10 +127,23 @@ class DeepFaceEngine:
             threshold = self._optional_float(result.get("threshold"))
             normalized_similarity = self._percentage(similarity)
 
+            # DeepFace's default distance decision can reject confidence scores
+            # above our configured minimum. Use the requested percentage as the
+            # decision rule, retaining a distance limit only when explicitly set.
+            matched = (
+                normalized_similarity is not None
+                and normalized_similarity >= self.settings.min_similarity
+                and (
+                    self.settings.distance_threshold is None
+                    or (
+                        distance is not None
+                        and distance <= self.settings.distance_threshold
+                    )
+                )
+            )
+
             return {
-                "verified": bool(result.get("verified", False))
-                and normalized_similarity is not None
-                and normalized_similarity >= self.settings.min_similarity,
+                "verified": matched,
                 "similarity": normalized_similarity,
                 "distance": distance,
                 "threshold": threshold,
@@ -149,60 +161,68 @@ class DeepFaceEngine:
         *,
         profile_photo: bool,
     ) -> NDArray[Any]:
-        try:
-            faces = deepface.extract_faces(
-                img_path=image,
-                detector_backend=self.settings.detector_backend,
-                enforce_detection=True,
-                align=True,
-                anti_spoofing=self.settings.anti_spoofing and not profile_photo,
-            )
-        except ValueError as exception:
-            raise self._face_detection_error(profile_photo) from exception
-        except Exception as exception:
-            message = str(exception).lower()
-            if "spoof" in message:
+        for backend in self._detector_backends():
+            try:
+                faces = deepface.extract_faces(
+                    img_path=image,
+                    detector_backend=backend,
+                    enforce_detection=True,
+                    align=True,
+                    anti_spoofing=self.settings.anti_spoofing and not profile_photo,
+                )
+            except FaceNotDetected:
+                continue
+            except SpoofDetected as exception:
                 raise FaceServiceError(
                     "spoof_detected",
                     "Foto clock-in tidak lolos pemeriksaan anti-spoofing.",
                 ) from exception
-
-            logger.exception("DeepFace gagal mendeteksi wajah.")
-            raise FaceServiceError(
-                "service_unavailable",
-                "Mesin pendeteksi wajah gagal memproses foto.",
-                status_code=503,
-            ) from exception
-
-        if len(faces) != 1:
-            if profile_photo:
+            except Exception as exception:
+                logger.exception("DeepFace gagal mendeteksi wajah dengan %s.", backend)
                 raise FaceServiceError(
-                    "invalid_profile_photo",
-                    "Foto profil harus memuat tepat satu wajah.",
+                    "service_unavailable",
+                    "Mesin pendeteksi wajah gagal memproses foto.",
+                    status_code=503,
+                ) from exception
+
+            if not faces:
+                continue
+
+            # Retry only a missing detection. Multiple faces and spoof failures
+            # must never become acceptable through a second detector.
+            if len(faces) != 1:
+                if profile_photo:
+                    raise FaceServiceError(
+                        "invalid_profile_photo",
+                        "Foto profil harus memuat tepat satu wajah.",
+                    )
+                raise FaceServiceError(
+                    "multiple_faces",
+                    "Foto clock-in hanya boleh memuat satu wajah.",
                 )
 
-            if len(faces) == 0:
-                raise FaceServiceError(
-                    "face_not_found",
-                    "Wajah tidak ditemukan pada foto clock-in.",
-                )
-
-            raise FaceServiceError(
-                "multiple_faces",
-                "Foto clock-in hanya boleh memuat satu wajah.",
-            )
-
-        if self.settings.anti_spoofing and not profile_photo:
-            face = faces[0]
-            if face.get("is_real") is not True:
+            if (
+                self.settings.anti_spoofing
+                and not profile_photo
+                and faces[0].get("is_real") is not True
+            ):
                 raise FaceServiceError(
                     "spoof_detected",
                     "Foto clock-in tidak lolos pemeriksaan anti-spoofing.",
                 )
 
-        # DeepFace returns an RGB crop. Its verification pipeline reverses
-        # this crop before represent(..., detector_backend="skip").
-        return np.ascontiguousarray(faces[0]["face"][:, :, ::-1])
+            # DeepFace returns an RGB crop. Its verification pipeline reverses
+            # this crop before represent(..., detector_backend="skip").
+            return np.ascontiguousarray(faces[0]["face"][:, :, ::-1])
+
+        raise self._face_detection_error(profile_photo)
+
+    def _detector_backends(self) -> list[str]:
+        return list(dict.fromkeys(
+            backend.strip()
+            for backend in (self.settings.detector_backend, self.settings.detector_fallback_backend)
+            if backend.strip()
+        ))
 
     def _represent_pair(
         self,

@@ -19,10 +19,10 @@ class FakeEngine:
             "similarity": 98.25,
             "distance": 0.12,
             "threshold": 0.3,
-            "minimum_similarity": 70.0,
+            "minimum_similarity": 40.0,
             "provider": "deepface-facenet512",
             "model": "Facenet512",
-            "detector_backend": "opencv",
+            "detector_backend": "yunet",
             "anti_spoofing_enabled": True,
         }
 
@@ -68,7 +68,7 @@ def test_verify_returns_the_engine_result() -> None:
     assert response.status_code == 200
     assert response.json()["verified"] is True
     assert response.json()["similarity"] == 98.25
-    assert response.json()["minimum_similarity"] == 70.0
+    assert response.json()["minimum_similarity"] == 40.0
 
 
 def test_verify_returns_a_stable_spoof_error() -> None:

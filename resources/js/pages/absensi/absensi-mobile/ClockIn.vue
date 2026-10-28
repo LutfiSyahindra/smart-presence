@@ -560,7 +560,7 @@ const capturePhoto = async (): Promise<File | null> => {
     form.clearErrors();
 
     try {
-        const maximumSide = 1024;
+        const maximumSide = 1280;
         const scale = Math.min(1, maximumSide / Math.max(video.videoWidth, video.videoHeight));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(video.videoWidth * scale);
@@ -570,7 +570,7 @@ const capturePhoto = async (): Promise<File | null> => {
         if (!context) throw new Error('Foto kamera tidak dapat diproses.');
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
         if (!blob) throw new Error('Foto kamera tidak dapat diproses.');
 
         cameraError.value = '';
@@ -910,7 +910,7 @@ onUnmounted(() => {
 
                     <div class="verification-facts">
                         <div>
-                            <Focus /><span><strong>Wajah terlihat utuh</strong><small>Pastikan tidak buram atau terpotong</small></span>
+                            <Focus /><span><strong>Wajah terlihat jelas</strong><small>Buka kaca helm sepenuhnya dan hadapkan wajah ke cahaya</small></span>
                         </div>
                         <div>
                             <ShieldCheck /><span

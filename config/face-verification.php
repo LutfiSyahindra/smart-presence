@@ -3,9 +3,8 @@
 return [
     'driver' => env('FACE_VERIFICATION_DRIVER', 'fastapi'),
 
-    // DeepFace's `verified` flag can be true at a relatively low confidence.
-    // Require both the model decision and this application-level minimum.
-    'minimum_similarity' => (float) env('FACE_SERVICE_MIN_SIMILARITY', 70),
+    // Keep this minimum in sync with the face service's similarity policy.
+    'minimum_similarity' => (float) env('FACE_SERVICE_MIN_SIMILARITY', 40),
 
     'fastapi' => [
         'url' => env('FACE_SERVICE_URL', 'http://127.0.0.1:8001'),

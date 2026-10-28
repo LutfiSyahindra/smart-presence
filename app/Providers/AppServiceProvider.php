@@ -61,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
                     token: (string) $fastApi['token'],
                     connectTimeout: max(1, (int) $fastApi['connect_timeout']),
                     timeout: max(1, (int) $fastApi['timeout']),
-                    minimumSimilarity: max(0, min(100, (float) $app['config']->get('face-verification.minimum_similarity', 70))),
+                    minimumSimilarity: max(0, min(100, (float) $app['config']->get('face-verification.minimum_similarity', 40))),
                 );
             }
 

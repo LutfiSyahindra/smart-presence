@@ -17,7 +17,7 @@ final class FastApiFaceVerifier implements FaceVerifier
         private readonly string $token,
         private readonly int $connectTimeout = 3,
         private readonly int $timeout = 45,
-        private readonly float $minimumSimilarity = 70.0,
+        private readonly float $minimumSimilarity = 40.0,
     ) {}
 
     public function compare(string $profilePhoto, string $clockInPhoto): FaceVerificationResult

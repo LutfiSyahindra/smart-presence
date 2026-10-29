@@ -89,7 +89,7 @@ class AttendanceLocationVerifier
         ));
 
         if (count($accurateSamples) < $this->minSamples()) {
-            $this->fail('Akurasi GPS belum cukup baik. Aktifkan mode lokasi akurasi tinggi dan coba kembali di area terbuka.');
+            $this->fail('Akurasi lokasi belum memenuhi batas presensi. Aktifkan lokasi presisi dan Wi-Fi, lalu ambil lokasi kembali.');
         }
 
         $previous = null;

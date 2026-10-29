@@ -300,11 +300,40 @@ Tes halaman/alur: `tests/Feature/Absensi/AbsensiMobile/LemburPageTest.php` dan
 belum mengaktifkan SQLite, jalankan PHPUnit langsung dengan
 `php -d extension=pdo_sqlite -d extension=sqlite3 vendor/phpunit/phpunit/phpunit`.
 
+## Pengambilan lokasi PWA, Android, dan iOS
+
+Clock In/Out memakai lokasi baru dengan batas akurasi dari server (default
+±100 m). PWA, Safari/iOS, dan WKWebView iOS meminta pembaruan presisi dan
+mode biasa secara bersamaan agar hasil berbasis Wi-Fi/jaringan dapat membantu
+ketika sinyal satelit sulit didapat. Pencarian diberi waktu hingga 25 detik,
+tetapi langsung selesai jika akurasi sudah mencapai ±25 m. Hasil yang sudah
+memenuhi batas server diberi kesempatan 1,5 detik untuk membaik, lalu hasil
+terbaik digunakan tanpa menunggu satelit. Angka akurasi perangkat ditampilkan
+selama pencarian; batas radius dan akurasi server tetap berlaku.
+
+Mulai build 6 (1.2.3), wrapper Android meminta pembaruan dari seluruh provider aktif selain passive
+(GPS, network, dan fused jika tersedia). Hasil harus baru sejak permintaan
+dimulai, memenuhi batas akurasi server, dan lolos pemeriksaan mock. GPS satelit
+tidak lagi menjadi satu-satunya sumber yang diterima. Pencarian dihentikan saat
+selesai, pindah halaman, atau dibatalkan, termasuk permintaan native yang masih
+menunggu. Ini memerlukan APK baru; frontend PWA/iOS cukup dibangun dan dideploy.
+
+Aktifkan layanan lokasi, izin lokasi presisi, dan Wi-Fi/pemindaian Wi-Fi untuk
+membantu pengambilan lokasi di dalam gedung. Hasil tetap bergantung pada
+perangkat dan ketersediaan layanan lokasi OS; aplikasi tidak membuat koordinat
+pengganti ketika perangkat belum menghasilkan lokasi yang cukup akurat.
+
+Uji regresi: `node --test tests/frontend/attendance-location.test.mjs tests/frontend/android-attendance-location.test.mjs`.
+Uji perangkat: Clock In/Out di dalam gedung dan di luar, GPS lambat tetapi
+Wi-Fi aktif, izin ditolak/dicabut, lokasi perkiraan, layanan lokasi mati,
+keluar-masuk halaman saat pencarian, dan kembali dari latar belakang. Ulangi
+pada PWA Android, Safari/PWA iPhone, wrapper iOS, dan APK Android baru.
+
 ## Perlindungan Fake GPS
 
 Clock-in dan clock-out pada wrapper Android menggunakan plugin native
 `AttendanceLocation`, bukan koordinat dari Geolocation API WebView. Setiap sampel
-harus berasal dari pembaruan GPS baru; penanda `Location.isMock()` (Android 12+)
+harus berasal dari pembaruan lokasi OS baru; penanda `Location.isMock()` (Android 12+)
 atau `isFromMockProvider()` (versi sebelumnya) diperiksa sebelum menyaring akurasi.
 Penanda lokasi palsu dari provider aktif lainnya juga menyebabkan penolakan.
 

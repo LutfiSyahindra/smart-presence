@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
+import { cancelAndroidAttendanceLocation, getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
 import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { registerMobileRefreshGuard, resumeMobileRefresh } from '@/lib/mobile-refresh';
 import type { SharedData } from '@/types';
@@ -84,6 +84,7 @@ const currentStep = ref<1 | 2>(1);
 const currentLocation = ref<CurrentLocation | null>(null);
 const locationSamples = ref<LocationSample[]>([]);
 const locationSampleProgress = ref(0);
+const observedAccuracy = ref<number | null>(null);
 const locating = ref(false);
 const locationError = ref('');
 const outsideDialogOpen = ref(false);
@@ -100,9 +101,10 @@ const cameraError = ref('');
 const verificationElapsedSeconds = ref(0);
 let cameraRequestId = 0;
 let locationRequestId = 0;
-let locationWatchId: number | null = null;
+const locationWatchIds = new Set<number>();
 let locationSampleTimer: ReturnType<typeof window.setInterval> | null = null;
 let locationDeadlineTimer: ReturnType<typeof window.setTimeout> | null = null;
+let locationQualityTimer: ReturnType<typeof window.setTimeout> | null = null;
 let verificationTimer: ReturnType<typeof window.setInterval> | null = null;
 let finishLocationCollection: ((success: boolean) => void) | null = null;
 let locationClock = { serverTime: props.locationChallenge.server_time, receivedAt: performance.now() };
@@ -174,7 +176,10 @@ const accuracyState = computed(() => {
         return {
             label: 'Mengambil lokasi',
             tone: 'waiting',
-            detail: 'Mengambil lokasi GPS dari perangkat',
+            detail:
+                observedAccuracy.value === null
+                    ? 'Izinkan lokasi presisi. Wi-Fi dapat membantu pencarian di dalam gedung.'
+                    : `Menyempurnakan akurasi ±${Math.round(observedAccuracy.value)} m…`,
         };
     }
 
@@ -182,6 +187,8 @@ const accuracyState = computed(() => {
     if (accuracy === undefined) return { label: 'Menunggu lokasi', tone: 'waiting', detail: 'Mengambil lokasi dari perangkat' };
     if (accuracy <= 25) return { label: 'Akurasi sangat baik', tone: 'excellent', detail: `Akurat hingga ±${Math.round(accuracy)} m` };
     if (accuracy <= 75) return { label: 'Akurasi baik', tone: 'good', detail: `Akurat hingga ±${Math.round(accuracy)} m` };
+    if (accuracy <= props.locationChallenge.max_accuracy_meters)
+        return { label: 'Akurasi mencukupi', tone: 'good', detail: `Akurat hingga ±${Math.round(accuracy)} m` };
     return { label: 'Akurasi GPS rendah', tone: 'low', detail: `Penyimpangan dapat mencapai ±${Math.round(accuracy)} m` };
 });
 
@@ -213,8 +220,9 @@ const locationActionLabel = computed(() => {
 
 const locationErrorMessage = (error: GeolocationPositionError) => {
     if (error.code === error.PERMISSION_DENIED) return 'Izin lokasi ditolak. Aktifkan akses lokasi pada pengaturan browser lalu coba lagi.';
-    if (error.code === error.POSITION_UNAVAILABLE) return 'Sinyal lokasi belum tersedia. Berpindahlah ke area yang lebih terbuka lalu coba lagi.';
-    if (error.code === error.TIMEOUT) return 'Pencarian lokasi terlalu lama. Pastikan GPS aktif lalu ulangi pencarian.';
+    if (error.code === error.POSITION_UNAVAILABLE)
+        return 'Lokasi belum tersedia. Pastikan layanan lokasi aktif; nyalakan Wi-Fi untuk membantu pencarian.';
+    if (error.code === error.TIMEOUT) return 'Lokasi belum ditemukan. Aktifkan lokasi presisi dan Wi-Fi, lalu coba lagi.';
     return 'Lokasi perangkat belum berhasil ditemukan.';
 };
 
@@ -238,13 +246,16 @@ const median = (values: number[]) => {
 };
 
 const stopLocationCollection = (success = false) => {
-    if (locationWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchId);
+    for (const id of locationWatchIds) navigator.geolocation?.clearWatch(id);
+    locationWatchIds.clear();
+    void cancelAndroidAttendanceLocation();
     if (locationSampleTimer !== null) window.clearInterval(locationSampleTimer);
     if (locationDeadlineTimer !== null) window.clearTimeout(locationDeadlineTimer);
+    if (locationQualityTimer !== null) window.clearTimeout(locationQualityTimer);
 
-    locationWatchId = null;
     locationSampleTimer = null;
     locationDeadlineTimer = null;
+    locationQualityTimer = null;
     finishLocationCollection?.(success);
     finishLocationCollection = null;
 };
@@ -256,26 +267,29 @@ const requestLocation = (): Promise<boolean> =>
         finishLocationCollection = resolve;
         locationError.value = '';
         form.clearErrors();
+        currentLocation.value = null;
+        locationSamples.value = [];
+        locationSampleProgress.value = 0;
+        observedAccuracy.value = null;
+        locating.value = true;
 
         if (!window.isSecureContext) {
             locationError.value = 'Akses lokasi memerlukan koneksi HTTPS yang aman. Buka kembali aplikasi melalui alamat HTTPS.';
+            locating.value = false;
             stopLocationCollection();
             return;
         }
 
         if (!isAndroidAttendance() && !navigator.geolocation) {
             locationError.value = 'Perangkat ini tidak mendukung layanan lokasi.';
+            locating.value = false;
             stopLocationCollection();
             return;
         }
 
-        currentLocation.value = null;
-        locationSamples.value = [];
-        locationSampleProgress.value = 0;
-        locating.value = true;
         const collectionMilliseconds = props.locationChallenge.collection_seconds * 1000;
         const sampleIntervalMilliseconds = collectionMilliseconds / Math.max(1, props.locationChallenge.min_samples - 1);
-        const deadlineMilliseconds = Math.max(7_000, collectionMilliseconds + 5_000);
+        const deadlineMilliseconds = Math.max(25_000, collectionMilliseconds + 15_000);
         let latestAccurateLocation: LocationSample | null = null;
         let previousObservedLocation: (CurrentLocation & { observed_at: number }) | null = null;
         let lastGeolocationError: GeolocationPositionError | null = null;
@@ -320,7 +334,7 @@ const requestLocation = (): Promise<boolean> =>
         if (isAndroidAttendance()) {
             locationDeadlineTimer = window.setTimeout(
                 () => {
-                    failCollection('Verifikasi GPS melewati batas waktu. Pastikan GPS aktif dan coba di area terbuka.');
+                    failCollection('Lokasi belum ditemukan. Aktifkan lokasi presisi dan Wi-Fi, lalu coba lagi.');
                 },
                 Math.max(45_000, collectionMilliseconds + 30_000),
             );
@@ -330,7 +344,7 @@ const requestLocation = (): Promise<boolean> =>
                     // Each sample is a new Android fix, including its mock flag and
                     // provider timestamp. Do not resample a cached WebView position.
                     while (requestId === locationRequestId && locationSamples.value.length < 20) {
-                        const nativeLocation = await getAndroidAttendanceLocation();
+                        const nativeLocation = await getAndroidAttendanceLocation(props.locationChallenge.max_accuracy_meters);
                         const sample = { ...nativeLocation, captured_at: locationTimestamp(nativeLocation.captured_at) };
                         if (requestId !== locationRequestId) return;
                         const previous = locationSamples.value.at(-1);
@@ -356,81 +370,121 @@ const requestLocation = (): Promise<boolean> =>
             return;
         }
 
-        locationWatchId = navigator.geolocation.watchPosition(
-            (position) => {
-                if (requestId !== locationRequestId) return;
+        const receivePosition = (position: GeolocationPosition) => {
+            if (requestId !== locationRequestId) return;
 
-                const coordinates = position.coords as ExtendedGeolocationCoordinates;
-                if (coordinates.mocked === true || coordinates.isMock === true || coordinates.isFromMockProvider === true) {
-                    failCollection('Perangkat melaporkan lokasi tiruan. Nonaktifkan aplikasi Fake GPS lalu coba kembali.');
+            const coordinates = position.coords as ExtendedGeolocationCoordinates;
+            if (coordinates.mocked === true || coordinates.isMock === true || coordinates.isFromMockProvider === true) {
+                failCollection('Perangkat melaporkan lokasi tiruan. Nonaktifkan aplikasi Fake GPS lalu coba kembali.');
+                return;
+            }
+
+            const observedAt = Date.now();
+            if (!Number.isFinite(position.timestamp) || observedAt - position.timestamp > 15_000 || position.timestamp > observedAt + 5_000) {
+                // Wait for a fresh provider fix instead of re-stamping a cached one.
+                return;
+            }
+            if (
+                !Number.isFinite(coordinates.latitude) ||
+                Math.abs(coordinates.latitude) > 90 ||
+                !Number.isFinite(coordinates.longitude) ||
+                Math.abs(coordinates.longitude) > 180 ||
+                !Number.isFinite(coordinates.accuracy) ||
+                coordinates.accuracy < 0
+            )
+                return;
+            const observedLocation = {
+                latitude: Number(coordinates.latitude.toFixed(7)),
+                longitude: Number(coordinates.longitude.toFixed(7)),
+                accuracy: Math.ceil(coordinates.accuracy * 10) / 10,
+                observed_at: position.timestamp,
+            };
+
+            if (previousObservedLocation) {
+                // Two providers may deliver fixes out of order. Compare the
+                // actual fix times rather than the time callbacks arrive.
+                const elapsedSeconds = (position.timestamp - previousObservedLocation.observed_at) / 1000;
+                const uncertaintyMeters = previousObservedLocation.accuracy + observedLocation.accuracy;
+                const credibleMovementMeters = Math.max(0, distanceBetween(previousObservedLocation, observedLocation) - uncertaintyMeters);
+
+                if (elapsedSeconds > 0 && credibleMovementMeters / elapsedSeconds > props.locationChallenge.max_speed_meters_per_second) {
+                    failCollection('Terdeteksi perpindahan GPS yang tidak wajar. Nonaktifkan aplikasi Fake GPS lalu ambil lokasi kembali.');
                     return;
                 }
+            }
 
-                const observedAt = Date.now();
-                if (!Number.isFinite(position.timestamp) || observedAt - position.timestamp > 15_000 || position.timestamp > observedAt + 5_000) {
-                    // Wait for a fresh provider fix instead of re-stamping a cached one.
-                    return;
-                }
-                const observedLocation = {
-                    latitude: Number(coordinates.latitude.toFixed(7)),
-                    longitude: Number(coordinates.longitude.toFixed(7)),
-                    accuracy: Number(coordinates.accuracy.toFixed(1)),
-                    observed_at: observedAt,
-                };
-
-                if (previousObservedLocation) {
-                    const elapsedSeconds = (observedAt - previousObservedLocation.observed_at) / 1000;
-                    const uncertaintyMeters = previousObservedLocation.accuracy + observedLocation.accuracy;
-                    const credibleMovementMeters = Math.max(0, distanceBetween(previousObservedLocation, observedLocation) - uncertaintyMeters);
-
-                    if (elapsedSeconds > 0 && credibleMovementMeters / elapsedSeconds > props.locationChallenge.max_speed_meters_per_second) {
-                        failCollection('Terdeteksi perpindahan GPS yang tidak wajar. Nonaktifkan aplikasi Fake GPS lalu ambil lokasi kembali.');
-                        return;
-                    }
-                }
-
+            if (!previousObservedLocation || position.timestamp > previousObservedLocation.observed_at) {
                 previousObservedLocation = observedLocation;
-                lastGeolocationError = null;
+            }
+            lastGeolocationError = null;
+            observedAccuracy.value = observedLocation.accuracy;
 
-                if (observedLocation.accuracy > props.locationChallenge.max_accuracy_meters) return;
+            if (observedLocation.accuracy > props.locationChallenge.max_accuracy_meters) return;
 
-                latestAccurateLocation = {
-                    latitude: observedLocation.latitude,
-                    longitude: observedLocation.longitude,
-                    accuracy: observedLocation.accuracy,
-                    captured_at: locationTimestamp(position.timestamp),
-                };
-                if (locationSamples.value.length === 0) {
+            const sample = {
+                latitude: observedLocation.latitude,
+                longitude: observedLocation.longitude,
+                accuracy: observedLocation.accuracy,
+                captured_at: locationTimestamp(position.timestamp),
+            };
+            if (props.locationChallenge.min_samples === 1 && collectionMilliseconds === 0) {
+                // Give a usable network fix a brief chance to improve, but
+                // never force an indoor user to wait for satellite GPS.
+                if (!latestAccurateLocation || sample.accuracy < latestAccurateLocation.accuracy) latestAccurateLocation = sample;
+                if (latestAccurateLocation.accuracy <= Math.min(25, props.locationChallenge.max_accuracy_meters)) {
                     captureLatestSample();
-                    if (requestId === locationRequestId) {
-                        locationSampleTimer = window.setInterval(captureLatestSample, sampleIntervalMilliseconds);
-                    }
+                } else if (locationQualityTimer === null) {
+                    locationQualityTimer = window.setTimeout(captureLatestSample, 1_500);
                 }
-            },
-            (error) => {
-                if (requestId !== locationRequestId) return;
-                if (error.code === error.PERMISSION_DENIED) {
-                    failCollection(locationErrorMessage(error));
-                    return;
+                return;
+            }
+            latestAccurateLocation = sample;
+            if (locationSamples.value.length === 0) {
+                captureLatestSample();
+                if (requestId === locationRequestId) {
+                    locationSampleTimer = window.setInterval(captureLatestSample, sampleIntervalMilliseconds);
                 }
+            }
+        };
+        const receiveError = (error: GeolocationPositionError) => {
+            if (requestId !== locationRequestId) return;
+            if (error.code === error.PERMISSION_DENIED) {
+                failCollection(locationErrorMessage(error));
+                return;
+            }
 
-                lastGeolocationError = error;
-            },
-            {
-                enableHighAccuracy: true,
+            lastGeolocationError = error;
+        };
+
+        // Browsers choose their own providers. Request both balanced and high
+        // accuracy fixes so a slow satellite fix does not block Wi-Fi positioning.
+        for (const enableHighAccuracy of [true, false]) {
+            const id = navigator.geolocation.watchPosition(receivePosition, receiveError, {
+                enableHighAccuracy,
                 timeout: deadlineMilliseconds,
                 maximumAge: 0,
-            },
-        );
+            });
+            if (requestId !== locationRequestId) {
+                navigator.geolocation.clearWatch(id);
+                return;
+            }
+            locationWatchIds.add(id);
+        }
 
         locationDeadlineTimer = window.setTimeout(() => {
             if (requestId !== locationRequestId) return;
+            if (latestAccurateLocation && props.locationChallenge.min_samples === 1 && collectionMilliseconds === 0) {
+                captureLatestSample();
+                return;
+            }
 
             if (!latestAccurateLocation) {
                 failCollection(
                     lastGeolocationError
                         ? locationErrorMessage(lastGeolocationError)
-                        : `Akurasi GPS belum mencapai ±${Math.round(props.locationChallenge.max_accuracy_meters)} m. Aktifkan akurasi tinggi lalu coba kembali.`,
+                        : observedAccuracy.value === null
+                          ? 'Lokasi belum ditemukan. Aktifkan lokasi presisi dan Wi-Fi, lalu coba lagi.'
+                          : `Akurasi GPS masih ±${Math.round(observedAccuracy.value)} m; diperlukan ±${Math.round(props.locationChallenge.max_accuracy_meters)} m. Aktifkan lokasi presisi dan Wi-Fi, lalu coba lagi.`,
                 );
                 return;
             }

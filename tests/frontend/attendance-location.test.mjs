@@ -25,7 +25,11 @@ function load({
     const exports = {};
     const callbacks = {};
     const timers = new Map();
+    const timerDelays = new Map();
     const watches = new Set();
+    const providers = new Map();
+    let nextWatchId = 0;
+    let nextTimerId = 0;
     let intervalCalls = 0;
     let nativeCalls = 0;
     let reloads = 0;
@@ -101,6 +105,7 @@ function load({
         },
         '@/lib/android-attendance-location': {
             isAndroidAttendance: () => android,
+            cancelAndroidAttendanceLocation: async () => {},
             getAndroidAttendanceLocation: async () => {
                 nativeCalls += 1;
                 return nativeLocation();
@@ -140,9 +145,10 @@ function load({
         document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toBlob: (callback) => callback(new Blob(['photo'])) }) },
         window: {
             isSecureContext: true,
-            setTimeout: (callback) => {
-                const id = timers.size + 1;
+            setTimeout: (callback, delay) => {
+                const id = ++nextTimerId;
                 timers.set(id, callback);
+                timerDelays.set(id, delay);
                 return id;
             },
             clearTimeout: (id) => timers.delete(id),
@@ -156,8 +162,10 @@ function load({
             geolocation: {
                 watchPosition: (success, error, options) => {
                     Object.assign(callbacks, { success, error, options });
-                    watches.add(1);
-                    return 1;
+                    const id = ++nextWatchId;
+                    providers.set(options.enableHighAccuracy, { success, error, options });
+                    watches.add(id);
+                    return id;
                 },
                 clearWatch: (id) => watches.delete(id),
             },
@@ -167,6 +175,8 @@ function load({
         ...exports,
         callbacks,
         timers,
+        timerDelays,
+        providers,
         watches,
         posts,
         props,
@@ -179,6 +189,12 @@ function load({
             elapsed += milliseconds;
         },
         browserFix: (changes = {}) => callbacks.success({ coords: fix(changes), timestamp: serverTime + clockSkew + elapsed }),
+        runTimer: (delay) => {
+            const entry = [...timers].find(([id]) => timerDelays.get(id) === delay);
+            assert.ok(entry, `No timer scheduled for ${delay} ms`);
+            timers.delete(entry[0]);
+            entry[1]();
+        },
         openCamera: () => {
             exports.currentStep.value = 2;
             exports.cameraActive.value = true;
@@ -224,6 +240,101 @@ test('low accuracy does not make the browser location ready', () => {
     [...state.timers.values()][0]();
     assert.equal(state.locating.value, false);
     assert.match(state.locationError.value, /Akurasi GPS/);
+});
+
+test('PWA and iOS request balanced and precise locations with time for a cold start', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    assert.equal(state.watches.size, 2);
+    for (const highAccuracy of [true, false]) {
+        assert.equal(state.providers.get(highAccuracy).options.maximumAge, 0);
+        assert.equal(state.providers.get(highAccuracy).options.enableHighAccuracy, highAccuracy);
+        assert.equal(state.providers.get(highAccuracy).options.timeout, 25_000);
+    }
+    state.advance(8_000);
+    state.providers.get(true).error({ code: 2, POSITION_UNAVAILABLE: 2 });
+    state.providers.get(false).success({ coords: fix(), timestamp: state.deviceNow() });
+    assert.equal(await collected, true);
+    assert.equal(state.watches.size, 0);
+    assert.equal(state.timers.size, 0);
+});
+
+test('a usable indoor fix does not require satellite accuracy and keeps the best result', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    state.browserFix({ accuracy: 60 });
+    assert.equal(state.locating.value, true);
+    state.browserFix({ accuracy: 90 });
+    state.runTimer(1_500);
+    assert.equal(await collected, true);
+    assert.equal(state.currentLocation.value.accuracy, 60);
+    assert.equal(state.locationSamples.value[0].accuracy, 60);
+    assert.equal(state.watches.size, 0);
+    assert.equal(state.timers.size, 0);
+});
+
+test('a precise fix finishes immediately during the brief accuracy improvement window', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    state.browserFix({ accuracy: 75 });
+    state.browserFix({ accuracy: 12 });
+    assert.equal(await collected, true);
+    assert.equal(state.currentLocation.value.accuracy, 12);
+    assert.equal(state.timers.size, 0);
+});
+
+test('a usable fix just before the deadline succeeds without waiting past the deadline', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    state.advance(24_500);
+    state.browserFix({ accuracy: 60 });
+    state.runTimer(25_000);
+    assert.equal(await collected, true);
+    assert.equal(state.currentLocation.value.accuracy, 60);
+    assert.equal(state.watches.size, 0);
+    assert.equal(state.timers.size, 0);
+});
+
+test('rounding never makes an inaccurate fix pass the server accuracy limit', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    state.browserFix({ accuracy: 100.01 });
+    state.runTimer(25_000);
+    assert.equal(await collected, false);
+    assert.equal(state.currentLocation.value, null);
+});
+
+test('invalid browser coordinates never become evidence or poison later fixes', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    for (const changes of [{ latitude: NaN }, { latitude: 91 }, { longitude: 181 }, { accuracy: -1 }, { accuracy: Infinity }]) {
+        state.browserFix(changes);
+        assert.equal(state.currentLocation.value, null);
+        assert.equal(state.locationSamples.value.length, 0);
+    }
+    state.browserFix();
+    assert.equal(await collected, true);
+});
+
+test('permission denial cancels both providers and does not leave the page loading', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    state.providers.get(false).error({ code: 1, PERMISSION_DENIED: 1 });
+    assert.equal(await collected, false);
+    assert.equal(state.locating.value, false);
+    assert.match(state.locationError.value, /Izin lokasi ditolak/);
+    assert.equal(state.watches.size, 0);
+    assert.equal(state.timers.size, 0);
+});
+
+test('a mock fix from either provider rejects even a usable indoor candidate', async () => {
+    const state = load();
+    const collected = state.requestLocation();
+    state.browserFix({ accuracy: 60 });
+    state.providers.get(true).success({ coords: fix({ mocked: true, accuracy: 5000 }), timestamp: state.deviceNow() });
+    assert.equal(await collected, false);
+    assert.match(state.locationError.value, /Fake GPS/);
+    assert.equal(state.timers.size, 0);
 });
 
 test('mock locations and impossible movement still fail verification', () => {

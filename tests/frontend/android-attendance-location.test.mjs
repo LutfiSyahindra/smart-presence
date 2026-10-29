@@ -30,14 +30,61 @@ test('server rendering does not require a browser window', () => {
 test('Android requests a native fix with an explicit non-mock result', async () => {
     const position = fix();
     const location = load(
-        android(async (plugin, method) => {
+        android(async (plugin, method, options) => {
             assert.equal(plugin, 'AttendanceLocation');
             assert.equal(method, 'getCurrentPosition');
+            assert.equal(options.maxAccuracyMeters, 100);
+            assert.equal(typeof options.requestId, 'string');
             return position;
         }),
     );
     assert.equal(location.isAndroidAttendance(), true);
     assert.equal(await location.getAndroidAttendanceLocation(), position);
+});
+
+test('the native provider receives the configured attendance accuracy threshold', async () => {
+    const location = load(android(async (plugin, method, options) => {
+        assert.equal(options.maxAccuracyMeters, 45);
+        return fix();
+    }));
+    await location.getAndroidAttendanceLocation(45);
+});
+
+test('cancel only targets the in-flight native request and permits a new request', async () => {
+    let finish;
+    let firstId;
+    let nativeCalls = 0;
+    const location = load(android(async (plugin, method, options) => {
+        if (method === 'cancelCurrentPosition') {
+            assert.equal(options.requestId, firstId);
+            return {};
+        }
+        if (++nativeCalls === 1) {
+            firstId = options.requestId;
+            return new Promise((resolve) => { finish = resolve; });
+        }
+        assert.notEqual(options.requestId, firstId);
+        return fix();
+    }));
+    const pending = location.getAndroidAttendanceLocation();
+    await location.cancelAndroidAttendanceLocation();
+    await location.getAndroidAttendanceLocation();
+    finish(fix());
+    await pending;
+    await location.cancelAndroidAttendanceLocation();
+    assert.equal(nativeCalls, 2);
+});
+
+test('older APKs without native cancellation still ignore cancellation errors', async () => {
+    let finish;
+    const location = load(android(async (plugin, method) => {
+        if (method === 'cancelCurrentPosition') throw new Error('UNIMPLEMENTED');
+        return new Promise((resolve) => { finish = resolve; });
+    }));
+    const pending = location.getAndroidAttendanceLocation();
+    await location.cancelAndroidAttendanceLocation();
+    finish(fix());
+    await pending;
 });
 
 test('mock GPS is rejected even when its coordinates and accuracy look normal', async () => {

@@ -12,10 +12,25 @@ interface NativeBridge {
 }
 
 const bridge = () => (typeof window === 'undefined' ? undefined : (window as Window & { Capacitor?: NativeBridge }).Capacitor);
+let activeRequestId: string | null = null;
+let requestSequence = 0;
 
 export const isAndroidAttendance = () => bridge()?.getPlatform() === 'android';
 
-export async function getAndroidAttendanceLocation(): Promise<AndroidLocation> {
+export async function cancelAndroidAttendanceLocation(): Promise<void> {
+    const requestId = activeRequestId;
+    activeRequestId = null;
+    if (!requestId) return;
+
+    try {
+        await bridge()?.nativePromise?.('AttendanceLocation', 'cancelCurrentPosition', { requestId });
+    } catch {
+        // Older installed APKs do not expose cancellation yet. Their existing
+        // request still times out and stale callbacks are ignored by the page.
+    }
+}
+
+export async function getAndroidAttendanceLocation(maxAccuracyMeters = 100): Promise<AndroidLocation> {
     const capacitor = bridge();
     if (!capacitor?.nativePromise) {
         throw new Error('Pemeriksaan keamanan GPS tidak tersedia. Perbarui aplikasi Android lalu coba kembali.');
@@ -23,7 +38,14 @@ export async function getAndroidAttendanceLocation(): Promise<AndroidLocation> {
 
     // Use the bridge injected by the wrapper, so the shared web frontend does
     // not need to bundle a second Capacitor runtime. Never fall back to WebView GPS.
-    const location = await capacitor.nativePromise('AttendanceLocation', 'getCurrentPosition', {});
+    const requestId = `${Date.now()}-${++requestSequence}`;
+    activeRequestId = requestId;
+    let location: AndroidLocation;
+    try {
+        location = await capacitor.nativePromise('AttendanceLocation', 'getCurrentPosition', { requestId, maxAccuracyMeters });
+    } finally {
+        if (activeRequestId === requestId) activeRequestId = null;
+    }
     if (location?.is_mock === true) {
         throw new Error('Fake GPS terdeteksi. Nonaktifkan aplikasi lokasi palsu lalu ambil lokasi kembali.');
     }

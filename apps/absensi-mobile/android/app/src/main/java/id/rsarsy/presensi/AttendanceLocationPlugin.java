@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import java.util.ArrayList;
+import java.util.List;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -33,24 +35,50 @@ public class AttendanceLocationPlugin extends Plugin {
     private LocationManager manager;
     private LocationListener listener;
     private Runnable deadline;
+    private Runnable qualityDeadline;
     private PluginCall pending;
+    private Location bestLocation;
+    private boolean awaitingPermission;
 
     @PluginMethod
     public void getCurrentPosition(PluginCall call) {
-        if (getPermissionState("location") != PermissionState.GRANTED) {
-            requestPermissionForAlias("location", call, "locationPermissionResult");
-            return;
-        }
-        handler.post(() -> start(call));
+        handler.post(() -> {
+            if (pending != null) {
+                call.reject("Pemeriksaan lokasi masih berlangsung. Tunggu lalu coba kembali.", "LOCATION_BUSY");
+                return;
+            }
+            pending = call;
+            if (getPermissionState("location") != PermissionState.GRANTED) {
+                awaitingPermission = true;
+                requestPermissionForAlias("location", call, "locationPermissionResult");
+                return;
+            }
+            start(call);
+        });
+    }
+
+    @PluginMethod
+    public void cancelCurrentPosition(PluginCall call) {
+        handler.post(() -> {
+            String requestId = call.getString("requestId");
+            if (pending != null && requestId != null && requestId.equals(pending.getString("requestId"))) {
+                reject("Pencarian lokasi dibatalkan.", "LOCATION_INTERRUPTED");
+            }
+            call.resolve();
+        });
     }
 
     @PermissionCallback
     private void locationPermissionResult(PluginCall call) {
-        if (getPermissionState("location") != PermissionState.GRANTED) {
-            call.reject("Izinkan lokasi presisi untuk aplikasi ini melalui pengaturan perangkat.", "LOCATION_PERMISSION_DENIED");
-            return;
-        }
-        handler.post(() -> start(call));
+        handler.post(() -> {
+            if (pending != call) return;
+            awaitingPermission = false;
+            if (getPermissionState("location") != PermissionState.GRANTED) {
+                reject("Izinkan lokasi presisi untuk aplikasi ini melalui pengaturan perangkat.", "LOCATION_PERMISSION_DENIED");
+                return;
+            }
+            start(call);
+        });
     }
 
     @SuppressWarnings("deprecation")
@@ -60,19 +88,39 @@ public class AttendanceLocationPlugin extends Plugin {
             : location.isFromMockProvider();
     }
 
-    private void start(PluginCall call) {
-        if (pending != null) {
-            call.reject("Pemeriksaan GPS masih berlangsung. Tunggu lalu coba kembali.", "LOCATION_BUSY");
-            return;
+    static boolean isUsableLocation(Location location, long startedAt, long now, double maxAccuracy) {
+        return location.getElapsedRealtimeNanos() >= startedAt
+            && location.getElapsedRealtimeNanos() <= now
+            && now - location.getElapsedRealtimeNanos() <= 15_000_000_000L
+            && location.hasAccuracy()
+            && Float.isFinite(location.getAccuracy()) && location.getAccuracy() >= 0
+            && location.getAccuracy() <= maxAccuracy
+            && Double.isFinite(location.getLatitude()) && Math.abs(location.getLatitude()) <= 90
+            && Double.isFinite(location.getLongitude()) && Math.abs(location.getLongitude()) <= 180;
+    }
+
+    private List<String> enabledProviders() {
+        List<String> providers = new ArrayList<>();
+        if (manager != null) {
+            for (String provider : manager.getProviders(true)) {
+                if (!LocationManager.PASSIVE_PROVIDER.equals(provider)) providers.add(provider);
+            }
         }
+        return providers;
+    }
+
+    private void start(PluginCall call) {
+        if (pending != call) return;
         manager = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
-        if (manager == null || !manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            call.reject("GPS belum aktif. Aktifkan lokasi perangkat lalu coba kembali.", "LOCATION_DISABLED");
+        List<String> providers = enabledProviders();
+        if (providers.isEmpty()) {
+            reject("Lokasi perangkat belum aktif. Aktifkan layanan lokasi lalu coba kembali.", "LOCATION_DISABLED");
             return;
         }
 
-        pending = call;
         final long startedAt = SystemClock.elapsedRealtimeNanos();
+        Double requestedAccuracy = call.getDouble("maxAccuracyMeters", 100.0);
+        final double maxAccuracy = Double.isFinite(requestedAccuracy) && requestedAccuracy >= 10 ? requestedAccuracy : 100.0;
         listener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
@@ -83,24 +131,22 @@ public class AttendanceLocationPlugin extends Plugin {
                     reject("Fake GPS terdeteksi. Nonaktifkan aplikasi lokasi palsu lalu ambil lokasi kembali.", "MOCK_LOCATION");
                     return;
                 }
-                if (!LocationManager.GPS_PROVIDER.equals(location.getProvider())
-                    || location.getElapsedRealtimeNanos() < startedAt || !location.hasAccuracy()) return;
-
-                JSObject result = new JSObject();
-                result.put("latitude", location.getLatitude());
-                result.put("longitude", location.getLongitude());
-                result.put("accuracy", location.getAccuracy());
-                result.put("captured_at", location.getTime());
-                result.put("is_mock", false);
-                PluginCall completed = pending;
-                cleanup();
-                completed.resolve(result);
+                if (!isUsableLocation(location, startedAt, SystemClock.elapsedRealtimeNanos(), maxAccuracy)) return;
+                // Fused and Wi-Fi/network fixes can be more useful indoors than
+                // satellite GPS. Keep the most accurate fresh, non-mock fix.
+                if (bestLocation == null || location.getAccuracy() < bestLocation.getAccuracy()) bestLocation = new Location(location);
+                if (bestLocation.getAccuracy() <= Math.min(25.0, maxAccuracy)) {
+                    complete();
+                } else if (qualityDeadline == null) {
+                    qualityDeadline = () -> { if (pending == call) complete(); };
+                    handler.postDelayed(qualityDeadline, 1_500);
+                }
             }
 
             @Override
             public void onProviderDisabled(String provider) {
-                if (pending == call && LocationManager.GPS_PROVIDER.equals(provider)) {
-                    reject("GPS dinonaktifkan. Aktifkan lokasi lalu ulangi verifikasi.", "LOCATION_DISABLED");
+                if (pending == call && enabledProviders().isEmpty()) {
+                    reject("Lokasi dinonaktifkan. Aktifkan layanan lokasi lalu ulangi verifikasi.", "LOCATION_DISABLED");
                 }
             }
 
@@ -112,24 +158,40 @@ public class AttendanceLocationPlugin extends Plugin {
         };
         deadline = () -> {
             if (pending == call) {
-                reject("Pencarian GPS terlalu lama. Pindah ke area terbuka lalu coba kembali.", "LOCATION_TIMEOUT");
+                if (bestLocation != null) complete();
+                else reject("Lokasi akurat belum ditemukan. Aktifkan lokasi presisi dan Wi-Fi, lalu coba kembali.", "LOCATION_TIMEOUT");
             }
         };
-        handler.postDelayed(deadline, 15_000);
+        handler.postDelayed(deadline, 25_000);
         try {
-            // Only a fresh GPS fix supplies attendance coordinates. Observe
-            // other active providers too, to reject their mock-location flags.
-            manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, listener, Looper.getMainLooper());
-            for (String provider : manager.getProviders(true)) {
-                if (!LocationManager.GPS_PROVIDER.equals(provider) && !LocationManager.PASSIVE_PROVIDER.equals(provider)) {
+            int subscriptions = 0;
+            for (String provider : providers) {
+                try {
                     manager.requestLocationUpdates(provider, 0, 0, listener, Looper.getMainLooper());
+                    subscriptions++;
+                } catch (IllegalArgumentException ignored) {
+                    // A provider can disappear while the subscriptions start.
                 }
             }
+            if (subscriptions == 0) reject("Layanan lokasi belum tersedia. Aktifkan lokasi dan Wi-Fi lalu coba kembali.", "LOCATION_UNAVAILABLE");
         } catch (SecurityException exception) {
             reject("Izin lokasi presisi belum tersedia. Izinkan lokasi melalui pengaturan perangkat.", "LOCATION_PERMISSION_DENIED");
         } catch (RuntimeException exception) {
             reject("Pemeriksaan keamanan GPS gagal. Aktifkan GPS lalu coba kembali.", "LOCATION_UNAVAILABLE");
         }
+    }
+
+    private void complete() {
+        if (pending == null || bestLocation == null) return;
+        JSObject result = new JSObject();
+        result.put("latitude", bestLocation.getLatitude());
+        result.put("longitude", bestLocation.getLongitude());
+        result.put("accuracy", bestLocation.getAccuracy());
+        result.put("captured_at", bestLocation.getTime());
+        result.put("is_mock", false);
+        PluginCall completed = pending;
+        cleanup();
+        completed.resolve(result);
     }
 
     private void reject(String message, String code) {
@@ -140,6 +202,7 @@ public class AttendanceLocationPlugin extends Plugin {
 
     private void cleanup() {
         if (deadline != null) handler.removeCallbacks(deadline);
+        if (qualityDeadline != null) handler.removeCallbacks(qualityDeadline);
         if (manager != null && listener != null) {
             try {
                 manager.removeUpdates(listener);
@@ -150,11 +213,16 @@ public class AttendanceLocationPlugin extends Plugin {
         pending = null;
         listener = null;
         deadline = null;
+        qualityDeadline = null;
+        bestLocation = null;
+        awaitingPermission = false;
     }
 
     @Override
     protected void handleOnPause() {
-        handler.post(() -> reject("Verifikasi GPS terhenti. Buka kembali aplikasi dan ulangi verifikasi.", "LOCATION_INTERRUPTED"));
+        handler.post(() -> {
+            if (!awaitingPermission) reject("Verifikasi GPS terhenti. Buka kembali aplikasi dan ulangi verifikasi.", "LOCATION_INTERRUPTED");
+        });
     }
 
     @Override

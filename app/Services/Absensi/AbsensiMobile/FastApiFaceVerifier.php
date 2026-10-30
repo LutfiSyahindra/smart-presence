@@ -19,7 +19,7 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
         private readonly string $token,
         private readonly int $connectTimeout = 3,
         private readonly int $timeout = 45,
-        private readonly float $minimumSimilarity = 51.0,
+        private readonly float $minimumSimilarity = 40.0,
     ) {}
 
     public function compare(string $profilePhoto, string $clockInPhoto): FaceVerificationResult
@@ -65,7 +65,7 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
         return new FaceVerificationResult(
             matched: $payload['verified']
                 && $normalizedSimilarity !== null
-                && $normalizedSimilarity >= max(51, $this->minimumSimilarity),
+                && $normalizedSimilarity >= max(40, $this->minimumSimilarity),
             similarity: $normalizedSimilarity,
             provider: mb_substr($provider, 0, 50),
         );

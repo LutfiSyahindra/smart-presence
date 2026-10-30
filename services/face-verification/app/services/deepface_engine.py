@@ -154,7 +154,7 @@ class DeepFaceEngine:
             threshold = self._optional_float(result.get("threshold"))
             normalized_similarity = self._percentage(similarity)
 
-            minimum_similarity = max(51.0, self.settings.min_similarity)
+            minimum_similarity = max(40.0, self.settings.min_similarity)
             matched = (
                 result.get("verified") is True
                 and distance is not None

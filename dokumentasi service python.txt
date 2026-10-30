@@ -64,7 +64,7 @@ FACE_SERVICE_MODEL_NAME=Facenet512
 FACE_SERVICE_DETECTOR_BACKEND=opencv
 FACE_SERVICE_DISTANCE_METRIC=cosine
 # FACE_SERVICE_DISTANCE_THRESHOLD=0.30
-FACE_SERVICE_MIN_SIMILARITY=70
+FACE_SERVICE_MIN_SIMILARITY=40
 FACE_SERVICE_ANTI_SPOOFING=true
 FACE_SERVICE_MAX_UPLOAD_BYTES=5242880
 FACE_SERVICE_MIN_IMAGE_DIMENSION=160
@@ -79,9 +79,9 @@ Catatan penting:
 - Jangan memasukkan file .env atau token production ke source control.
 - Sebaiknya FACE_SERVICE_DISTANCE_THRESHOLD tetap dikomentari sampai dilakukan
   kalibrasi menggunakan foto pegawai nyata.
-- FACE_SERVICE_MIN_SIMILARITY=70 adalah standar minimum kelulusan. Verifikasi
-  hanya lolos jika DeepFace menyatakan cocok dan confidence minimal 70%.
-  Nilai di bawah 70%, termasuk 63%, selalu ditolak oleh FastAPI dan Laravel.
+- FACE_SERVICE_MIN_SIMILARITY=40 adalah standar minimum kelulusan. Verifikasi
+  hanya lolos jika DeepFace menyatakan cocok dan confidence minimal 40%.
+  Nilai di bawah 40% selalu ditolak oleh FastAPI dan Laravel.
 - Pertahankan worker sebanyak 1. Penambahan worker akan menggandakan penggunaan
   RAM karena setiap worker memuat model AI sendiri.
 - Pertahankan FACE_SERVICE_WARMUP=true pada production supaya model dimuat dan

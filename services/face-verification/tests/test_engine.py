@@ -93,23 +93,23 @@ def test_profile_embedding_is_cached_and_faces_are_not_detected_twice() -> None:
 
 
 def test_model_match_below_minimum_similarity_is_rejected() -> None:
-    fake = FakeDeepFace(confidence=50.99)
+    fake = FakeDeepFace(confidence=39.99)
     engine = DeepFaceEngine(
-        Settings(token=TOKEN, warmup=False, min_similarity=51.0)
+        Settings(token=TOKEN, warmup=False, min_similarity=40.0)
     )
     engine._deepface = fake
 
     result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
 
     assert result["verified"] is False
-    assert result["similarity"] == 50.99
-    assert result["minimum_similarity"] == 51.0
+    assert result["similarity"] == 39.99
+    assert result["minimum_similarity"] == 40.0
 
 
 def test_model_match_at_minimum_similarity_is_accepted() -> None:
-    fake = FakeDeepFace(verified=True, confidence=51.0)
+    fake = FakeDeepFace(verified=True, confidence=40.0)
     engine = DeepFaceEngine(
-        Settings(token=TOKEN, warmup=False, min_similarity=51.0)
+        Settings(token=TOKEN, warmup=False, min_similarity=40.0)
     )
     engine._deepface = fake
 
@@ -142,7 +142,7 @@ def test_similarity_never_overrides_a_model_rejection(confidence: float) -> None
 
     assert result["verified"] is False
     assert result["similarity"] == confidence
-    assert result["minimum_similarity"] == 51.0
+    assert result["minimum_similarity"] == 40.0
     assert fake.verify_calls[0]["threshold"] is None
 
 
@@ -336,14 +336,14 @@ def test_a_looser_explicit_distance_limit_cannot_relax_the_model_decision() -> N
     assert fake.verify_calls[0]["threshold"] is None
 
 
-def test_a_low_similarity_setting_does_not_accept_different_person_confidence() -> None:
+def test_a_model_match_between_40_and_the_previous_minimum_is_accepted() -> None:
     engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=40.0))
     engine._deepface = FakeDeepFace(verified=True, confidence=49.0)
 
     result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
 
-    assert result["verified"] is False
-    assert result["minimum_similarity"] == 51.0
+    assert result["verified"] is True
+    assert result["minimum_similarity"] == 40.0
 
 
 @pytest.mark.parametrize("embedding", [[], [float("nan")], [float("inf")], None])

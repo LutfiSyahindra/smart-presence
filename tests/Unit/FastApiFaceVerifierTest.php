@@ -41,7 +41,7 @@ class FastApiFaceVerifierTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'verified' => true,
-                'similarity' => 50.99,
+                'similarity' => 39.99,
                 'provider' => 'deepface-facenet512',
             ]),
         ]);
@@ -49,7 +49,7 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertFalse($result->matched);
-        $this->assertSame(50.99, $result->similarity);
+        $this->assertSame(39.99, $result->similarity);
     }
 
     public function test_it_accepts_a_model_match_at_the_minimum_similarity(): void
@@ -57,7 +57,7 @@ class FastApiFaceVerifierTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'verified' => true,
-                'similarity' => 51.0,
+                'similarity' => 40.0,
                 'provider' => 'deepface-facenet512',
             ]),
         ]);
@@ -65,7 +65,7 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertTrue($result->matched);
-        $this->assertSame(51.0, $result->similarity);
+        $this->assertSame(40.0, $result->similarity);
     }
 
     public function test_it_accepts_a_service_match_above_the_minimum(): void
@@ -157,12 +157,12 @@ class FastApiFaceVerifierTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_a_lower_configured_minimum_cannot_accept_a_different_person_confidence(): void
+    public function test_a_model_match_between_40_and_the_previous_minimum_is_accepted(): void
     {
         Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 49.0])]);
         $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 40.0);
 
-        $this->assertFalse($verifier->compare($this->jpeg(), $this->jpeg())->matched);
+        $this->assertTrue($verifier->compare($this->jpeg(), $this->jpeg())->matched);
     }
 
     public function test_it_validates_a_profile_photo_with_an_authenticated_request(): void

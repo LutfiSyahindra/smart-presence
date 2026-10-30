@@ -1,4 +1,10 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+
+class ProfileValidationResponse(BaseModel):
+    valid: Literal[True]
 
 
 class VerificationResponse(BaseModel):

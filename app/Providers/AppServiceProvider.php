@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\FaceVerifier;
+use App\Contracts\ProfilePhotoValidator;
 use App\Models\User;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepository;
 use App\Repositories\Absensi\AdminWeb\MasterData\Jabatan\JabatanRepositoryInterface;
@@ -61,12 +62,13 @@ class AppServiceProvider extends ServiceProvider
                     token: (string) $fastApi['token'],
                     connectTimeout: max(1, (int) $fastApi['connect_timeout']),
                     timeout: max(1, (int) $fastApi['timeout']),
-                    minimumSimilarity: max(0, min(100, (float) $app['config']->get('face-verification.minimum_similarity', 40))),
+                    minimumSimilarity: max(51, min(100, (float) $app['config']->get('face-verification.minimum_similarity', 51))),
                 );
             }
 
             throw new \LogicException("Driver verifikasi wajah [{$driver}] tidak didukung.");
         });
+        $this->app->bind(ProfilePhotoValidator::class, fn (Application $app): ProfilePhotoValidator => $app->make(FaceVerifier::class));
     }
 
     /**

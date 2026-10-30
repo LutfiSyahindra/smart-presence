@@ -10,7 +10,9 @@ use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Database\Seeders\UnitJabatanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -28,6 +30,12 @@ class AccountProfilePhotoTest extends TestCase
         $this->withoutVite();
         $this->seed([AuthorizationSeeder::class, UnitJabatanSeeder::class]);
         Storage::fake('local');
+        Http::preventStrayRequests();
+        config([
+            'face-verification.fastapi.url' => 'http://face-service.test',
+            'face-verification.fastapi.token' => str_repeat('test', 8),
+        ]);
+        Http::fake(['http://face-service.test/api/v1/profile/validate' => Http::response(['valid' => true])]);
 
         $this->employee = User::factory()->create([
             'name' => 'M. Lutfi Syahindra Solihin',
@@ -79,6 +87,8 @@ class AccountProfilePhotoTest extends TestCase
         $this->assertNotNull($user->profile_photo_updated_at);
         $this->assertStringStartsWith("profile-photos/{$user->id}/", $user->profile_photo_path);
         Storage::disk('local')->assertExists($user->profile_photo_path);
+        Http::assertSent(fn ($request): bool => $request->url() === 'http://face-service.test/api/v1/profile/validate'
+            && $request->hasFile('profile_photo'));
 
         $photo = $this->get('/absensi/mobile/akun/foto-profil')
             ->assertOk()
@@ -108,6 +118,18 @@ class AccountProfilePhotoTest extends TestCase
         Storage::disk('local')->assertExists($newPath);
     }
 
+    public function test_an_optimized_photo_under_twenty_kilobytes_can_be_saved(): void
+    {
+        $photo = UploadedFile::fake()->image('foto-disesuaikan.jpg', 1024, 1024);
+        $this->assertLessThan(20 * 1024, $photo->getSize());
+
+        $this->actingAs($this->employee)
+            ->post('/absensi/mobile/akun/foto-profil', ['photo' => $photo])
+            ->assertSessionHasNoErrors();
+
+        Storage::disk('local')->assertExists($this->employee->refresh()->profile_photo_path);
+    }
+
     public function test_photo_must_have_a_supported_format_and_face_ready_resolution(): void
     {
         $this->actingAs($this->employee)
@@ -119,6 +141,33 @@ class AccountProfilePhotoTest extends TestCase
             ->assertSessionHasErrors('photo');
 
         $this->assertNull($this->employee->refresh()->profile_photo_path);
+        Http::assertNothingSent();
+    }
+
+    public function test_a_rejected_or_unchecked_profile_never_replaces_the_existing_photo(): void
+    {
+        $oldPath = "profile-photos/{$this->employee->id}/foto-lama.jpg";
+        Storage::disk('local')->put($oldPath, 'old-photo');
+        $updatedAt = now()->subDay()->startOfSecond();
+        $this->employee->forceFill(['profile_photo_path' => $oldPath, 'profile_photo_updated_at' => $updatedAt])->save();
+
+        foreach ([422, 503] as $status) {
+            Http::swap(new Factory);
+            Http::fake(['*' => Http::response(['error' => [
+                'code' => $status === 422 ? 'invalid_profile_photo' : 'service_unavailable',
+                'message' => $status === 422 ? 'Foto wajah terlalu buram.' : 'Layanan belum tersedia.',
+            ]], $status)]);
+
+            $this->actingAs($this->employee)
+                ->from('/absensi/mobile/akun')
+                ->post('/absensi/mobile/akun/foto-profil', ['photo' => UploadedFile::fake()->image('foto-baru.jpg', 800, 800)])
+                ->assertRedirect('/absensi/mobile/akun')
+                ->assertSessionHasErrors('photo');
+
+            $this->assertSame($oldPath, $this->employee->refresh()->profile_photo_path);
+            $this->assertTrue($updatedAt->equalTo($this->employee->profile_photo_updated_at));
+            $this->assertSame([$oldPath], Storage::disk('local')->allFiles("profile-photos/{$this->employee->id}"));
+        }
     }
 
     public function test_a_profile_photo_is_only_served_to_its_owner(): void

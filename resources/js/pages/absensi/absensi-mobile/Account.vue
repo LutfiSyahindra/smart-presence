@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { usePermission } from '@/composables/usePermission';
+import { prepareProfilePhoto } from '@/lib/profile-photo';
 import type { SharedData } from '@/types';
+import { Dialog, DialogPanel, DialogTitle } from '@headlessui/vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
     BadgeCheck,
@@ -8,6 +10,7 @@ import {
     CalendarDays,
     Camera,
     Check,
+    ChevronDown,
     ChevronRight,
     CircleUserRound,
     FileText,
@@ -18,6 +21,7 @@ import {
     LockKeyhole,
     LogOut,
     PhoneCall,
+    ScanFace,
     ShieldCheck,
     Sparkles,
     TimerReset,
@@ -47,7 +51,10 @@ const page = usePage<SharedData>();
 const galleryInput = ref<HTMLInputElement>();
 const cameraInput = ref<HTMLInputElement>();
 const previewUrl = ref<string | null>(null);
+const fullPhotoUrl = ref<string | null>(null);
 const localError = ref('');
+const preparingPhoto = ref(false);
+let photoSelection = 0;
 
 const form = useForm<{ photo: File | null }>({ photo: null });
 
@@ -65,7 +72,7 @@ const roleLabel = computed(() => props.profile.position || props.profile.profess
 const placementLabel = computed(() => props.profile.unit || 'RS Abdurrahman Syamsuri');
 const photoSource = computed(() => previewUrl.value || props.profile.photo_url);
 const hasSavedPhoto = computed(() => Boolean(props.profile.photo_url));
-const fileSize = computed(() => (form.photo ? `${(form.photo.size / 1024 / 1024).toFixed(1)} MB` : ''));
+const fileSize = computed(() => (form.photo ? `${Math.ceil(form.photo.size / 1024)} KB` : ''));
 const updatedLabel = computed(() => {
     if (!props.profile.photo_updated_at) return null;
 
@@ -97,6 +104,8 @@ const settingsMenus = [
 ];
 
 const clearPreview = () => {
+    photoSelection += 1;
+    preparingPhoto.value = false;
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
     previewUrl.value = null;
     form.photo = null;
@@ -106,12 +115,14 @@ const clearPreview = () => {
     if (cameraInput.value) cameraInput.value.value = '';
 };
 
-const selectPhoto = (event: Event) => {
+const selectPhoto = async (event: Event) => {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
 
-    if (!file) return;
+    if (!file || form.processing) return;
 
+    const selection = ++photoSelection;
+    preparingPhoto.value = true;
     localError.value = '';
     form.clearErrors('photo');
     form.photo = null;
@@ -119,24 +130,25 @@ const selectPhoto = (event: Event) => {
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
     previewUrl.value = null;
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        localError.value = 'Gunakan foto JPG, PNG, atau WebP.';
-        input.value = '';
-        return;
-    }
+    try {
+        const prepared = await prepareProfilePhoto(file);
+        if (selection !== photoSelection) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-        localError.value = 'Ukuran foto maksimal 5 MB.';
-        input.value = '';
-        return;
+        form.photo = prepared;
+        previewUrl.value = URL.createObjectURL(prepared);
+    } catch (error) {
+        if (selection !== photoSelection) return;
+        localError.value = error instanceof Error ? error.message : 'Foto belum dapat disesuaikan. Silakan coba kembali.';
+    } finally {
+        if (selection === photoSelection) {
+            preparingPhoto.value = false;
+            input.value = '';
+        }
     }
-
-    form.photo = file;
-    previewUrl.value = URL.createObjectURL(file);
 };
 
 const uploadPhoto = () => {
-    if (!form.photo) return;
+    if (!form.photo || preparingPhoto.value || form.processing) return;
 
     form.post(route('absensi.mobile.account.photo.update'), {
         forceFormData: true,
@@ -146,6 +158,7 @@ const uploadPhoto = () => {
 };
 
 onUnmounted(() => {
+    photoSelection += 1;
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
 });
 const { can } = usePermission();
@@ -170,16 +183,24 @@ const { can } = usePermission();
                 <section class="profile-hero" aria-labelledby="profile-name">
                     <span class="hero-orb hero-orb-one" aria-hidden="true"></span>
                     <span class="hero-orb hero-orb-two" aria-hidden="true"></span>
-                    <div class="hero-avatar">
+                    <button
+                        type="button"
+                        class="hero-avatar"
+                        :class="{ 'has-photo': hasSavedPhoto }"
+                        :disabled="!hasSavedPhoto"
+                        :aria-label="hasSavedPhoto ? 'Lihat foto profil ukuran penuh' : 'Foto profil belum tersedia'"
+                        :aria-haspopup="hasSavedPhoto ? 'dialog' : undefined"
+                        @click="fullPhotoUrl = profile.photo_url"
+                    >
                         <img v-if="profile.photo_url" :src="profile.photo_url" :alt="`Foto profil ${profile.name}`" />
                         <span v-else>{{ initials }}</span>
                         <i :class="{ ready: hasSavedPhoto }"><Check v-if="hasSavedPhoto" /><Camera v-else /></i>
-                    </div>
+                    </button>
                     <div class="hero-copy">
                         <span class="hero-status" :class="{ ready: hasSavedPhoto }">
                             <BadgeCheck v-if="hasSavedPhoto" />
                             <Camera v-else />
-                            {{ hasSavedPhoto ? 'Foto siap digunakan' : 'Foto belum tersedia' }}
+                            {{ hasSavedPhoto ? 'Foto tersimpan' : 'Foto belum tersedia' }}
                         </span>
                         <h2 id="profile-name">{{ profile.name }}</h2>
                         <p>{{ roleLabel }}</p>
@@ -203,12 +224,28 @@ const { can } = usePermission();
                         <span class="secure-pill"><ShieldCheck /> Privat</span>
                     </div>
 
-                    <p class="photo-intro">
-                        Foto ini disiapkan sebagai referensi verifikasi wajah saat presensi. Pastikan wajah terlihat jelas dan natural.
-                    </p>
+                    <details class="photo-info">
+                        <summary>
+                            <ScanFace class="photo-info-icon" aria-hidden="true" />
+                            <span>Referensi wajah untuk presensi</span>
+                            <ChevronDown class="photo-info-chevron" aria-hidden="true" />
+                        </summary>
+                        <p>
+                            Gunakan foto wajah yang jelas dan natural. Ukuran dan dimensi disesuaikan otomatis tanpa dipotong. Wajah diperiksa sebelum
+                            foto disimpan.
+                        </p>
+                    </details>
 
-                    <div class="photo-editor" :class="{ selected: form.photo }">
-                        <div class="photo-preview">
+                    <div class="photo-editor" :class="{ selected: form.photo }" :aria-busy="preparingPhoto">
+                        <button
+                            type="button"
+                            class="photo-preview"
+                            :class="{ 'has-photo': photoSource }"
+                            :disabled="!photoSource"
+                            :aria-label="photoSource ? 'Lihat foto profil ukuran penuh' : 'Foto profil belum tersedia'"
+                            :aria-haspopup="photoSource ? 'dialog' : undefined"
+                            @click="fullPhotoUrl = photoSource"
+                        >
                             <img
                                 v-if="photoSource"
                                 :src="photoSource"
@@ -216,22 +253,33 @@ const { can } = usePermission();
                             />
                             <span v-else>{{ initials }}</span>
                             <i></i>
-                        </div>
+                        </button>
 
                         <div class="photo-editor-copy">
-                            <template v-if="form.photo">
+                            <template v-if="preparingPhoto">
+                                <strong role="status">Menyesuaikan foto...</strong>
+                                <small>Tunggu sebentar, foto sedang disiapkan.</small>
+                            </template>
+                            <template v-else-if="form.photo">
                                 <span class="selected-label"><Check /> Siap diunggah</span>
                                 <strong>{{ form.photo.name }}</strong>
-                                <small>{{ fileSize }} · Periksa posisi wajah sebelum menyimpan.</small>
+                                <small>{{ fileSize }} · Foto ditampilkan utuh. Periksa posisi wajah sebelum menyimpan.</small>
                             </template>
                             <template v-else>
                                 <strong>{{ hasSavedPhoto ? 'Foto wajah sudah tersimpan' : 'Tambahkan foto terbaik Anda' }}</strong>
                                 <small v-if="updatedLabel">Diperbarui {{ updatedLabel }} WIB</small>
-                                <small v-else>JPG, PNG, atau WebP · maksimal 5 MB</small>
+                                <small v-else>JPG, PNG, atau WebP · disesuaikan otomatis</small>
                             </template>
                         </div>
 
-                        <button v-if="form.photo" type="button" class="clear-photo" aria-label="Batalkan foto terpilih" @click="clearPreview">
+                        <button
+                            v-if="form.photo"
+                            type="button"
+                            class="clear-photo"
+                            :disabled="form.processing"
+                            aria-label="Batalkan foto terpilih"
+                            @click="clearPreview"
+                        >
                             <X />
                         </button>
                     </div>
@@ -239,8 +287,12 @@ const { can } = usePermission();
                     <p v-if="localError || form.errors.photo" class="photo-error" role="alert">{{ localError || form.errors.photo }}</p>
 
                     <div v-if="!form.photo" class="photo-picker-actions">
-                        <button type="button" class="primary-picker" @click="cameraInput?.click()"><Camera /> Ambil foto</button>
-                        <button type="button" class="secondary-picker" @click="galleryInput?.click()"><ImagePlus /> Pilih galeri</button>
+                        <button type="button" class="primary-picker" :disabled="preparingPhoto" @click="cameraInput?.click()">
+                            <Camera /> Ambil foto
+                        </button>
+                        <button type="button" class="secondary-picker" :disabled="preparingPhoto" @click="galleryInput?.click()">
+                            <ImagePlus /> Pilih galeri
+                        </button>
                     </div>
 
                     <div v-else class="photo-submit-actions">
@@ -252,14 +304,7 @@ const { can } = usePermission();
                         </button>
                     </div>
 
-                    <input
-                        ref="cameraInput"
-                        class="sr-only"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        capture="user"
-                        @change="selectPhoto"
-                    />
+                    <input ref="cameraInput" class="sr-only" type="file" accept="image/*" capture="user" @change="selectPhoto" />
                     <input ref="galleryInput" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectPhoto" />
 
                     <div class="photo-guides" aria-label="Panduan foto wajah">
@@ -348,6 +393,26 @@ const { can } = usePermission();
             </nav>
         </div>
     </main>
+
+    <Dialog :open="fullPhotoUrl !== null" class="photo-viewer" @close="fullPhotoUrl = null">
+        <div class="photo-viewer-backdrop" aria-hidden="true"></div>
+        <div class="photo-viewer-position">
+            <DialogPanel class="photo-viewer-panel">
+                <header class="photo-viewer-header">
+                    <div>
+                        <DialogTitle as="h2">Foto profil</DialogTitle>
+                        <p>{{ profile.name }}</p>
+                    </div>
+                    <button type="button" class="photo-viewer-close" aria-label="Tutup foto profil" @click="fullPhotoUrl = null">
+                        <X />
+                    </button>
+                </header>
+                <div class="photo-viewer-body">
+                    <img v-if="fullPhotoUrl" class="photo-viewer-image" :src="fullPhotoUrl" :alt="`Foto profil ${profile.name} ukuran penuh`" />
+                </div>
+            </DialogPanel>
+        </div>
+    </Dialog>
 </template>
 
 <style scoped>
@@ -477,8 +542,10 @@ const { can } = usePermission();
 }
 
 .hero-avatar {
-    width: 96px;
-    height: 96px;
+    --avatar-size: 96px;
+    --avatar-radius: 31px;
+    width: var(--avatar-size);
+    height: var(--avatar-size);
     padding: 4px;
     box-sizing: border-box;
     display: grid;
@@ -486,7 +553,7 @@ const { can } = usePermission();
     place-items: center;
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 31px;
+    border-radius: var(--avatar-radius);
     color: #fff;
     background: linear-gradient(145deg, #2b7772, #163d40);
     box-shadow: 0 17px 34px rgba(0, 19, 22, 0.3);
@@ -495,27 +562,41 @@ const { can } = usePermission();
     letter-spacing: 0.04em;
 }
 
+.hero-avatar.has-photo {
+    --avatar-radius: 22px;
+    width: auto;
+    height: auto;
+}
+
+.hero-avatar:enabled,
+.photo-preview:enabled {
+    cursor: zoom-in;
+}
+
+.hero-avatar:disabled,
+.photo-preview:disabled {
+    cursor: default;
+}
+
 .hero-avatar::after {
     content: '';
     position: absolute;
     inset: 4px;
     border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 26px;
+    border-radius: calc(var(--avatar-radius) - 5px);
     z-index: 1;
     pointer-events: none;
 }
 
 .hero-avatar img {
-    width: calc(100% - 8px);
-    max-width: none;
-    height: calc(100% - 8px);
+    width: auto;
+    max-width: calc(var(--avatar-size) - 10px);
+    height: auto;
+    max-height: calc(var(--avatar-size) - 10px);
     display: block;
-    position: absolute;
-    inset: 4px;
-    border-radius: 26px;
-    object-fit: cover;
+    border-radius: calc(var(--avatar-radius) - 5px);
+    object-fit: contain;
     object-position: center;
-    clip-path: inset(0 round 26px);
 }
 
 .hero-avatar > i {
@@ -692,9 +773,66 @@ const { can } = usePermission();
     height: 11px;
 }
 
-.photo-intro {
-    margin: 9px 0 0;
-    color: #768486;
+.photo-info {
+    margin-top: 9px;
+    border: 1px solid #e2eae5;
+    border-radius: 12px;
+    background: rgba(244, 248, 245, 0.75);
+}
+
+.photo-info summary {
+    min-height: 40px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: inherit;
+    color: #486762;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.4;
+    list-style: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.photo-info summary::-webkit-details-marker {
+    display: none;
+}
+
+.photo-info summary:hover {
+    background: rgba(226, 239, 231, 0.5);
+}
+
+.photo-info summary:focus-visible {
+    outline: 3px solid rgba(26, 138, 128, 0.25);
+    outline-offset: 2px;
+}
+
+.photo-info-icon {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    color: #9a7740;
+}
+
+.photo-info-chevron {
+    width: 13px;
+    height: 13px;
+    margin-left: auto;
+    flex: 0 0 auto;
+    color: #65847c;
+    transition: transform 170ms ease;
+}
+
+.photo-info[open] .photo-info-chevron {
+    transform: rotate(180deg);
+}
+
+.photo-info p {
+    margin: 0;
+    padding: 0 10px 11px;
+    color: #61736f;
     font-size: 12px;
     line-height: 1.55;
 }
@@ -717,13 +855,15 @@ const { can } = usePermission();
 }
 
 .photo-preview {
-    width: 62px;
+    width: 72px;
     height: 72px;
+    padding: 0;
     display: grid;
     flex: 0 0 auto;
     place-items: center;
     position: relative;
     overflow: hidden;
+    border: 0;
     border-radius: 16px;
     color: #fff;
     background: linear-gradient(145deg, #25736d, #173e42);
@@ -732,13 +872,19 @@ const { can } = usePermission();
     font-weight: 850;
 }
 
+.photo-preview.has-photo {
+    width: auto;
+    height: auto;
+}
+
 .photo-preview img {
-    width: 100%;
-    max-width: 100%;
-    height: 100%;
+    width: auto;
+    max-width: 72px;
+    height: auto;
+    max-height: 72px;
     display: block;
     border-radius: inherit;
-    object-fit: cover;
+    object-fit: contain;
     object-position: center;
 }
 
@@ -748,6 +894,99 @@ const { can } = usePermission();
     border: 1px solid rgba(255, 255, 255, 0.32);
     border-radius: 11px 11px 14px 14px;
     pointer-events: none;
+}
+
+:global(.photo-viewer) {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    color: #fff;
+    font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+.photo-viewer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 18, 21, 0.94);
+}
+
+.photo-viewer-position {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+}
+
+.photo-viewer-panel {
+    width: 100%;
+    height: 100%;
+    max-width: 960px;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+}
+
+.photo-viewer-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.photo-viewer-header > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.photo-viewer-header h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.photo-viewer-header p {
+    margin: 3px 0 0;
+    color: #b9ccca;
+    font-size: 12px;
+}
+
+.photo-viewer-close {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+}
+
+.photo-viewer-close svg {
+    width: 22px;
+    height: 22px;
+}
+
+.photo-viewer-body {
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
+.photo-viewer-image {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
 }
 
 .photo-editor-copy {
@@ -1176,18 +1415,12 @@ a:focus-visible {
     }
 
     .hero-avatar {
-        width: 78px;
-        height: 78px;
-        border-radius: 25px;
+        --avatar-size: 78px;
+        --avatar-radius: 25px;
     }
 
-    .hero-avatar img,
-    .hero-avatar::after {
-        border-radius: 21px;
-    }
-
-    .hero-avatar img {
-        clip-path: inset(0 round 21px);
+    .hero-avatar.has-photo {
+        --avatar-radius: 18px;
     }
 
     .hero-copy h2 {

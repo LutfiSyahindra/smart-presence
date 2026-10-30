@@ -8,6 +8,7 @@ from hashlib import sha256
 from io import BytesIO
 from typing import Any
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -64,6 +65,30 @@ class DeepFaceEngine:
                 )
             self._model_loaded = True
 
+    def validate_profile(self, profile_bytes: bytes) -> dict[str, bool]:
+        image = self._decode_image(profile_bytes, profile_photo=True)
+        with self._inference_lock:
+            deepface = self._library()
+            detection = self._detect_single_face(deepface, image, profile_photo=True)
+            self._validate_profile_quality(image, detection)
+
+            try:
+                embedding = self._represent_face(deepface, self._face_crop(detection))
+            except ValueError as exception:
+                raise FaceServiceError(
+                    "invalid_profile_photo", "Wajah pada foto profil tidak dapat dianalisis dengan jelas."
+                ) from exception
+            except Exception as exception:
+                logger.exception("DeepFace gagal menganalisis foto profil.")
+                raise FaceServiceError(
+                    "service_unavailable", "Mesin verifikasi wajah gagal memproses foto.", status_code=503
+                ) from exception
+
+            self._cache_profile_embedding(sha256(profile_bytes).hexdigest(), embedding)
+            self._model_loaded = True
+
+        return {"valid": True}
+
     def verify(self, profile_bytes: bytes, clock_in_bytes: bytes) -> dict[str, Any]:
         clock_in_image = self._decode_image(clock_in_bytes, profile_photo=False)
         profile_cache_key = sha256(profile_bytes).hexdigest()
@@ -102,7 +127,9 @@ class DeepFaceEngine:
                     distance_metric=self.settings.distance_metric,
                     enforce_detection=False,
                     align=False,
-                    threshold=self.settings.distance_threshold,
+                    # Always retain the model's pre-tuned distance decision.
+                    # A configured distance limit is an additional restriction below.
+                    threshold=None,
                     anti_spoofing=False,
                     silent=True,
                 )
@@ -127,12 +154,14 @@ class DeepFaceEngine:
             threshold = self._optional_float(result.get("threshold"))
             normalized_similarity = self._percentage(similarity)
 
-            # DeepFace's default distance decision can reject confidence scores
-            # above our configured minimum. Use the requested percentage as the
-            # decision rule, retaining a distance limit only when explicitly set.
+            minimum_similarity = max(51.0, self.settings.min_similarity)
             matched = (
-                normalized_similarity is not None
-                and normalized_similarity >= self.settings.min_similarity
+                result.get("verified") is True
+                and distance is not None
+                and threshold is not None
+                and 0 <= distance <= threshold
+                and normalized_similarity is not None
+                and normalized_similarity >= minimum_similarity
                 and (
                     self.settings.distance_threshold is None
                     or (
@@ -147,7 +176,7 @@ class DeepFaceEngine:
                 "similarity": normalized_similarity,
                 "distance": distance,
                 "threshold": threshold,
-                "minimum_similarity": self.settings.min_similarity,
+                "minimum_similarity": minimum_similarity,
                 "provider": f"deepface-{self.settings.model_name.lower()}"[:50],
                 "model": self.settings.model_name,
                 "detector_backend": self.settings.detector_backend,
@@ -161,6 +190,15 @@ class DeepFaceEngine:
         *,
         profile_photo: bool,
     ) -> NDArray[Any]:
+        return self._face_crop(self._detect_single_face(deepface, image, profile_photo=profile_photo))
+
+    def _detect_single_face(
+        self,
+        deepface: Any,
+        image: NDArray[np.uint8],
+        *,
+        profile_photo: bool,
+    ) -> dict[str, Any]:
         for backend in self._detector_backends():
             try:
                 faces = deepface.extract_faces(
@@ -211,11 +249,46 @@ class DeepFaceEngine:
                     "Foto clock-in tidak lolos pemeriksaan anti-spoofing.",
                 )
 
-            # DeepFace returns an RGB crop. Its verification pipeline reverses
-            # this crop before represent(..., detector_backend="skip").
-            return np.ascontiguousarray(faces[0]["face"][:, :, ::-1])
+            return faces[0]
 
         raise self._face_detection_error(profile_photo)
+
+    @staticmethod
+    def _face_crop(detection: dict[str, Any]) -> NDArray[Any]:
+        # DeepFace returns RGB; represent(..., detector_backend="skip") expects BGR.
+        return np.ascontiguousarray(detection["face"][:, :, ::-1])
+
+    def _validate_profile_quality(
+        self, image: NDArray[np.uint8], detection: dict[str, Any]
+    ) -> None:
+        area = detection.get("facial_area", {})
+        x, y, width, height = (int(area.get(key, 0)) for key in ("x", "y", "w", "h"))
+        image_height, image_width = image.shape[:2]
+        left = max(0, min(image_width, x))
+        top = max(0, min(image_height, y))
+        right = max(left, min(image_width, x + width))
+        bottom = max(top, min(image_height, y + height))
+        crop = image[top:bottom, left:right]
+        if min(crop.shape[:2]) < self.settings.profile_min_face_dimension:
+            raise FaceServiceError(
+                "invalid_profile_photo", "Wajah pada foto profil terlalu kecil. Ambil foto lebih dekat."
+            )
+
+        # Score only the detected face, at a fixed size so larger files do not
+        # receive a different sharpness threshold simply because of resolution.
+        normalized = cv2.resize(crop, (160, 160), interpolation=cv2.INTER_AREA)
+        gray = cv2.cvtColor(normalized, cv2.COLOR_BGR2GRAY)
+        brightness = float(gray.mean())
+        if not self.settings.profile_min_brightness <= brightness <= self.settings.profile_max_brightness:
+            raise FaceServiceError(
+                "invalid_profile_photo", "Pencahayaan wajah kurang sesuai. Gunakan cahaya yang merata dan cukup."
+            )
+
+        sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        if sharpness < self.settings.profile_min_blur_variance:
+            raise FaceServiceError(
+                "invalid_profile_photo", "Foto wajah terlalu buram. Ambil foto baru dengan kamera yang fokus."
+            )
 
     def _detector_backends(self) -> list[str]:
         return list(dict.fromkeys(
@@ -264,7 +337,11 @@ class DeepFaceEngine:
         if not isinstance(embedding, (list, np.ndarray)):
             raise ValueError("DeepFace tidak mengembalikan embedding wajah yang valid.")
 
-        return [float(value) for value in embedding]
+        values = [float(value) for value in embedding]
+        if not values or not all(math.isfinite(value) for value in values):
+            raise ValueError("Embedding wajah kosong atau tidak valid.")
+
+        return values
 
     def _cached_profile_embedding(self, key: str) -> list[float] | None:
         embedding = self._profile_embeddings.get(key)
@@ -295,6 +372,8 @@ class DeepFaceEngine:
             raise FaceServiceError(code, "File foto tidak dapat dibaca.") from exception
 
         minimum = self.settings.min_image_dimension
+        if profile_photo:
+            minimum = max(minimum, self.settings.profile_min_image_dimension)
         maximum = self.settings.max_image_dimension
         if image.width < minimum or image.height < minimum:
             code = "invalid_profile_photo" if profile_photo else "face_not_found"

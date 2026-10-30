@@ -3,35 +3,29 @@
 namespace App\Services\Absensi\AbsensiMobile;
 
 use App\Contracts\FaceVerifier;
+use App\Contracts\ProfilePhotoValidator;
 use App\Exceptions\FaceVerificationException;
 use App\ValueObjects\FaceVerificationResult;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
-final class FastApiFaceVerifier implements FaceVerifier
+final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
 {
     public function __construct(
         private readonly string $baseUrl,
         private readonly string $token,
         private readonly int $connectTimeout = 3,
         private readonly int $timeout = 45,
-        private readonly float $minimumSimilarity = 40.0,
+        private readonly float $minimumSimilarity = 51.0,
     ) {}
 
     public function compare(string $profilePhoto, string $clockInPhoto): FaceVerificationResult
     {
-        if (trim($this->baseUrl) === '' || strlen($this->token) < 32) {
-            throw $this->unavailable();
-        }
-
         try {
-            $response = Http::baseUrl(rtrim($this->baseUrl, '/'))
-                ->acceptJson()
-                ->withToken($this->token)
-                ->connectTimeout($this->connectTimeout)
-                ->timeout($this->timeout)
+            $response = $this->client()
                 ->attach('profile_photo', $profilePhoto, 'profile-photo', [
                     'Content-Type' => $this->mimeType($profilePhoto),
                 ])
@@ -71,10 +65,44 @@ final class FastApiFaceVerifier implements FaceVerifier
         return new FaceVerificationResult(
             matched: $payload['verified']
                 && $normalizedSimilarity !== null
-                && $normalizedSimilarity >= $this->minimumSimilarity,
+                && $normalizedSimilarity >= max(51, $this->minimumSimilarity),
             similarity: $normalizedSimilarity,
             provider: mb_substr($provider, 0, 50),
         );
+    }
+
+    public function validateProfilePhoto(string $photo): void
+    {
+        try {
+            $response = $this->client()
+                ->attach('profile_photo', $photo, 'profile-photo', [
+                    'Content-Type' => $this->mimeType($photo),
+                ])
+                ->post('/api/v1/profile/validate');
+        } catch (Throwable $exception) {
+            throw $this->unavailable($exception);
+        }
+
+        if ($response->failed()) {
+            throw $this->exceptionFrom($response);
+        }
+
+        if ($response->json('valid') !== true) {
+            throw $this->unavailable();
+        }
+    }
+
+    private function client(): PendingRequest
+    {
+        if (trim($this->baseUrl) === '' || strlen($this->token) < 32) {
+            throw $this->unavailable();
+        }
+
+        return Http::baseUrl(rtrim($this->baseUrl, '/'))
+            ->acceptJson()
+            ->withToken($this->token)
+            ->connectTimeout($this->connectTimeout)
+            ->timeout($this->timeout);
     }
 
     private function exceptionFrom(Response $response): FaceVerificationException

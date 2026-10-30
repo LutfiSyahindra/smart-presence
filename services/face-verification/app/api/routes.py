@@ -6,7 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
 from app.exceptions import FaceServiceError
-from app.schemas import HealthResponse, VerificationResponse
+from app.schemas import HealthResponse, ProfileValidationResponse, VerificationResponse
 from app.services.deepface_engine import DeepFaceEngine
 
 
@@ -23,6 +23,21 @@ async def liveness() -> HealthResponse:
 async def readiness(request: Request) -> HealthResponse:
     engine: DeepFaceEngine = request.app.state.engine
     return HealthResponse(status="ready", model_loaded=engine.model_loaded)
+
+
+@router.post("/profile/validate", response_model=ProfileValidationResponse)
+async def validate_profile_photo(
+    request: Request,
+    profile_photo: Annotated[UploadFile, File(description="Foto profil referensi")],
+    authorization: Annotated[str | None, Header()] = None,
+) -> ProfileValidationResponse:
+    settings: Settings = request.app.state.settings
+    _authenticate(authorization, settings)
+    contents = await _read_image(profile_photo, settings, profile_photo=True)
+    engine: DeepFaceEngine = request.app.state.engine
+    result = await run_in_threadpool(engine.validate_profile, contents)
+
+    return ProfileValidationResponse.model_validate(result)
 
 
 @router.post("/verify", response_model=VerificationResponse)

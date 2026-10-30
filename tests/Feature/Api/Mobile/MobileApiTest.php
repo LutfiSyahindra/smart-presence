@@ -8,8 +8,10 @@ use App\Models\Shift;
 use App\Models\User;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -146,6 +148,41 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('data.location_challenge.min_samples', 1)
             ->assertJsonPath('data.location_challenge.collection_seconds', 0)
             ->assertJsonStructure(['data' => ['location_challenge' => ['token', 'server_time']]]);
+    }
+
+    public function test_mobile_profile_upload_is_validated_before_replacing_the_private_photo(): void
+    {
+        Sanctum::actingAs($this->user, ['mobile']);
+        config([
+            'face-verification.fastapi.url' => 'http://face-service.test',
+            'face-verification.fastapi.token' => str_repeat('test', 8),
+        ]);
+        Http::preventStrayRequests();
+        Http::fake(['http://face-service.test/api/v1/profile/validate' => Http::response(['valid' => true])]);
+
+        $this->post('/api/mobile/v1/account/photo', [
+            'photo' => UploadedFile::fake()->image('wajah.jpg', 800, 800),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        Http::assertSentCount(1);
+        $oldPath = $this->user->refresh()->profile_photo_path;
+        $this->assertNotNull($oldPath);
+        Storage::disk('local')->assertExists($oldPath);
+
+        foreach ([422, 503] as $status) {
+            Http::swap(new Factory);
+            Http::fake(['*' => Http::response(['error' => [
+                'code' => $status === 422 ? 'invalid_profile_photo' : 'service_unavailable',
+                'message' => 'Foto belum lolos pemeriksaan.',
+            ]], $status)]);
+
+            $this->post('/api/mobile/v1/account/photo', [
+                'photo' => UploadedFile::fake()->image('baru.jpg', 800, 800),
+            ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('photo');
+
+            $this->assertSame($oldPath, $this->user->refresh()->profile_photo_path);
+            $this->assertSame([$oldPath], Storage::disk('local')->allFiles("profile-photos/{$this->user->id}"));
+        }
     }
 
     public function test_mobile_api_requires_authentication(): void

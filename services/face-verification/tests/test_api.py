@@ -19,7 +19,7 @@ class FakeEngine:
             "similarity": 98.25,
             "distance": 0.12,
             "threshold": 0.3,
-            "minimum_similarity": 40.0,
+            "minimum_similarity": 51.0,
             "provider": "deepface-facenet512",
             "model": "Facenet512",
             "detector_backend": "yunet",
@@ -31,6 +31,10 @@ class FakeEngine:
 
     def verify(self, _: bytes, __: bytes) -> dict[str, Any]:
         return self.result
+
+    def validate_profile(self, contents: bytes) -> dict[str, bool]:
+        assert contents == b"profile-image"
+        return {"valid": True}
 
 
 class SpoofEngine(FakeEngine):
@@ -68,7 +72,7 @@ def test_verify_returns_the_engine_result() -> None:
     assert response.status_code == 200
     assert response.json()["verified"] is True
     assert response.json()["similarity"] == 98.25
-    assert response.json()["minimum_similarity"] == 40.0
+    assert response.json()["minimum_similarity"] == 51.0
 
 
 def test_verify_returns_a_stable_spoof_error() -> None:
@@ -98,3 +102,48 @@ def test_verify_rejects_unsupported_file_types() -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "face_not_found"
+
+
+def test_profile_validation_requires_a_valid_token() -> None:
+    with TestClient(create_app(settings(), FakeEngine())) as client:
+        response = client.post("/api/v1/profile/validate", files={"profile_photo": files()["profile_photo"]})
+
+    assert response.status_code == 401
+
+
+def test_profile_validation_accepts_a_validated_reference() -> None:
+    with TestClient(create_app(settings(), FakeEngine())) as client:
+        response = client.post(
+            "/api/v1/profile/validate", headers={"Authorization": f"Bearer {TOKEN}"},
+            files={"profile_photo": files()["profile_photo"]},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True}
+
+
+def test_profile_validation_returns_a_quality_error() -> None:
+    class InvalidProfileEngine(FakeEngine):
+        def validate_profile(self, _: bytes) -> dict[str, bool]:
+            raise FaceServiceError("invalid_profile_photo", "Foto wajah terlalu buram.")
+
+    with TestClient(create_app(settings(), InvalidProfileEngine())) as client:
+        response = client.post(
+            "/api/v1/profile/validate", headers={"Authorization": f"Bearer {TOKEN}"},
+            files={"profile_photo": files()["profile_photo"]},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_profile_photo"
+
+
+def test_profile_validation_rejects_unsupported_empty_and_oversized_files() -> None:
+    for upload in [("x.gif", b"gif", "image/gif"), ("x.jpg", b"", "image/jpeg"), ("x.jpg", b"x" * (5 * 1024 * 1024 + 1), "image/jpeg")]:
+        with TestClient(create_app(settings(), FakeEngine())) as client:
+            response = client.post(
+                "/api/v1/profile/validate", headers={"Authorization": f"Bearer {TOKEN}"},
+                files={"profile_photo": upload},
+            )
+
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_profile_photo"

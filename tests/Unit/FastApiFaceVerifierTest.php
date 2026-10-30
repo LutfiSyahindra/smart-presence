@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Exceptions\FaceVerificationException;
 use App\Services\Absensi\AbsensiMobile\FastApiFaceVerifier;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -40,7 +41,7 @@ class FastApiFaceVerifierTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'verified' => true,
-                'similarity' => 39.99,
+                'similarity' => 50.99,
                 'provider' => 'deepface-facenet512',
             ]),
         ]);
@@ -48,7 +49,7 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertFalse($result->matched);
-        $this->assertSame(39.99, $result->similarity);
+        $this->assertSame(50.99, $result->similarity);
     }
 
     public function test_it_accepts_a_model_match_at_the_minimum_similarity(): void
@@ -56,7 +57,7 @@ class FastApiFaceVerifierTest extends TestCase
         Http::fake([
             '*' => Http::response([
                 'verified' => true,
-                'similarity' => 40.0,
+                'similarity' => 51.0,
                 'provider' => 'deepface-facenet512',
             ]),
         ]);
@@ -64,10 +65,10 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertTrue($result->matched);
-        $this->assertSame(40.0, $result->similarity);
+        $this->assertSame(51.0, $result->similarity);
     }
 
-    public function test_it_accepts_a_service_match_between_the_new_and_previous_minimum(): void
+    public function test_it_accepts_a_service_match_above_the_minimum(): void
     {
         Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 63.0])]);
 
@@ -154,6 +155,62 @@ class FastApiFaceVerifierTest extends TestCase
         }
 
         Http::assertNothingSent();
+    }
+
+    public function test_a_lower_configured_minimum_cannot_accept_a_different_person_confidence(): void
+    {
+        Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 49.0])]);
+        $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 40.0);
+
+        $this->assertFalse($verifier->compare($this->jpeg(), $this->jpeg())->matched);
+    }
+
+    public function test_it_validates_a_profile_photo_with_an_authenticated_request(): void
+    {
+        Http::fake(['*' => Http::response(['valid' => true])]);
+
+        $this->verifier()->validateProfilePhoto($this->jpeg());
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'http://127.0.0.1:8001/api/v1/profile/validate'
+            && $request->hasHeader('Authorization', 'Bearer '.self::TOKEN)
+            && $request->hasFile('profile_photo')
+            && ! $request->hasFile('clock_in_photo'));
+    }
+
+    public function test_it_rejects_a_profile_that_fails_the_quality_check(): void
+    {
+        Http::fake(['*' => Http::response(['error' => [
+            'code' => 'invalid_profile_photo', 'message' => 'Foto wajah terlalu buram.',
+        ]], 422)]);
+
+        $this->expectExceptionObject(new FaceVerificationException(
+            FaceVerificationException::INVALID_PROFILE_PHOTO, 'Foto wajah terlalu buram.',
+        ));
+
+        $this->verifier()->validateProfilePhoto($this->jpeg());
+    }
+
+    public function test_profile_validation_fails_closed_on_an_invalid_or_unavailable_response(): void
+    {
+        foreach ([['valid' => false], ['valid' => 'true'], ['verified' => true], null] as $payload) {
+            Http::swap(new Factory);
+            Http::fake(['*' => Http::response($payload, $payload === null ? 503 : 200)]);
+
+            try {
+                $this->verifier()->validateProfilePhoto($this->jpeg());
+                $this->fail('The profile must not be saved without a valid quality check.');
+            } catch (FaceVerificationException $exception) {
+                $this->assertSame(FaceVerificationException::SERVICE_UNAVAILABLE, $exception->reason);
+            }
+        }
+    }
+
+    public function test_profile_validation_fails_closed_on_a_connection_error(): void
+    {
+        Http::fake(['*' => Http::failedConnection()]);
+
+        $this->expectException(FaceVerificationException::class);
+        $this->verifier()->validateProfilePhoto($this->jpeg());
     }
 
     private function verifier(): FastApiFaceVerifier

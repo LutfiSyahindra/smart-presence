@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import PresensiApprovalStatus from '@/components/PresensiApprovalStatus.vue';
 import { usePermission } from '@/composables/usePermission';
 import { Head, Link } from '@inertiajs/vue3';
 import {
@@ -30,6 +31,7 @@ type AttendanceEvent = {
     date_time_label: string;
     location_name: string | null;
     address: string | null;
+    approval_status?: string | null;
     outside_radius: boolean;
     face_verified: boolean;
     face_similarity: number | null;
@@ -282,6 +284,10 @@ const { can } = usePermission();
                         <Transition name="detail">
                             <div v-if="clockInOpen" class="record-details">
                                 <template v-if="attendance.clock_in">
+                                    <PresensiApprovalStatus
+                                        :status="attendance.clock_in.approval_status"
+                                        href="/absensi/mobile/notifikasi/presensi?scope=mine"
+                                    />
                                     <div class="detail-row">
                                         <span><Clock3 /></span>
                                         <p>
@@ -343,6 +349,10 @@ const { can } = usePermission();
                         <Transition name="detail">
                             <div v-if="clockOutOpen" class="record-details">
                                 <template v-if="attendance.clock_out">
+                                    <PresensiApprovalStatus
+                                        :status="attendance.clock_out.approval_status"
+                                        href="/absensi/mobile/notifikasi/presensi?scope=mine"
+                                    />
                                     <div class="detail-row">
                                         <span><Clock3 /></span>
                                         <p>

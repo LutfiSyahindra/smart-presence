@@ -12,7 +12,7 @@ import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
 import SearchableMultiSelect from './components/SearchableMultiSelect.vue';
 
-type ApprovalType = 'cuti' | 'lembur' | 'perubahan-shift';
+type ApprovalType = 'cuti' | 'lembur' | 'perubahan-shift' | 'presensi';
 
 interface LineRow {
     id: number;

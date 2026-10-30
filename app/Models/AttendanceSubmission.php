@@ -25,6 +25,7 @@ class AttendanceSubmission extends Model
             'completed_at' => 'datetime',
             'last_dispatched_at' => 'datetime',
             'attendance_attributes' => 'array',
+            'approval_context' => 'array',
             'outside_radius' => 'boolean',
             'attempts' => 'integer',
         ];
@@ -61,11 +62,12 @@ class AttendanceSubmission extends Model
             'received_at' => $this->received_at->toIso8601String(),
             'date' => $this->attendance_date->toDateString(),
             'time' => $this->received_at->format('H:i'),
+            'approval_status' => $in ? $attendance?->clock_in_approval_status : $attendance?->clock_out_approval_status,
             'outside_radius' => $this->outside_radius,
             'face_similarity' => $this->status === 'succeeded'
                 ? ($in ? $attendance?->face_similarity : $attendance?->clock_out_face_similarity) : null,
             'message' => match ($this->status) {
-                'succeeded' => "{$label} berhasil. Waktu presensi telah tercatat.",
+                'succeeded' => $this->outside_radius ? "{$label} di luar radius tersimpan. Periksa status persetujuan presensi Anda." : "{$label} berhasil. Waktu presensi telah tercatat.",
                 'failed' => $this->error_message,
                 'processing' => 'Foto wajah sedang diverifikasi. Anda dapat kembali ke beranda.',
                 default => 'Permintaan absensi tersimpan dan menunggu verifikasi wajah.',

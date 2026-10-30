@@ -14,6 +14,8 @@ class ApprovalLine extends Model
 
     public const TYPE_PERUBAHAN_SHIFT = 'perubahan-shift';
 
+    public const TYPE_PRESENSI = 'presensi';
+
     protected $fillable = ['type'];
 
     /** @return list<string> */
@@ -29,6 +31,7 @@ class ApprovalLine extends Model
             self::TYPE_CUTI => 'Cuti',
             self::TYPE_LEMBUR => 'Lembur',
             self::TYPE_PERUBAHAN_SHIFT => 'Perubahan Shift',
+            self::TYPE_PRESENSI => 'Presensi (di luar radius)',
         ];
     }
 

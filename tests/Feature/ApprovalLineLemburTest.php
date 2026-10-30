@@ -99,6 +99,7 @@ class ApprovalLineLemburTest extends TestCase
                     ['value' => 'cuti', 'label' => 'Cuti'],
                     ['value' => 'lembur', 'label' => 'Lembur'],
                     ['value' => 'perubahan-shift', 'label' => 'Perubahan Shift'],
+                    ['value' => 'presensi', 'label' => 'Presensi (di luar radius)'],
                 ]));
 
         $lembur = $this->configure(overrides: ['approver_ids' => [$this->approvers[1]->id]]);
@@ -141,6 +142,7 @@ class ApprovalLineLemburTest extends TestCase
         $this->configure(ApprovalLine::TYPE_CUTI);
         $lembur = $this->configure();
         $this->configure(ApprovalLine::TYPE_PERUBAHAN_SHIFT);
+        $this->configure(ApprovalLine::TYPE_PRESENSI);
         foreach (ApprovalLine::types() as $type) {
             $this->post(self::LINES, $this->payload($type))->assertSessionHasErrors('jabatan_ids.0');
         }
@@ -149,7 +151,7 @@ class ApprovalLineLemburTest extends TestCase
         $this->put(self::LINES."/{$second->id}", $this->payload())->assertSessionHasErrors('jabatan_ids.0');
         $this->assertSame([$other->id], $second->fresh()->jabatans->modelKeys());
         $this->assertSame([$this->jabatan->id], $lembur->fresh()->jabatans->modelKeys());
-        $this->assertDatabaseCount('approval_lines', 4);
+        $this->assertDatabaseCount('approval_lines', 5);
     }
 
     public function test_invalid_categories_are_rejected_and_existing_categories_cannot_change(): void

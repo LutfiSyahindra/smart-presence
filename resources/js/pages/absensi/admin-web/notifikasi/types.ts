@@ -1,9 +1,10 @@
 import type { CutiRow } from '../cuti/types';
 
-export type ApprovalRequestType = 'all' | 'cuti' | 'lembur' | 'perubahan-shift';
+export type ApprovalRequestType = 'all' | 'cuti' | 'lembur' | 'perubahan-shift' | 'presensi';
 
 export interface ApprovalRequestRow extends CutiRow {
-    request_type?: 'cuti' | 'lembur' | 'perubahan-shift';
+    request_type?: 'cuti' | 'lembur' | 'perubahan-shift' | 'presensi';
+    action?: 'clock-in' | 'clock-out' | null;
     original_shift?: ShiftSnapshot | null;
     requested_shift?: ShiftSnapshot | null;
     duration_minutes?: number | null;
@@ -14,5 +15,5 @@ export interface ApprovalRequestRow extends CutiRow {
 
 export type ShiftSnapshot = { id: number; name: string; start_time: string; end_time: string; next_day: boolean };
 export const requestCode = (request: ApprovalRequestRow) =>
-    `${request.request_type === 'perubahan-shift' ? 'SHIFT' : request.request_type === 'lembur' ? 'LEMBUR' : 'CUTI'}-${request.id}`;
+    `${request.request_type === 'presensi' ? 'PRESENSI' : request.request_type === 'perubahan-shift' ? 'SHIFT' : request.request_type === 'lembur' ? 'LEMBUR' : 'CUTI'}-${request.id}`;
 export const duration = (minutes: number) => `${Math.floor(minutes / 60)}j ${minutes % 60}m`;

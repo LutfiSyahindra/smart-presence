@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PresensiApprovalStatus from '@/components/PresensiApprovalStatus.vue';
 import { usePermission } from '@/composables/usePermission';
 import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { Head, router } from '@inertiajs/vue3';
@@ -38,6 +39,8 @@ type LogDay = {
     tone: string;
     day_off_type: 'weekend' | 'libur_nasional' | 'cuti_bersama' | 'day_off' | null;
     day_off_reason: string | null;
+    clock_in_approval_status?: string | null;
+    clock_out_approval_status?: string | null;
     clock_in: string | null;
     clock_out: string | null;
     clock_in_date_label: string | null;
@@ -378,6 +381,10 @@ const { can } = usePermission();
                                     }}<small v-if="selectedDay[`clock_${event}_address`]">{{ selectedDay[`clock_${event}_address`] }}</small></span
                                 >
                             </p>
+                            <PresensiApprovalStatus
+                                :status="selectedDay[`clock_${event}_approval_status`]"
+                                href="/absensi/mobile/notifikasi/presensi?scope=mine"
+                            />
                             <span v-if="event === 'in' && selectedDay.late_minutes > 0" class="detail-warning"
                                 >Terlambat {{ selectedDay.late_minutes }} menit</span
                             >

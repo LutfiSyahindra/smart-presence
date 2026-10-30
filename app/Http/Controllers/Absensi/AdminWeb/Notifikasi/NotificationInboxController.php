@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Models\LemburRequest;
 use App\Models\PerubahanShiftRequest;
+use App\Models\PresensiRequest;
 use App\Services\Notifications\WebPushService;
 use App\Support\AccessPermission;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +35,8 @@ class NotificationInboxController extends Controller
             'pending_approval_count' => $request->user()->can(AccessPermission::CUTI_VIEW)
                 ? CutiRequest::query()->awaitingApprovalBy($request->user())->count()
                     + LemburRequest::query()->awaitingApprovalBy($request->user())->count()
-                    + PerubahanShiftRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
+                    + PerubahanShiftRequest::query()->awaitingApprovalBy($request->user())->count()
+                        + PresensiRequest::query()->awaitingApprovalBy($request->user())->count() : 0,
             'push_public_key' => $push->configured() ? config('webpush.public_key') : null,
         ])->header('Cache-Control', 'no-store, private');
     }
@@ -49,6 +51,13 @@ class NotificationInboxController extends Controller
     public function open(Request $request, string $notification): RedirectResponse
     {
         $item = $request->user()->notifications()->findOrFail($notification);
+        if (($item->data['request_type'] ?? null) === 'presensi') {
+            $presensi = PresensiRequest::query()->findOrFail($item->data['request_id']);
+            abort_unless($request->user()->can(AccessPermission::CUTI_VIEW) && $presensi->canBeViewedBy($request->user()), 403);
+            $item->markAsRead();
+
+            return to_route('absensi.admin-web.notifikasi.presensi', $presensi);
+        }
         if (($item->data['request_type'] ?? null) === 'perubahan-shift') {
             $shiftRequest = PerubahanShiftRequest::query()->findOrFail($item->data['request_id']);
             abort_unless($request->user()->can(AccessPermission::CUTI_VIEW) && $shiftRequest->canBeViewedBy($request->user()), 403);

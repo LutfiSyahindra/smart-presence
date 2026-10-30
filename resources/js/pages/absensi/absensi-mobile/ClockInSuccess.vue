@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import PresensiApprovalStatus from '@/components/PresensiApprovalStatus.vue';
 import { usePermission } from '@/composables/usePermission';
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowRight, Building2, CalendarDays, Check, Clock3, Home, MapPin, ShieldCheck, Sparkles, X } from 'lucide-vue-next';
@@ -17,6 +18,7 @@ const props = defineProps<{
         end_time: string | null;
         location_name: string | null;
         location_address: string | null;
+        approval_status?: string | null;
         outside_radius: boolean;
         face_verified: boolean;
         face_similarity: number | null;
@@ -60,16 +62,40 @@ const { can } = usePermission();
                     <div class="success-check"><Check /></div>
                 </div>
 
-                <span class="success-eyebrow"><i></i> Presensi berhasil dikirim</span>
-                <h1 id="success-title">{{ isClockOut ? 'Jam pulang berhasil' : 'Jam masuk berhasil' }}</h1>
+                <span class="success-eyebrow"
+                    ><i></i>
+                    {{
+                        attendance.approval_status === 'pending'
+                            ? 'Presensi menunggu persetujuan'
+                            : attendance.approval_status === 'rejected'
+                              ? 'Presensi ditolak'
+                              : 'Presensi berhasil dikirim'
+                    }}</span
+                >
+                <h1 id="success-title">
+                    {{
+                        attendance.approval_status === 'rejected'
+                            ? 'Presensi ditolak'
+                            : attendance.approval_status === 'pending'
+                              ? `${actionTitle} tersimpan`
+                              : isClockOut
+                                ? 'Jam pulang berhasil'
+                                : 'Jam masuk berhasil'
+                    }}
+                </h1>
                 <p class="success-lead">
                     {{
-                        isClockOut
-                            ? 'Terima kasih atas kerja keras Anda. Jam pulang telah tercatat aman di sistem RSARSY.'
-                            : 'Selamat bekerja. Kehadiran Anda telah tercatat aman di sistem RSARSY.'
+                        attendance.approval_status === 'pending'
+                            ? 'Waktu dan bukti presensi tersimpan. Presensi di luar radius menunggu persetujuan seluruh approver.'
+                            : attendance.approval_status === 'rejected'
+                              ? 'Buka rincian persetujuan untuk melihat alasan penolakan.'
+                              : isClockOut
+                                ? 'Terima kasih atas kerja keras Anda. Jam pulang telah tercatat aman di sistem RSARSY.'
+                                : 'Selamat bekerja. Kehadiran Anda telah tercatat aman di sistem RSARSY.'
                     }}
                 </p>
 
+                <PresensiApprovalStatus :status="attendance.approval_status" href="/absensi/mobile/notifikasi/presensi?scope=mine" />
                 <article class="attendance-card">
                     <span class="card-glow" aria-hidden="true"></span>
                     <div class="attendance-date">

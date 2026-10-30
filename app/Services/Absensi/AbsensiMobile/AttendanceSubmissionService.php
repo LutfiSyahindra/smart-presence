@@ -116,6 +116,11 @@ class AttendanceSubmissionService
                     'updated_by' => $request->user()->id,
                 ])->save();
 
+                if ($outsideRadius) {
+                    $approval = app(PresensiApprovalService::class);
+                    $approval->submit($presensi, 'clock-in', $approval->snapshot($request->user(), (string) $request->input('outside_radius_note')));
+                }
+
                 return $presensi->refresh();
             });
         } catch (ValidationException $exception) {
@@ -133,7 +138,7 @@ class AttendanceSubmissionService
             'attendance' => $attendance,
             'outside_radius' => $outsideRadius,
             'message' => $outsideRadius
-                ? 'Clock-in berhasil dikirim dengan catatan lokasi di luar radius.'
+                ? 'Clock-in di luar radius tersimpan dan menunggu persetujuan.'
                 : 'Clock-in berhasil. Selamat bekerja!',
         ];
     }
@@ -224,6 +229,11 @@ class AttendanceSubmissionService
                     'updated_by' => $request->user()->id,
                 ])->save();
 
+                if ($outsideRadius) {
+                    $approval = app(PresensiApprovalService::class);
+                    $approval->submit($lockedAttendance, 'clock-out', $approval->snapshot($request->user(), (string) $request->input('outside_radius_note')));
+                }
+
                 return $lockedAttendance->refresh();
             });
         } catch (ValidationException $exception) {
@@ -241,7 +251,7 @@ class AttendanceSubmissionService
             'attendance' => $attendance,
             'outside_radius' => $outsideRadius,
             'message' => $outsideRadius
-                ? 'Clock-out berhasil dikirim dengan catatan lokasi di luar radius.'
+                ? 'Clock-out di luar radius tersimpan dan menunggu persetujuan.'
                 : 'Clock-out berhasil. Terima kasih atas kerja keras Anda!',
         ];
     }

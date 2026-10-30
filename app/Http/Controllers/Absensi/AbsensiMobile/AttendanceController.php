@@ -65,6 +65,7 @@ class AttendanceController extends Controller
                 'duration' => $this->durationLabel($clockIn, $clockOut),
                 'notes' => $attendance?->notes ?? $dayOffReason,
                 'clock_in' => $clockIn ? [
+                    'approval_status' => $attendance?->clock_in_approval_status,
                     'time' => $clockIn->format('H:i'),
                     'date_time_label' => $clockIn->locale('id')->translatedFormat('d M Y, H:i').' WIB',
                     'location_name' => $attendance?->clockInLocation?->name,
@@ -80,6 +81,7 @@ class AttendanceController extends Controller
                     'schedule_status_tone' => ($attendance?->lateMinutes() ?? 0) > 0 ? 'warning' : 'success',
                 ] : null,
                 'clock_out' => $clockOut ? [
+                    'approval_status' => $attendance?->clock_out_approval_status,
                     'time' => $clockOut->format('H:i'),
                     'date_time_label' => $clockOut->locale('id')->translatedFormat('d M Y, H:i').' WIB',
                     'location_name' => $attendance?->clockOutLocation?->name,

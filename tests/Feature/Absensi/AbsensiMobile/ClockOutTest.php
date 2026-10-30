@@ -19,7 +19,7 @@ use Tests\TestCase;
 
 class ClockOutTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ConfiguresPresensiApproval;
 
     private User $user;
 
@@ -182,6 +182,7 @@ class ClockOutTest extends TestCase
 
     public function test_clock_out_outside_radius_requires_a_note_and_preserves_existing_notes(): void
     {
+        $this->configurePresensiApproval($this->pegawai);
         $this->travelTo('2026-09-16 15:00:00');
         $presensi = $this->attendance([
             'clock_in_at' => '2026-09-16 07:00:00',

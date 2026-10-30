@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Absensi\ConfigurationService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,8 @@ class Presensi extends Model
         'tanggal_presensi',
         'clock_in_at',
         'clock_out_at',
+        'clock_in_approval_status',
+        'clock_out_approval_status',
         'clock_in_location_id',
         'clock_out_location_id',
         'clock_in_latitude',
@@ -106,6 +109,28 @@ class Presensi extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
+    public function approvalState(): ?string
+    {
+        $states = [$this->clock_in_approval_status, $this->clock_out_approval_status];
+
+        return in_array('rejected', $states, true) ? 'rejected' : (in_array('pending', $states, true) ? 'pending' : null);
+    }
+
+    /** Pending/rejected evidence is visible but is not an accepted attendance record. */
+    public function scopeAccepted(Builder $query): Builder
+    {
+        return self::constrainAccepted($query);
+    }
+
+    public static function constrainAccepted(Builder $query): Builder
+    {
+        foreach (['clock_in_approval_status', 'clock_out_approval_status'] as $column) {
+            $query->where(fn ($query) => $query->whereNull('presensis.'.$column)->orWhere('presensis.'.$column, 'approved'));
+        }
+
+        return $query;
+    }
+
     public function lateMinutes(): int
     {
         if ($this->is_day_off || ! $this->clock_in_at || ! $this->shift || ! $this->tanggal_presensi) {
@@ -122,7 +147,7 @@ class Presensi extends Model
             $scheduledClockOut->addDay();
         }
         $scheduledClockIn->addMinutes($this->lemburAllowance('late_arrival', $scheduledClockIn, $scheduledClockOut));
-        $scheduledClockIn->addMinutes(app(\App\Services\Absensi\ConfigurationService::class)->current()->clock_in_tolerance_minutes);
+        $scheduledClockIn->addMinutes(app(ConfigurationService::class)->current()->clock_in_tolerance_minutes);
 
         return $this->clock_in_at->gt($scheduledClockIn)
             ? (int) $scheduledClockIn->diffInMinutes($this->clock_in_at)
@@ -178,9 +203,9 @@ class Presensi extends Model
     /** Keep the SQL filters and totals consistent with the approved arrival boundary. */
     public static function constrainArrivalStatus(Builder $query, bool $late): Builder
     {
-        $tolerance = app(\App\Services\Absensi\ConfigurationService::class)->current()->clock_in_tolerance_minutes;
+        $tolerance = app(ConfigurationService::class)->current()->clock_in_tolerance_minutes;
 
-        return $query->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at')
+        return self::constrainAccepted($query)->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at')
             ->whereExists(function ($shift) use ($query, $late, $tolerance) {
                 $allowance = "(select coalesce(sum(arrival_usage.duration_minutes), 0) from lembur_requests as arrival_usage
                     where arrival_usage.pegawai_id = presensis.pegawai_id and arrival_usage.shift_id = presensis.shift_id

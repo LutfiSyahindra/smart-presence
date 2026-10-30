@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PresensiApprovalStatus from '@/components/PresensiApprovalStatus.vue';
 import { AlarmClock, ExternalLink, Eye, ImageOff, MapPin, TimerReset } from 'lucide-vue-next';
 import { computed } from 'vue';
 
@@ -11,6 +12,7 @@ interface LocationData {
 }
 
 interface ClockData {
+    approval_status?: string | null;
     time: string | null;
     date_time: string | null;
     location: LocationData | null;
@@ -62,6 +64,7 @@ const showPhoto = () => {
         </button>
         <div>
             <strong>{{ clock.time || '--:--' }}</strong>
+            <PresensiApprovalStatus :status="clock.approval_status" />
             <template v-if="type === 'in' && lemburLateArrival">
                 <small class="lembur-indicator">
                     <TimerReset aria-hidden="true" />Izin telat: saldo lembur {{ lemburLateArrival.minutes }} menit

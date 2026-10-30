@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Models\LemburRequest;
 use App\Models\PerubahanShiftRequest;
+use App\Models\PresensiRequest;
 use App\Services\Absensi\AbsensiMobile\LemburService;
 use App\Services\Absensi\AbsensiMobile\PerubahanShiftService;
+use App\Services\Absensi\AbsensiMobile\PresensiApprovalService;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use App\Support\AccessPermission;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,7 +28,7 @@ class NotifikasiController extends Controller
         $user = $request->user();
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:150'],
-            'request_type' => ['nullable', Rule::in(['all', 'cuti', 'lembur', 'perubahan-shift'])],
+            'request_type' => ['nullable', Rule::in(['all', 'cuti', 'lembur', 'perubahan-shift', 'presensi'])],
         ]);
         $search = trim($filters['search'] ?? '');
         $requestType = $category === 'butuh-approval' ? ($filters['request_type'] ?? 'all') : 'all';
@@ -45,24 +47,30 @@ class NotifikasiController extends Controller
             ->when(! $user->hasRole('super-admin'), fn (Builder $query) => $query->where(function (Builder $query) use ($user) {
                 $query->where('user_id', $user->id)->orWhereHas('approvals', fn ($steps) => $steps->where('user_id', $user->id)->where('status', 'approved'));
             }));
-        $requestTypeCounts = [
+        $presensiInbox = PresensiRequest::query()->awaitingApprovalBy($user);
+        $presensiApproved = PresensiRequest::query()->where('status', 'approved')
+            ->when(! $user->hasRole('super-admin'), fn (Builder $query) => $query->where(function (Builder $query) use ($user) {
+                $query->where('user_id', $user->id)->orWhereHas('approvals', fn ($steps) => $steps->where('user_id', $user->id)->where('status', 'approved'));
+            }));
+        $requestTypeCounts = ['presensi' => (clone $presensiInbox)->count(),
             'cuti' => (clone $inbox)->count(),
             'lembur' => (clone $lemburInbox)->count(),
             'perubahan-shift' => (clone $shiftInbox)->count(),
         ];
         $overview = [
             'inbox' => array_sum($requestTypeCounts),
-            'approved' => (clone $approved)->count() + (clone $lemburApproved)->count() + (clone $shiftApproved)->count(),
+            'approved' => (clone $approved)->count() + (clone $lemburApproved)->count() + (clone $shiftApproved)->count() + (clone $presensiApproved)->count(),
         ];
         $queries = ['cuti' => $category === 'disetujui' ? $approved : $inbox, 'lembur' => $category === 'disetujui' ? $lemburApproved : $lemburInbox];
         $queries['perubahan-shift'] = $category === 'disetujui' ? $shiftApproved : $shiftInbox;
+        $queries['presensi'] = $category === 'disetujui' ? $presensiApproved : $presensiInbox;
         foreach ($queries as $type => $query) {
             $query->when($search !== '', fn (Builder $query) => $query->where(function (Builder $query) use ($search) {
                 $query->where('nama_pegawai', 'like', "%{$search}%")->orWhere('nama_jabatan', 'like', "%{$search}%")->orWhere('nama_unit', 'like', "%{$search}%");
             }))->select('id')->selectRaw("'{$type}' as request_type")
                 ->addSelect($category === 'disetujui' ? 'decided_at as sort_at' : 'created_at as sort_at');
         }
-        $requests = DB::query()->fromSub($queries['cuti']->unionAll($queries['lembur'])->unionAll($queries['perubahan-shift'])->toBase(), 'pengajuan')
+        $requests = DB::query()->fromSub($queries['cuti']->unionAll($queries['lembur'])->unionAll($queries['perubahan-shift'])->unionAll($queries['presensi'])->toBase(), 'pengajuan')
             ->when($requestType !== 'all', fn ($query) => $query->where('request_type', $requestType))
             ->orderByDesc('sort_at')->orderByDesc('id')->orderBy('request_type')->paginate(10)->withQueryString();
         $rows = $requests->getCollection();
@@ -70,20 +78,26 @@ class NotifikasiController extends Controller
         $lemburRows = LemburRequest::query()->with('approvals')->whereIn('id', $rows->where('request_type', 'lembur')->pluck('id'))->get()->keyBy('id');
         $shiftRows = PerubahanShiftRequest::query()->with('approvals')->whereIn('id', $rows->where('request_type', 'perubahan-shift')->pluck('id'))->get()->keyBy('id');
 
+        $presensiRows = PresensiRequest::query()->with('approvals')->whereIn('id', $rows->where('request_type', 'presensi')->pluck('id'))->get()->keyBy('id');
+
         return Inertia::render('absensi/admin-web/notifikasi/Index', [
-            'requests' => $requests->through(function ($row) use ($cutiRows, $lemburRows, $shiftRows, $user, $category) {
-                $cuti = match ($row->request_type) { 'cuti' => $cutiRows[$row->id], 'lembur' => $lemburRows[$row->id], default => $shiftRows[$row->id] };
+            'requests' => $requests->through(function ($row) use ($cutiRows, $lemburRows, $shiftRows, $presensiRows, $user, $category) {
+                $cuti = match ($row->request_type) {
+                    'cuti' => $cutiRows[$row->id], 'lembur' => $lemburRows[$row->id], 'presensi' => $presensiRows[$row->id], default => $shiftRows[$row->id]
+                };
                 $isLembur = $row->request_type === 'lembur';
                 $isShift = $row->request_type === 'perubahan-shift';
-                $start = $isShift ? $cuti->tanggal_perubahan : ($isLembur ? $cuti->tanggal_lembur : $cuti->tanggal_mulai);
-                $end = $isShift || $isLembur ? $start : $cuti->tanggal_selesai;
+                $isPresensi = $row->request_type === 'presensi';
+                $start = $isPresensi ? $cuti->tanggal_presensi : ($isShift ? $cuti->tanggal_perubahan : ($isLembur ? $cuti->tanggal_lembur : $cuti->tanggal_mulai));
+                $end = $isPresensi || $isShift || $isLembur ? $start : $cuti->tanggal_selesai;
 
                 return [
                     'request_type' => $row->request_type,
+                    'action' => $isPresensi ? $cuti->action : null,
                     'id' => $cuti->id, 'nama_pegawai' => $cuti->nama_pegawai, 'jabatan' => $cuti->nama_jabatan, 'unit' => $cuti->nama_unit,
                     'tanggal_mulai' => $start->format('Y-m-d'), 'tanggal_selesai' => $end->format('Y-m-d'),
                     'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
-                    'nama_cuti' => $isLembur || $isShift ? null : $cuti->nama_cuti, 'jumlah_hari' => $isLembur || $isShift ? null : $cuti->jumlah_hari,
+                    'nama_cuti' => $isPresensi || $isLembur || $isShift ? null : $cuti->nama_cuti, 'jumlah_hari' => $isPresensi || $isLembur || $isShift ? null : $cuti->jumlah_hari,
                     'original_shift' => $isShift ? $cuti->original_shift : null, 'requested_shift' => $isShift ? $cuti->requested_shift : null,
                     'duration_minutes' => $isLembur ? $cuti->duration_minutes : null,
                     'request_kind' => $isLembur ? $cuti->request_kind : null,
@@ -104,13 +118,15 @@ class NotifikasiController extends Controller
         ]);
     }
 
-    public function approveMany(Request $request, CutiService $service, LemburService $lemburService, PerubahanShiftService $shiftService): RedirectResponse
+    public function approveMany(Request $request, CutiService $service, LemburService $lemburService, PerubahanShiftService $shiftService, PresensiApprovalService $presensiService): RedirectResponse
     {
         $data = $request->validate([
             'request_ids' => ['nullable', 'array', 'max:100'],
             'request_ids.*' => ['required', 'integer', 'distinct'],
             'lembur_request_ids' => ['nullable', 'array', 'max:100'],
             'lembur_request_ids.*' => ['required', 'integer', 'distinct'],
+            'presensi_request_ids' => ['nullable', 'array', 'max:100'],
+            'presensi_request_ids.*' => ['required', 'integer', 'distinct'],
             'perubahan_shift_request_ids' => ['nullable', 'array', 'max:100'],
             'perubahan_shift_request_ids.*' => ['required', 'integer', 'distinct'],
         ], [
@@ -125,11 +141,12 @@ class NotifikasiController extends Controller
         $cutiIds = $data['request_ids'] ?? [];
         $lemburIds = $data['lembur_request_ids'] ?? [];
         $shiftIds = $data['perubahan_shift_request_ids'] ?? [];
-        $count = count($cutiIds) + count($lemburIds) + count($shiftIds);
+        $presensiIds = $data['presensi_request_ids'] ?? [];
+        $count = count($cutiIds) + count($lemburIds) + count($shiftIds) + count($presensiIds);
         if ($count < 1 || $count > 100) {
             throw ValidationException::withMessages(['request_ids' => 'Pilih 1 sampai 100 pengajuan untuk disetujui.']);
         }
-        DB::transaction(function () use ($request, $service, $lemburService, $shiftService, $cutiIds, $lemburIds, $shiftIds) {
+        DB::transaction(function () use ($request, $service, $lemburService, $shiftService, $cutiIds, $lemburIds, $shiftIds, $presensiIds, $presensiService) {
             if ($cutiIds !== []) {
                 $service->approveMany($request->user(), $cutiIds);
             }
@@ -146,6 +163,13 @@ class NotifikasiController extends Controller
             }
             foreach ($shiftRequests as $shiftRequest) {
                 $shiftService->decide($shiftRequest, $request->user(), ['decision' => 'approved']);
+            }
+            $presensiRequests = PresensiRequest::query()->whereIn('id', $presensiIds)->orderBy('id')->lockForUpdate()->get();
+            if ($presensiRequests->count() !== count($presensiIds)) {
+                throw ValidationException::withMessages(['presensi_request_ids' => 'Ada pengajuan presensi yang tidak tersedia. Muat ulang daftar.']);
+            }
+            foreach ($presensiRequests as $presensi) {
+                $presensiService->decide($presensi, $request->user(), ['decision' => 'approved']);
             }
         });
 

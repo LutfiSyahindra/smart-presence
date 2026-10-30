@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Middleware\HandleInertiaRequests;
-use App\Support\AccessPermission;
 use App\Support\Portal;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,7 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withBroadcasting(__DIR__.'/../routes/channels.php', [
-        'middleware' => ['web', 'auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS],
+        'middleware' => ['web', 'auth', 'verified'],
     ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);

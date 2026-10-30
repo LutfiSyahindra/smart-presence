@@ -66,7 +66,7 @@ interface PresensiRow {
     late_minutes: number;
     lembur_late_arrival: { minutes: number; original_time: string; adjusted_time: string } | null;
     early_departure_minutes: number;
-    status: 'day-off' | 'incomplete' | 'late' | 'on-time' | null;
+    status: 'day-off' | 'incomplete' | 'late' | 'on-time' | 'approval-pending' | 'approval-rejected' | null;
     updated_by: string | null;
     updated_at: string | null;
 }
@@ -174,6 +174,8 @@ const shiftOptions = computed<SearchableSelectOption[]>(() =>
 );
 const statusOptions: SearchableSelectOption[] = [
     { value: 'all', label: 'Semua status' },
+    { value: 'approval-pending', label: 'Menunggu persetujuan' },
+    { value: 'approval-rejected', label: 'Presensi ditolak' },
     { value: 'present', label: 'Hadir' },
     { value: 'on-time', label: 'Tepat waktu' },
     { value: 'late', label: 'Terlambat' },
@@ -216,6 +218,8 @@ const overtimeLabel = (minutes: number) => {
 };
 
 const statusMeta = (record: PresensiRow) => {
+    if (record.status === 'approval-pending') return { label: 'Menunggu persetujuan', tone: 'incomplete', icon: TimerReset };
+    if (record.status === 'approval-rejected') return { label: 'Presensi ditolak', tone: 'late', icon: AlarmClock };
     if (record.status === 'day-off') return { label: 'Libur', tone: 'day-off', icon: Coffee };
     if (record.status === 'late') return { label: `Telat ${record.late_minutes} mnt`, tone: 'late', icon: AlarmClock };
     if (record.status === 'on-time') return { label: 'Tepat waktu', tone: 'on-time', icon: CheckCircle2 };

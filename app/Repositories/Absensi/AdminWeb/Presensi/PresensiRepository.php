@@ -27,7 +27,7 @@ class PresensiRepository implements PresensiRepositoryInterface
 
         return [
             'total' => (clone $query)->count(),
-            'present' => (clone $query)->where('is_day_off', false)->whereNotNull('clock_in_at')->count(),
+            'present' => (clone $query)->accepted()->where('is_day_off', false)->whereNotNull('clock_in_at')->count(),
             'late' => $this->applyStatus((clone $query), 'late')->count(),
             'overtime' => (clone $query)->where('overtime_minutes', '>', 0)->count(),
             'day_off' => (clone $query)->where('is_day_off', true)->count(),
@@ -92,7 +92,11 @@ class PresensiRepository implements PresensiRepositoryInterface
     private function applyRosterStatus(Builder $query, ?string $status): Builder
     {
         return match ($status) {
-            'present' => $query->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at'),
+            'approval-pending' => $query->where(fn ($query) => $query->where('presensis.clock_in_approval_status', 'pending')->orWhere('presensis.clock_out_approval_status', 'pending'))
+                ->where(fn ($query) => $query->whereNull('presensis.clock_in_approval_status')->orWhere('presensis.clock_in_approval_status', '!=', 'rejected'))
+                ->where(fn ($query) => $query->whereNull('presensis.clock_out_approval_status')->orWhere('presensis.clock_out_approval_status', '!=', 'rejected')),
+            'approval-rejected' => $query->where(fn ($query) => $query->where('presensis.clock_in_approval_status', 'rejected')->orWhere('presensis.clock_out_approval_status', 'rejected')),
+            'present' => Presensi::constrainAccepted($query)->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at'),
             'late' => Presensi::constrainArrivalStatus($query, true),
             'on-time' => Presensi::constrainArrivalStatus($query, false),
             'incomplete' => $query->where('presensis.is_day_off', false)
@@ -108,7 +112,11 @@ class PresensiRepository implements PresensiRepositoryInterface
     private function applyStatus(Builder $query, ?string $status): Builder
     {
         return match ($status) {
-            'present' => $query->where('is_day_off', false)->whereNotNull('clock_in_at'),
+            'approval-pending' => $query->where(fn ($query) => $query->where('presensis.clock_in_approval_status', 'pending')->orWhere('presensis.clock_out_approval_status', 'pending'))
+                ->where(fn ($query) => $query->whereNull('presensis.clock_in_approval_status')->orWhere('presensis.clock_in_approval_status', '!=', 'rejected'))
+                ->where(fn ($query) => $query->whereNull('presensis.clock_out_approval_status')->orWhere('presensis.clock_out_approval_status', '!=', 'rejected')),
+            'approval-rejected' => $query->where(fn ($query) => $query->where('presensis.clock_in_approval_status', 'rejected')->orWhere('presensis.clock_out_approval_status', 'rejected')),
+            'present' => $query->accepted()->where('is_day_off', false)->whereNotNull('clock_in_at'),
             'late' => Presensi::constrainArrivalStatus($query, true),
             'on-time' => Presensi::constrainArrivalStatus($query, false),
             'incomplete' => $query->where('is_day_off', false)

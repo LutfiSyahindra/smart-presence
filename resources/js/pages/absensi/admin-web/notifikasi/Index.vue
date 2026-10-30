@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, SharedData } from '@/types';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowRightLeft, Bell, CalendarDays, CheckCheck, CheckCircle2, ClipboardList, Inbox, Search, Timer } from 'lucide-vue-next';
+import { ArrowRightLeft, Bell, CalendarDays, CheckCheck, CheckCircle2, ClipboardList, Inbox, MapPin, Search, Timer } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import '../approval-workflow.css';
 import CutiRequestDetail from '../cuti/components/CutiRequestDetail.vue';
@@ -30,6 +30,7 @@ const categories = computed(() => [
 const activeCategory = computed(() => categories.value.find((item) => item.key === props.category)!);
 const requestTypes = computed(() => [
     { key: 'all' as const, title: 'Semua pengajuan', name: 'pengajuan', count: props.overview.inbox, icon: ClipboardList },
+    { key: 'presensi' as const, title: 'Presensi di luar radius', name: 'pengajuan presensi', count: props.requestTypeCounts.presensi, icon: MapPin },
     { key: 'cuti' as const, title: 'Pengajuan Cuti', name: 'pengajuan cuti', count: props.requestTypeCounts.cuti, icon: CalendarDays },
     { key: 'lembur' as const, title: 'Pengajuan Lembur', name: 'pengajuan lembur', count: props.requestTypeCounts.lembur, icon: Timer },
     {
@@ -51,15 +52,22 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     { title: activeCategory.value.title, href: `${baseUrl}/${props.category}` },
 ]);
 const selected = ref<CutiRow | null>(null);
-const bulkForm = useForm({ request_ids: [] as number[], lembur_request_ids: [] as number[], perubahan_shift_request_ids: [] as number[] });
+const bulkForm = useForm({
+    request_ids: [] as number[],
+    lembur_request_ids: [] as number[],
+    perubahan_shift_request_ids: [] as number[],
+    presensi_request_ids: [] as number[],
+});
 const bulkReviewOpen = ref(false);
 const selectableRequests = computed(() => (props.category === 'butuh-approval' ? props.requests.data.filter((cuti) => cuti.can_decide) : []));
 const isSelected = (request: ApprovalRequestRow) =>
-    (request.request_type === 'perubahan-shift'
-        ? bulkForm.perubahan_shift_request_ids
-        : request.request_type === 'lembur'
-          ? bulkForm.lembur_request_ids
-          : bulkForm.request_ids
+    (request.request_type === 'presensi'
+        ? bulkForm.presensi_request_ids
+        : request.request_type === 'perubahan-shift'
+          ? bulkForm.perubahan_shift_request_ids
+          : request.request_type === 'lembur'
+            ? bulkForm.lembur_request_ids
+            : bulkForm.request_ids
     ).includes(request.id);
 const selectedRequests = computed(() => selectableRequests.value.filter(isSelected));
 const allSelected = computed(() => selectableRequests.value.length > 0 && selectedRequests.value.length === selectableRequests.value.length);
@@ -69,8 +77,11 @@ const toggleAll = (event: Event) => {
     bulkForm.clearErrors();
     const checked = (event.target as HTMLInputElement).checked;
     bulkForm.request_ids = checked
-        ? selectableRequests.value.filter((row) => row.request_type !== 'lembur' && row.request_type !== 'perubahan-shift').map((row) => row.id)
+        ? selectableRequests.value
+              .filter((row) => row.request_type !== 'lembur' && row.request_type !== 'perubahan-shift' && row.request_type !== 'presensi')
+              .map((row) => row.id)
         : [];
+    bulkForm.presensi_request_ids = checked ? selectableRequests.value.filter((row) => row.request_type === 'presensi').map((row) => row.id) : [];
     bulkForm.lembur_request_ids = checked ? selectableRequests.value.filter((row) => row.request_type === 'lembur').map((row) => row.id) : [];
     bulkForm.perubahan_shift_request_ids = checked
         ? selectableRequests.value.filter((row) => row.request_type === 'perubahan-shift').map((row) => row.id)
@@ -253,7 +264,12 @@ onBeforeUnmount(() => {
                             <tr v-for="cuti in requests.data" :key="requestCode(cuti)" :class="{ 'bulk-selected-row': isSelected(cuti) }">
                                 <td v-if="category === 'butuh-approval'" class="bulk-select-cell">
                                     <input
-                                        v-if="cuti.can_decide && cuti.request_type !== 'lembur' && cuti.request_type !== 'perubahan-shift'"
+                                        v-if="
+                                            cuti.can_decide &&
+                                            cuti.request_type !== 'lembur' &&
+                                            cuti.request_type !== 'perubahan-shift' &&
+                                            cuti.request_type !== 'presensi'
+                                        "
                                         v-model="bulkForm.request_ids"
                                         type="checkbox"
                                         class="bulk-checkbox"
@@ -275,6 +291,16 @@ onBeforeUnmount(() => {
                                     <input
                                         v-else-if="cuti.can_decide && cuti.request_type === 'perubahan-shift'"
                                         v-model="bulkForm.perubahan_shift_request_ids"
+                                        type="checkbox"
+                                        class="bulk-checkbox"
+                                        :value="cuti.id"
+                                        :disabled="bulkForm.processing"
+                                        :aria-label="`Pilih pengajuan #${requestCode(cuti)} dari ${cuti.nama_pegawai}`"
+                                        @change="bulkForm.clearErrors()"
+                                    />
+                                    <input
+                                        v-else-if="cuti.can_decide && cuti.request_type === 'presensi'"
+                                        v-model="bulkForm.presensi_request_ids"
                                         type="checkbox"
                                         class="bulk-checkbox"
                                         :value="cuti.id"
@@ -308,6 +334,12 @@ onBeforeUnmount(() => {
                                             }}{{ cuti.requested_shift?.next_day ? ' (+1 hari)' : '' }}</small
                                         ></template
                                     >
+                                    <template v-else-if="cuti.request_type === 'presensi'"
+                                        ><strong>Presensi di luar radius</strong
+                                        ><small
+                                            >{{ cuti.action === 'clock-in' ? 'Clock-in' : 'Clock-out' }} · {{ date(cuti.tanggal_mulai) }}</small
+                                        ></template
+                                    >
                                     <template v-else>
                                         <strong>{{ cuti.nama_cuti || 'Cuti' }}</strong>
                                         <small>{{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</small>
@@ -321,7 +353,11 @@ onBeforeUnmount(() => {
                                 </td>
                                 <td class="text-end">
                                     <Link
-                                        v-if="cuti.request_type === 'lembur' || cuti.request_type === 'perubahan-shift'"
+                                        v-if="
+                                            cuti.request_type === 'lembur' ||
+                                            cuti.request_type === 'perubahan-shift' ||
+                                            cuti.request_type === 'presensi'
+                                        "
                                         :href="`${baseUrl}/pengajuan/${cuti.request_type}/${cuti.id}`"
                                         class="btn btn-sm"
                                         :class="cuti.can_decide ? 'btn-primary' : 'btn-outline-secondary'"
@@ -393,6 +429,10 @@ onBeforeUnmount(() => {
                                 >Perubahan shift · {{ date(cuti.tanggal_mulai) }} · {{ cuti.original_shift?.name }} →
                                 {{ cuti.requested_shift?.name }}</span
                             >
+                            <span v-else-if="cuti.request_type === 'presensi'"
+                                >Presensi di luar radius / {{ cuti.action === 'clock-in' ? 'Clock-in' : 'Clock-out' }} /
+                                {{ date(cuti.tanggal_mulai) }}</span
+                            >
                             <span v-else>{{ cuti.nama_cuti || 'Cuti' }} · {{ date(cuti.tanggal_mulai) }} s.d. {{ date(cuti.tanggal_selesai) }}</span>
                             <small>Persetujuan tingkat {{ cuti.current_level }}</small>
                         </li>
@@ -412,7 +452,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .request-type-nav {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
     padding: 24px 24px 0;
 }

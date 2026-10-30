@@ -144,3 +144,7 @@ langsung dari controller pengajuan.
 
 Referensi: [Web Push PHP](https://github.com/web-push-libs/web-push-php/tree/v10.1.0)
 dan [PushManager.subscribe](https://developer.mozilla.org/en-US/docs/Web/API/PushManager/subscribe).
+
+
+Persetujuan presensi di luar radius dan integrasi realtime dijelaskan pada
+[presensi-approval.md](presensi-approval.md).

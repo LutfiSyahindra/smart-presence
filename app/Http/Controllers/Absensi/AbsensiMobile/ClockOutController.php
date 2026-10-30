@@ -143,6 +143,7 @@ class ClockOutController extends Controller
                 'schedule_note' => $schedule['note'],
                 'location_name' => $location?->name,
                 'location_address' => $attendance->clock_out_address,
+                'approval_status' => $attendance->clock_out_approval_status,
                 'outside_radius' => (bool) $outsideRadius,
                 'face_verified' => $attendance->clock_out_face_verified_at !== null,
                 'face_similarity' => $attendance->clock_out_face_similarity,

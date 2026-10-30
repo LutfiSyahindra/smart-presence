@@ -1,10 +1,26 @@
 <script setup lang="ts">
 import { useAdminNotificationCounts } from '@/composables/useAdminNotificationCounts';
+import { createNotificationRealtime } from '@/lib/notification-realtime';
 import type { AdminNotification, NotificationFeed } from '@/types/notifications';
-import { Link } from '@inertiajs/vue3';
+import type { Page } from '@inertiajs/core';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { Bell, BellRing, CheckCheck, X } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+const page = usePage();
+const realtime = createNotificationRealtime(
+    () => {
+        void refresh();
+        if (['absensi/admin-web/notifikasi/Index', 'absensi/admin-web/notifikasi/Inbox'].includes(page.component)) {
+            router.reload({ only: ['requests', 'overview', 'requestTypeCounts', 'notifications', 'unreadCount'] });
+        }
+    },
+    () => {},
+);
+const stopRealtimeWatch = watch(
+    () => [page.props.auth, page.props.mobileRealtime],
+    () => realtime.update(page as unknown as Page),
+);
 const baseUrl = '/absensi/admin-web/notifikasi';
 const { counts, updateCounts } = useAdminNotificationCounts();
 const menu = ref<HTMLElement | null>(null);
@@ -44,6 +60,7 @@ const refresh = async () => {
         const response = await fetch(`${baseUrl}/feed`, { headers: { Accept: 'application/json' }, signal: controller.signal, cache: 'no-store' });
         if (response.status === 401 || response.status === 403) {
             stopped = true;
+            realtime.pause();
             feed.value = { items: [], unread_count: 0, pending_approval_count: 0, push_public_key: null };
             updateCounts(null);
             return;
@@ -127,7 +144,11 @@ const onKeydown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') open.value = false;
 };
 const onVisible = () => {
-    if (!document.hidden) void refresh();
+    if (document.hidden) realtime.pause();
+    else {
+        realtime.resume();
+        void refresh();
+    }
 };
 const onPush = (event: MessageEvent) => {
     if (event.data?.type === 'admin-notification') void refresh();
@@ -135,12 +156,16 @@ const onPush = (event: MessageEvent) => {
 
 onMounted(async () => {
     pushSupported.value = window.isSecureContext && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+    realtime.update(page as unknown as Page);
     document.addEventListener('click', outside);
     document.addEventListener('keydown', onKeydown);
     document.addEventListener('visibilitychange', onVisible);
     navigator.serviceWorker?.addEventListener('message', onPush);
     timer = setInterval(() => {
-        if (!document.hidden) void refresh();
+        if (!document.hidden) {
+            realtime.update(page as unknown as Page);
+            void refresh();
+        }
     }, 20000);
     await refresh();
     if (!stopped) {
@@ -153,6 +178,8 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
     stopped = true;
+    stopRealtimeWatch();
+    realtime.pause();
     controller?.abort();
     if (timer) clearInterval(timer);
     if (toastTimer) clearTimeout(toastTimer);

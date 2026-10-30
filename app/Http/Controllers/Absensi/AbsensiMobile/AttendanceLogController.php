@@ -61,7 +61,7 @@ class AttendanceLogController extends Controller
         return Inertia::render('absensi/absensi-mobile/AttendanceLog', [
             'month' => $start->format('Y-m'),
             'monthLabel' => $start->locale('id')->translatedFormat('F Y'),
-            'periodLabel' => $start->locale('id')->translatedFormat('d M Y').' – '.$end->locale('id')->translatedFormat('d M Y'),
+            'periodLabel' => $start->locale('id')->translatedFormat('d M Y').' â€“ '.$end->locale('id')->translatedFormat('d M Y'),
             'today' => now()->toDateString(),
             'summary' => $summary,
             'days' => $days,
@@ -98,19 +98,22 @@ class AttendanceLogController extends Controller
         $early = $workday && $clockOut ? $record->earlyDepartureMinutes() : 0;
         $lateAllowance = $schedule['late_arrival_minutes'];
         $earlyAllowance = $schedule['early_departure_minutes'];
+        $approvalState = $record?->approvalState();
         $flags = [
-            'late' => ! $invalid && $late > 0,
-            'early_departure' => ! $invalid && $early > 0,
+            'late' => ! $approvalState && ! $invalid && $late > 0,
+            'early_departure' => ! $approvalState && ! $invalid && $early > 0,
             'absent' => $workday && $closed && ! $hasClock,
             'no_clock_in' => $workday && ! $clockIn && $clockOut !== null,
             'no_clock_out' => $workday && $closed && $clockIn !== null && ! $clockOut,
             'day_off' => $dayOffReason !== null,
-            'on_time' => ! $invalid && $workday && $clockIn !== null && $late === 0,
+            'on_time' => ! $approvalState && ! $invalid && $workday && $clockIn !== null && $late === 0,
             'leave' => $onLeave,
             'invalid' => (bool) $invalid,
             'upcoming' => $workday && $future && ! $hasClock,
         ];
         [$status, $label, $tone] = match (true) {
+            $approvalState === 'rejected' => ['approval_rejected', 'Presensi ditolak', 'danger'],
+            $approvalState === 'pending' => ['approval_pending', 'Menunggu persetujuan', 'warning'],
             $flags['invalid'] => ['invalid', 'Tidak valid', 'danger'],
             $flags['day_off'] => ['day_off', $dayOff['label'], $dayOff['type'] === HariLibur::NASIONAL ? 'holiday' : 'rest'],
             $flags['leave'] => ['leave', 'Cuti', 'leave'],
@@ -134,12 +137,14 @@ class AttendanceLogController extends Controller
             'day_number' => $date->format('d'),
             'day_name' => $date->copy()->locale('id')->translatedFormat('D'),
             'shift_name' => $dayOffReason ?? ($onLeave ? ($leave->nama_cuti ?: 'Cuti disetujui') : $shift?->nama),
-            'schedule' => $shift && $workday ? $schedule['start_time'].' – '.$schedule['end_time'] : null,
+            'schedule' => $shift && $workday ? $schedule['start_time'].' â€“ '.$schedule['end_time'] : null,
             'status' => $status,
             'status_label' => $label,
             'tone' => $tone,
             'day_off_type' => $dayOff['type'] ?? null,
             'day_off_reason' => $dayOffReason,
+            'clock_in_approval_status' => $record?->clock_in_approval_status,
+            'clock_out_approval_status' => $record?->clock_out_approval_status,
             'clock_in' => $clockIn?->format('H:i'),
             'clock_out' => $clockOut?->format('H:i'),
             'clock_in_date_label' => $clockIn?->copy()->locale('id')->translatedFormat('d M Y, H:i'),

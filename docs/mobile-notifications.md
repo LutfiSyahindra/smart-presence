@@ -188,3 +188,7 @@ Referensi resmi: [Capacitor Push Notifications](https://capacitorjs.com/docs/api
 [FCM HTTP v1](https://firebase.google.com/docs/cloud-messaging/send/v1-api),
 [APNs token authentication](https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns),
 [Web Push iOS/iPadOS](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
+
+
+Persetujuan presensi di luar radius dan integrasi realtime dijelaskan pada
+[presensi-approval.md](presensi-approval.md).

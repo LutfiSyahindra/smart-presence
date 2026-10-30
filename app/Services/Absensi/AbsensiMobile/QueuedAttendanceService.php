@@ -9,6 +9,7 @@ use App\Models\AttendanceSubmission;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Models\User;
 use App\Services\Absensi\AttendanceScheduleService;
 use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
@@ -84,6 +85,7 @@ class QueuedAttendanceService
                 if ($outside && mb_strlen($outsideNote) < 5) {
                     $this->fail('outside_radius_note', 'Catatan lokasi di luar radius wajib diisi minimal 5 karakter.');
                 }
+                $approval = $outside ? app(PresensiApprovalService::class)->snapshot($user, $outsideNote) : null;
                 $profile = $user->profile_photo_path;
                 if (! $profile || ! Str::startsWith($profile, "profile-photos/{$user->id}/") || str_contains($profile, '..') || ! Storage::disk('local')->exists($profile)) {
                     $this->fail('photo', 'Foto profil wajah belum tersedia. Buka menu Akun dan tambahkan foto profil terlebih dahulu.');
@@ -116,6 +118,7 @@ class QueuedAttendanceService
                     'active_key' => "{$pegawai->id}:{$action}", 'status' => 'pending',
                     'received_at' => $receivedAt, 'photo_path' => $photo, 'profile_snapshot_path' => $snapshot,
                     'outside_radius' => $outside,
+                    'approval_context' => $approval,
                     'attendance_attributes' => [
                         "{$prefix}_location_id" => $office->id,
                         "{$prefix}_latitude" => $location->latitude, "{$prefix}_longitude" => $location->longitude,
@@ -232,6 +235,15 @@ class QueuedAttendanceService
                     $attendance->is_day_off = false;
                 }
                 $attendance->save();
+                if ($current->outside_radius) {
+                    $approval = $current->approval_context;
+                    // Handle submissions accepted before this feature was deployed.
+                    $approval ??= app(PresensiApprovalService::class)->snapshot(
+                        User::query()->findOrFail($current->user_id),
+                        $current->attendance_attributes['notes'] ?? 'Presensi di luar radius',
+                    );
+                    app(PresensiApprovalService::class)->submit($attendance, $current->action, $approval);
+                }
                 $current->forceFill(['presensi_id' => $attendance->id, 'status' => 'succeeded', 'active_key' => null,
                     'processing_token' => null, 'completed_at' => now(), 'error_field' => null, 'error_message' => null])->save();
             }, 3);

@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 class ClockInTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ConfiguresPresensiApproval;
 
     private User $user;
 
@@ -438,6 +438,7 @@ class ClockInTest extends TestCase
 
     public function test_employee_can_clock_in_outside_radius_with_mandatory_note(): void
     {
+        $this->configurePresensiApproval($this->pegawai);
         $this->actingAs($this->user)
             ->post('/absensi/mobile/clock-in', $this->payload([
                 'latitude' => -6.19,
@@ -445,7 +446,7 @@ class ClockInTest extends TestCase
                 'outside_radius_note' => 'Mendampingi pasien di gedung sebelah.',
             ]))
             ->assertRedirect('/absensi/mobile/clock-in/berhasil')
-            ->assertSessionHas('success', 'Clock-in berhasil dikirim dengan catatan lokasi di luar radius.');
+            ->assertSessionHas('success', 'Clock-in di luar radius tersimpan dan menunggu persetujuan.');
 
         $presensi = Presensi::query()->sole();
         $this->assertSame('Mendampingi pasien di gedung sebelah.', $presensi->notes);

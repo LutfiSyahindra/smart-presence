@@ -18,6 +18,7 @@ class PengajuanNotificationService
             $notification = new PengajuanNotification($payload);
             $notification->id = (string) Str::uuid();
             $user->notify($notification);
+            app(NotificationRealtimeService::class)->changed($user->id);
 
             // The inbox is saved in the submission transaction. Push starts only after commit.
             SendWebPushNotification::dispatch($notification->id)->afterCommit();

@@ -33,6 +33,7 @@ use App\Http\Controllers\Absensi\AdminWeb\Setting\ConfigurationController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\User\UserController;
+use App\Http\Controllers\Absensi\PresensiApprovalController;
 use App\Http\Controllers\DashboardController;
 use App\Support\AccessPermission;
 use Illuminate\Support\Facades\Route;
@@ -74,6 +75,10 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
         Route::get('cuti', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.index');
         Route::get('cuti/{cutiRequest}', [MobileCutiController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('cuti.show');
         Route::get('notifikasi', [MobileNotificationController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.index');
+        Route::get('notifikasi/presensi', [PresensiApprovalController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.presensi');
+        Route::get('presensi/persetujuan/{presensiRequest}', [PresensiApprovalController::class, 'show'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('presensi-approval.show');
+        Route::get('presensi/persetujuan/{presensiRequest}/photo', [PresensiApprovalController::class, 'photo'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('presensi-approval.photo');
+        Route::post('presensi/persetujuan/{presensiRequest}/decision', [PresensiApprovalController::class, 'decide'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('presensi-approval.decide');
         Route::get('notifikasi/cuti', [MobileCutiApprovalController::class, 'index'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->name('notifikasi.cuti');
         Route::post('notifikasi/cuti/approve-many', [MobileCutiApprovalController::class, 'approveMany'])->middleware('can:'.AccessPermission::MOBILE_CUTI_VIEW)->middleware('can:'.AccessPermission::MOBILE_CUTI_APPROVE)->name('notifikasi.cuti.approve-many');
         Route::get('notifikasi/feed', [MobileNotificationController::class, 'feed'])->middleware('can:'.AccessPermission::MOBILE_NOTIFICATIONS)->name('notifikasi.feed');
@@ -214,6 +219,9 @@ Route::middleware(['auth', 'verified', 'can:pengajuan.access'])
         Route::get('notifikasi/feed', [NotificationInboxController::class, 'feed'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.feed');
         Route::post('notifikasi/read-all', [NotificationInboxController::class, 'readAll'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.read-all');
         Route::get('notifikasi/open/{notification}', [NotificationInboxController::class, 'open'])->middleware('can:'.AccessPermission::NOTIFICATIONS_VIEW)->name('notifikasi.open');
+        Route::get('notifikasi/pengajuan/presensi/{presensiRequest}', [PresensiApprovalController::class, 'show'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.presensi');
+        Route::get('notifikasi/pengajuan/presensi/{presensiRequest}/photo', [PresensiApprovalController::class, 'photo'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.presensi.photo');
+        Route::post('notifikasi/pengajuan/presensi/{presensiRequest}/decision', [PresensiApprovalController::class, 'decide'])->middleware(['can:'.AccessPermission::CUTI_VIEW, 'can:'.AccessPermission::CUTI_APPROVE])->name('notifikasi.presensi.decide');
         Route::get('notifikasi/pengajuan/cuti/{cutiRequest}', [NotificationInboxController::class, 'cuti'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.cuti');
         Route::get('notifikasi/pengajuan/perubahan-shift/{perubahanShiftRequest}', [WebPerubahanShiftController::class, 'show'])->middleware('can:'.AccessPermission::CUTI_VIEW)->name('notifikasi.perubahan-shift');
         Route::post('notifikasi/pengajuan/perubahan-shift/{perubahanShiftRequest}/decision', [WebPerubahanShiftController::class, 'decide'])->middleware(['can:'.AccessPermission::CUTI_VIEW, 'can:'.AccessPermission::CUTI_APPROVE])->name('notifikasi.perubahan-shift.decide');

@@ -13,6 +13,7 @@ const props = defineProps<{
         end_time: string | null;
         location_name: string | null;
         location_address: string | null;
+        approval_status?: string | null;
         outside_radius: boolean;
         face_verified: boolean;
         face_similarity: number | null;
@@ -29,6 +30,7 @@ const normalizedAttendance = computed(() => ({
     end_time: props.attendance.end_time,
     location_name: props.attendance.location_name,
     location_address: props.attendance.location_address,
+    approval_status: props.attendance.approval_status,
     outside_radius: props.attendance.outside_radius,
     face_verified: props.attendance.face_verified,
     face_similarity: props.attendance.face_similarity,

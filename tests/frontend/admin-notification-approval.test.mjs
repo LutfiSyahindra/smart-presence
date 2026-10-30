@@ -21,7 +21,7 @@ function approvalPage(category = 'butuh-approval', rows = [{ id: 1, can_decide: 
         requests: { data: rows },
         filters: { search: '', request_type: 'all' },
         overview: { inbox: 2, approved: 0 },
-        requestTypeCounts: { cuti: 1, lembur: 1, 'perubahan-shift': 0 },
+        requestTypeCounts: { presensi: 0, cuti: 1, lembur: 1, 'perubahan-shift': 0 },
     });
     const exports = {};
     vm.runInNewContext(compile(compiledPage), {
@@ -38,10 +38,10 @@ function approvalPage(category = 'butuh-approval', rows = [{ id: 1, can_decide: 
                         ...initial,
                         processing: false,
                         errors: {},
-                        reset() { form.request_ids = []; form.lembur_request_ids = []; form.perubahan_shift_request_ids = []; },
+                        reset() { form.request_ids = []; form.lembur_request_ids = []; form.perubahan_shift_request_ids = []; form.presensi_request_ids = []; },
                         clearErrors() { form.errors = {}; },
                         post(url, options) {
-                            calls.push({ url, ids: [...form.request_ids], lemburIds: [...form.lembur_request_ids], shiftIds: [...form.perubahan_shift_request_ids], options });
+                            calls.push({ url, ids: [...form.request_ids], lemburIds: [...form.lembur_request_ids], shiftIds: [...form.perubahan_shift_request_ids], presensiIds: [...form.presensi_request_ids], options });
                             form.processing = true;
                         },
                     });
@@ -60,7 +60,7 @@ test('request sections show separate counts and keep the selected type when sear
     const app = approvalPage();
     try {
         assert.deepEqual(Array.from(app.state.requestTypes.value, (item) => [item.key, item.count]), [
-            ['all', 2], ['cuti', 1], ['lembur', 1], ['perubahan-shift', 0],
+            ['all', 2], ['presensi', 0], ['cuti', 1], ['lembur', 1], ['perubahan-shift', 0],
         ]);
         app.props.filters.request_type = 'lembur';
         app.state.search.value = '  Nadia  ';
@@ -255,4 +255,17 @@ test('sidebar counts share live feed updates and reset from page props on naviga
         assert.equal(sidebar.counts.value.unread_count, 0);
         assert.equal(sidebar.counts.value.pending_approval_count, 0);
     } finally { scope.stop(); }
+});
+
+test('presensi and cuti with identical IDs remain independently selected', () => {
+    const app = approvalPage('butuh-approval', [{ id: 1, request_type: 'cuti', can_decide: true }, { id: 1, request_type: 'presensi', can_decide: true }]);
+    try {
+        app.state.toggleAll({ target: { checked: true } });
+        assert.equal(app.state.selectedRequests.value.length, 2);
+        app.state.approveSelected();
+        assert.deepEqual(app.calls[0].ids, [1]);
+        assert.deepEqual(app.calls[0].presensiIds, [1]);
+        app.calls[0].options.onSuccess();
+        assert.equal(app.state.bulkForm.presensi_request_ids.length, 0);
+    } finally { app.close(); }
 });

@@ -41,6 +41,7 @@ const props = defineProps<{
     cutiPendingApprovalCount?: number;
     lemburPendingApprovalCount?: number;
     perubahanShiftPendingApprovalCount?: number;
+    presensiPendingApprovalCount?: number;
     today: string;
 }>();
 const { feedback, pushActive, busy, available, supported, enablePush, refresh } = useMobileNotifications();
@@ -58,7 +59,7 @@ const categories = computed(() => [
         href: `${base}/cuti`,
         count: props.cutiPendingApprovalCount ?? props.pendingApprovalCount,
     },
-    { name: 'Presensi', icon: MapPin, tone: 'amber' },
+    { name: 'Presensi', icon: MapPin, tone: 'amber', active: true, href: `${base}/presensi`, count: props.presensiPendingApprovalCount ?? 0 },
     { name: 'Lembur', icon: Timer, tone: 'orange', active: true, href: `${base}/lembur`, count: props.lemburPendingApprovalCount ?? 0 },
     {
         name: 'Perubahan shift',

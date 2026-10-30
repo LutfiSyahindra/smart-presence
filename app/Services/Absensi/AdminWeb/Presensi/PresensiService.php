@@ -29,7 +29,7 @@ class PresensiService
             [$from, $to] = [$to, $from];
         }
 
-        $allowedStatuses = ['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off'];
+        $allowedStatuses = ['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off', 'approval-pending', 'approval-rejected'];
         $status = in_array($filters['status'] ?? null, $allowedStatuses, true) ? $filters['status'] : null;
 
         return [
@@ -140,12 +140,14 @@ class PresensiService
                 'jam_keluar' => $schedule['end_time'],
             ] : null,
             'clock_in' => [
+                'approval_status' => $presensi?->clock_in_approval_status,
                 'time' => $presensi?->clock_in_at?->format('H:i'),
                 'date_time' => $presensi?->clock_in_at?->format('Y-m-d H:i'),
                 'location' => $presensi ? $this->location($presensi, 'in') : null,
                 'photo_url' => $presensi ? $this->photoUrl($presensi, $presensi->clock_in_photo_path, 'in') : null,
             ],
             'clock_out' => [
+                'approval_status' => $presensi?->clock_out_approval_status,
                 'time' => $presensi?->clock_out_at?->format('H:i'),
                 'date_time' => $presensi?->clock_out_at?->format('Y-m-d H:i'),
                 'location' => $presensi ? $this->location($presensi, 'out') : null,
@@ -208,6 +210,9 @@ class PresensiService
 
     private function status(Presensi $presensi, int $lateMinutes): string
     {
+        if ($presensi->approvalState()) {
+            return 'approval-'.$presensi->approvalState();
+        }
         if ($presensi->is_day_off) {
             return 'day-off';
         }

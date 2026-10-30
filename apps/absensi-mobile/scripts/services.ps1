@@ -81,7 +81,7 @@ if ($envContent -match '(?m)^VITE_API_URL=.*$') {
 $php = (Get-Command php -ErrorAction Stop).Source
 & $php (Join-Path $projectRoot 'scripts\realtime-setup.php')
 if ($LASTEXITCODE -ne 0) { throw 'Konfigurasi realtime belum berhasil disiapkan.' }
-& $php artisan config:clear --no-interaction
+& $php (Join-Path $projectRoot 'artisan') config:clear --no-interaction
 if ($LASTEXITCODE -ne 0) { throw 'Cache konfigurasi belum berhasil diperbarui.' }
 if (-not (Get-ReverbHealth)) {
     $reverb = Start-Process -FilePath $php -ArgumentList @('artisan','reverb:start','--host=127.0.0.1','--port=8080','--no-interaction') -WorkingDirectory $projectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'reverb.stdout.log') -RedirectStandardError (Join-Path $logsRoot 'reverb.stderr.log') -PassThru

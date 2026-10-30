@@ -106,7 +106,7 @@ class CutiService
             abort_unless((int) $cuti->user_id === (int) $actor->id, 403);
 
             if (! $cuti->canBeCancelledBy($actor)) {
-                throw ValidationException::withMessages(['cancel' => 'Hanya pengajuan yang masih menunggu persetujuan yang dapat dibatalkan.']);
+                throw ValidationException::withMessages(['cancel' => 'Status pengajuan atau konfigurasi tidak mengizinkan pembatalan cuti ini.']);
             }
 
             $cuti->approvals()->whereIn('status', ['pending', 'waiting'])->update(['status' => 'skipped']);
@@ -149,6 +149,8 @@ class CutiService
             if ($current->status !== 'pending') {
                 throw ValidationException::withMessages(['decision' => 'Tingkat approval ini sudah diproses.']);
             }
+
+            app(\App\Services\Absensi\ConfigurationService::class)->assertCanDecide($cuti->tanggal_mulai);
 
             $current->update(['status' => $data['decision'], 'note' => $data['note'] ?? null, 'decided_at' => now()]);
 

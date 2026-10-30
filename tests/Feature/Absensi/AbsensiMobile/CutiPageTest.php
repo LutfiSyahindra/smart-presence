@@ -65,6 +65,56 @@ class CutiPageTest extends TestCase
         return CutiRequest::query()->latest('id')->firstOrFail();
     }
 
+    public function test_approved_cuti_cancellation_obeys_configuration_and_returns_the_balance(): void
+    {
+        $cuti = $this->submit();
+        $service = app(\App\Services\Absensi\AdminWeb\Cuti\CutiService::class);
+        $service->decide($cuti, $this->approver, ['decision' => 'approved']);
+        $this->actingAs($this->employee)->post(self::URL."/{$cuti->id}/cancel")->assertSessionHasErrors('cancel');
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['cancel_approved_cuti' => true], $this->approver->id);
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('requests.data.0.can_cancel', true)->where('balance.used', 2));
+        $this->post(self::URL."/{$cuti->id}/cancel")->assertSessionHasNoErrors();
+        $this->assertSame('cancelled', $cuti->fresh()->status);
+        $this->assertSame('approved', $cuti->fresh()->approvals->first()->status);
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('balance.used', 0)->where('balance.available', 12));
+    }
+
+    public function test_past_cuti_approval_and_rejection_obey_configuration(): void
+    {
+        $cuti = $this->submit();
+        $this->travelTo('2026-10-28 09:00');
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => false], $this->approver->id);
+        $this->actingAs($this->approver)->post('/absensi/mobile/notifikasi/cuti/approve-many', ['request_ids' => [$cuti->id]])->assertSessionHasErrors('decision');
+        $this->post(self::URL."/{$cuti->id}/decision", ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $cuti->fresh()->status);
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => true], $this->approver->id);
+        $this->post(self::URL."/{$cuti->id}/decision", ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasNoErrors();
+        $this->assertSame('rejected', $cuti->fresh()->status);
+    }
+
+    public function test_late_approval_counts_leave_on_the_requested_date_in_the_previous_month(): void
+    {
+        $this->travelTo('2026-10-30 09:00');
+        $shift = \App\Models\Shift::query()->create(['nama' => 'Shift Pagi', 'jam_masuk' => '08:00', 'jam_keluar' => '16:00']);
+        $this->pegawai->forceFill(['shift_id' => $shift->id, 'shift_assigned_at' => '2026-10-01',
+            'tanggal_mulai_bekerja' => '2026-10-01'])->save();
+        $cuti = $this->submit(['tanggal_mulai' => '2026-10-30', 'tanggal_selesai' => '2026-10-30']);
+        $this->travelTo('2026-11-03 09:00');
+        $this->actingAs($this->employee)->get('/absensi/mobile/presensi/log?month=2026-10')
+            ->assertInertia(fn (Assert $page) => $page->where('days.29.date', '2026-10-30')
+                ->where('days.29.status', 'absent')->where('days.29.flags.leave', false));
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => true], $this->approver->id);
+        $this->actingAs($this->approver)->post(self::URL."/{$cuti->id}/decision", ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame('2026-11-03', $cuti->fresh()->decided_at->toDateString());
+        $this->assertSame('2026-10-30', $cuti->fresh()->tanggal_mulai->toDateString());
+        $this->actingAs($this->employee)->get('/absensi/mobile/presensi/log?month=2026-10')
+            ->assertInertia(fn (Assert $page) => $page->where('days.29.status', 'leave')
+                ->where('days.29.flags.leave', true)->where('days.29.flags.absent', false)->where('summary.leave', 1));
+        $this->get('/absensi/mobile/presensi/log?month=2026-11')->assertInertia(fn (Assert $page) => $page->where('summary.leave', 0));
+        $this->get(self::URL.'?month=2026-10')->assertInertia(fn (Assert $page) => $page->where('balance.used', 1)->where('balance.available', 11));
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
     public function test_mobile_employee_can_view_and_submit_without_admin_access(): void
     {
         $this->assertFalse($this->employee->can(AccessPermission::ADMIN_ACCESS));

@@ -237,6 +237,7 @@ class LemburService
             $lembur = LemburRequest::query()->lockForUpdate()->findOrFail($lembur->id);
             // Even a super-admin must be the current assigned approver.
             abort_unless($lembur->canBeDecidedBy($actor), 403);
+            app(\App\Services\Absensi\ConfigurationService::class)->assertCanDecide($lembur->tanggal_lembur);
             $current = $lembur->approvals()->where('level', $lembur->current_level)->lockForUpdate()->firstOrFail();
             $current->update(['status' => $data['decision'], 'note' => $data['note'] ?? null, 'decided_at' => now()]);
             if ($data['decision'] === 'rejected') {
@@ -260,10 +261,17 @@ class LemburService
     public function cancel(LemburRequest $lembur, User $actor): void
     {
         DB::transaction(function () use ($lembur, $actor) {
+            // Match usage submission's employee -> source lock order.
+            \App\Models\Pegawai::query()->lockForUpdate()->find($lembur->pegawai_id);
             $lembur = LemburRequest::query()->lockForUpdate()->findOrFail($lembur->id);
             abort_unless((int) $lembur->user_id === (int) $actor->id, 403);
             if (! $lembur->canBeCancelledBy($actor)) {
-                throw ValidationException::withMessages(['cancel' => 'Hanya pengajuan yang masih menunggu persetujuan yang dapat dibatalkan.']);
+                throw ValidationException::withMessages(['cancel' => 'Status pengajuan atau konfigurasi tidak mengizinkan pembatalan lembur ini.']);
+            }
+            if ($lembur->status === 'approved' && $lembur->request_kind === 'overtime'
+                && DB::table('lembur_usage_allocations as allocation')->join('lembur_requests as usage', 'usage.id', '=', 'allocation.usage_request_id')
+                    ->where('allocation.source_request_id', $lembur->id)->whereIn('usage.status', ['pending', 'approved'])->exists()) {
+                throw ValidationException::withMessages(['cancel' => 'Saldo lembur ini masih digunakan oleh pengajuan penggunaan aktif. Batalkan penggunaan tersebut terlebih dahulu.']);
             }
             $lembur->approvals()->whereIn('status', ['pending', 'waiting'])->update(['status' => 'skipped']);
             $lembur->update(['status' => 'cancelled', 'current_level' => null, 'decided_at' => now()]);

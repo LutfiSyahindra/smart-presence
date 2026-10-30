@@ -128,6 +128,7 @@ const navigation = computed<NavigationGroup[]>(() => {
         {
             category: 'Settings',
             items: [
+                can('configuration.view') ? { title: 'Konfigurasi', href: '/absensi/admin-web/setting/konfigurasi', icon: SlidersHorizontal } : null,
                 can('users.view') ? { title: 'Pengguna', href: '/absensi/admin-web/setting/users', icon: UsersRound } : null,
                 can('roles.view') ? { title: 'Role', href: '/absensi/admin-web/setting/roles', icon: ShieldCheck } : null,
                 can('permissions.view') ? { title: 'Permission', href: '/absensi/admin-web/setting/permissions', icon: UserCog } : null,

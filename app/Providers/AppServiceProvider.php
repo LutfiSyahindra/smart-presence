@@ -43,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(MobileDataChanges::class);
+        $this->app->scoped(\App\Services\Absensi\ConfigurationService::class);
         $this->app->bind(JabatanRepositoryInterface::class, JabatanRepository::class);
         $this->app->bind(UnitKerjaRepositoryInterface::class, UnitKerjaRepository::class);
         $this->app->bind(PegawaiRepositoryInterface::class, PegawaiRepository::class);

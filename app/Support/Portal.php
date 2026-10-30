@@ -86,6 +86,7 @@ final class Portal
                 AccessPermission::ROLES_VIEW => 'setting.roles.index',
                 AccessPermission::PERMISSIONS_VIEW => 'setting.permissions.index',
                 AccessPermission::APP_RELEASES_VIEW => 'setting.app-releases.index',
+                AccessPermission::CONFIGURATION_VIEW => 'setting.konfigurasi.index',
             ] as $permission => $route) {
                 if ($request->user()->can($permission)) {
                     return 'absensi.admin-web.'.$route;

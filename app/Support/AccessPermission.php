@@ -98,6 +98,10 @@ final class AccessPermission
 
     public const APP_RELEASES_VIEW = 'app-releases.view';
 
+    public const CONFIGURATION_VIEW = 'configuration.view';
+
+    public const CONFIGURATION_UPDATE = 'configuration.update';
+
     public const APP_RELEASES_MANAGE = 'app-releases.manage';
 
     public const APP_RELEASES_PUBLISH = 'app-releases.publish';
@@ -162,6 +166,8 @@ final class AccessPermission
             self::PERMISSIONS_UPDATE,
             self::PERMISSIONS_DELETE,
             self::APP_RELEASES_VIEW,
+            self::CONFIGURATION_VIEW,
+            self::CONFIGURATION_UPDATE,
             self::APP_RELEASES_MANAGE,
             self::APP_RELEASES_PUBLISH,
             self::GEOLOCATION_VIEW,

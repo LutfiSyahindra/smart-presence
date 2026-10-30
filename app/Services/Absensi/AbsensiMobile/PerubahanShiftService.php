@@ -13,6 +13,7 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\Notifications\PerubahanShiftNotificationService;
 use App\Services\Absensi\ShiftHolidayService;
+use App\Services\Absensi\ConfigurationService;
 use App\Support\AccessPermission;
 use App\Support\PengajuanAccess;
 use Carbon\CarbonImmutable;
@@ -77,11 +78,13 @@ class PerubahanShiftService
                 throw ValidationException::withMessages(['requested_shift_id' => 'Pilih shift tujuan yang tersedia dan berbeda dari shift saat ini.']);
             }
             $date = $data['tanggal_perubahan'];
-            if (CarbonImmutable::parse($date.' '.$original->jam_masuk)->lte(now())
-                || CarbonImmutable::parse($date.' '.$target->jam_masuk)->lte(now())) {
+            $record = $pegawai->presensis()->whereDate('tanggal_presensi', $date)->lockForUpdate()->first();
+            $allowClocked = app(ConfigurationService::class)->current()->perubahan_shift_after_clock_in && $record?->clock_in_at;
+            if (! $allowClocked && (CarbonImmutable::parse($date.' '.$original->jam_masuk)->lte(now())
+                || CarbonImmutable::parse($date.' '.$target->jam_masuk)->lte(now()))) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Perubahan hanya dapat diajukan sebelum shift asal dan shift tujuan dimulai.']);
             }
-            if ($pegawai->presensis()->whereDate('tanggal_presensi', $date)->exists()) {
+            if ($record && (! $allowClocked || (int) $record->shift_id !== (int) $original->id)) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Tanggal ini sudah memiliki catatan presensi. Pilih tanggal lain.']);
             }
             if (CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('status', 'approved')
@@ -122,6 +125,7 @@ class PerubahanShiftService
             if ($decision === 'rejected' && $note === '') {
                 throw ValidationException::withMessages(['note' => 'Alasan penolakan wajib diisi.']);
             }
+            app(ConfigurationService::class)->assertCanDecide($request->tanggal_perubahan);
             $step = $request->approvals()->where('level', $request->current_level)->lockForUpdate()->firstOrFail();
             if ($decision === 'rejected') {
                 $step->update(['status' => 'rejected', 'note' => $note, 'decided_at' => now()]);
@@ -154,15 +158,19 @@ class PerubahanShiftService
             throw ValidationException::withMessages(['decision' => 'Pegawai atau shift sudah berubah/tidak tersedia. Pengajuan perlu diperbarui.']);
         }
         $date = $request->tanggal_perubahan->toDateString();
-        if (CarbonImmutable::parse($date.' '.$request->original_shift['start_time'])->lte(now())
-            || CarbonImmutable::parse($date.' '.$shift->jam_masuk)->lte(now())) {
+        $record = Presensi::query()->where('pegawai_id', $pegawai->id)->whereDate('tanggal_presensi', $date)->lockForUpdate()->first();
+        $configuration = app(ConfigurationService::class)->current();
+        $allowClocked = $configuration->perubahan_shift_after_clock_in && $record?->clock_in_at;
+        $allowPast = $configuration->approve_past_requests && $date < now()->toDateString();
+        if (! $allowClocked && ! $allowPast && (CarbonImmutable::parse($date.' '.$request->original_shift['start_time'])->lte(now())
+            || CarbonImmutable::parse($date.' '.$shift->jam_masuk)->lte(now()))) {
             throw ValidationException::withMessages(['decision' => 'Shift sudah dimulai atau tanggal pengajuan telah lewat. Perubahan tidak dapat diterapkan.']);
         }
         if (substr($shift->jam_masuk, 0, 5) !== $request->requested_shift['start_time']
             || substr($shift->jam_keluar, 0, 5) !== $request->requested_shift['end_time']) {
             throw ValidationException::withMessages(['decision' => 'Jam shift tujuan telah berubah sejak pengajuan. Minta pemohon mengajukan ulang.']);
         }
-        if (Presensi::query()->where('pegawai_id', $pegawai->id)->whereDate('tanggal_presensi', $date)->lockForUpdate()->exists()
+        if (($record && (! $allowClocked || (int) $record->shift_id !== (int) $request->original_shift_id))
             || CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('status', 'approved')
                 ->whereDate('tanggal_mulai', '<=', $date)->whereDate('tanggal_selesai', '>=', $date)->exists()
             || LemburRequest::query()->where('pegawai_id', $pegawai->id)->whereDate('tanggal_lembur', $date)->whereIn('status', ['pending', 'approved'])->exists()) {
@@ -172,8 +180,13 @@ class PerubahanShiftService
             throw ValidationException::withMessages(['decision' => 'Tanggal ini merupakan hari libur pada shift tujuan. Pilih shift atau tanggal lain.']);
         }
         // A dated schedule uses the existing attendance record; the employee's default shift stays unchanged.
-        Presensi::query()->create(['pegawai_id' => $pegawai->id, 'shift_id' => $shift->id, 'tanggal_presensi' => $date,
-            'is_day_off' => false, 'notes' => 'Perubahan shift disetujui #'.$request->id, 'updated_by' => $actor->id]);
+        $values = ['shift_id' => $shift->id, 'is_day_off' => false,
+            'notes' => trim(($record?->notes ? $record->notes."\n" : '').'Perubahan shift disetujui #'.$request->id), 'updated_by' => $actor->id];
+        if ($record) {
+            $record->update($values);
+        } else {
+            Presensi::query()->create(['pegawai_id' => $pegawai->id, 'tanggal_presensi' => $date, ...$values]);
+        }
     }
 
     public function cancel(PerubahanShiftRequest $request, User $actor): void
@@ -182,7 +195,27 @@ class PerubahanShiftService
             $request = PerubahanShiftRequest::query()->lockForUpdate()->findOrFail($request->id);
             abort_unless((int) $request->user_id === (int) $actor->id, 403);
             if (! $request->canBeCancelledBy($actor)) {
-                throw ValidationException::withMessages(['cancel' => 'Hanya pengajuan yang masih menunggu persetujuan yang dapat dibatalkan.']);
+                throw ValidationException::withMessages(['cancel' => 'Status pengajuan atau konfigurasi tidak mengizinkan pembatalan perubahan shift ini.']);
+            }
+            if ($request->status === 'approved') {
+                Pegawai::query()->lockForUpdate()->find($request->pegawai_id);
+                $record = Presensi::query()->where('pegawai_id', $request->pegawai_id)
+                    ->whereDate('tanggal_presensi', $request->tanggal_perubahan)->lockForUpdate()->first();
+                $original = Shift::query()->find($request->original_shift_id);
+                if (! $record || ! $original || (int) $record->shift_id !== (int) $request->requested_shift_id) {
+                    throw ValidationException::withMessages(['cancel' => 'Jadwal sudah berubah atau shift asal tidak tersedia. Hubungi administrator.']);
+                }
+                if (LemburRequest::query()->where('pegawai_id', $request->pegawai_id)->whereDate('tanggal_lembur', $request->tanggal_perubahan)
+                    ->whereIn('status', ['pending', 'approved'])->exists()) {
+                    throw ValidationException::withMessages(['cancel' => 'Tanggal ini memiliki pengajuan lembur aktif. Selesaikan pengajuan lembur terlebih dahulu.']);
+                }
+                if (! $record->clock_in_at && ! $record->clock_out_at && $record->notes === 'Perubahan shift disetujui #'.$request->id) {
+                    $record->delete();
+                } else {
+                    $record->update(['shift_id' => $original->id,
+                        'is_day_off' => (bool) app(ShiftHolidayService::class)->reason($original, $request->tanggal_perubahan),
+                        'notes' => trim($record->notes."\nPembatalan perubahan shift #".$request->id), 'updated_by' => $actor->id]);
+                }
             }
             $request->approvals()->whereIn('status', ['pending', 'waiting'])->update(['status' => 'skipped']);
             $request->update(['status' => 'cancelled', 'current_level' => null, 'cancelled_at' => now()]);

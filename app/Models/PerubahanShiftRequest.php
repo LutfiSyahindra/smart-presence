@@ -33,7 +33,8 @@ class PerubahanShiftRequest extends Model
 
     public function canBeCancelledBy(User $user): bool
     {
-        return $this->status === 'pending' && (int) $this->user_id === (int) $user->id;
+        return (int) $this->user_id === (int) $user->id && ($this->status === 'pending'
+            || ($this->status === 'approved' && app(\App\Services\Absensi\ConfigurationService::class)->current()->cancel_approved_perubahan_shift));
     }
 
     public function canBeDecidedBy(User $user): bool

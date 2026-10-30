@@ -29,6 +29,7 @@ use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\PerubahanShiftController as
 use App\Http\Controllers\Absensi\AdminWeb\Notifikasi\WebPushSubscriptionController;
 use App\Http\Controllers\Absensi\AdminWeb\Presensi\PresensiController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\AppReleaseController;
+use App\Http\Controllers\Absensi\AdminWeb\Setting\ConfigurationController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Permission\PermissionController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\Role\RoleController;
 use App\Http\Controllers\Absensi\AdminWeb\Setting\User\UserController;
@@ -165,6 +166,10 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
         });
 
         Route::prefix('setting')->name('setting.')->group(function () {
+            Route::get('konfigurasi', [ConfigurationController::class, 'index'])
+                ->middleware('can:'.AccessPermission::CONFIGURATION_VIEW)->name('konfigurasi.index');
+            Route::put('konfigurasi', [ConfigurationController::class, 'update'])
+                ->middleware(['can:'.AccessPermission::CONFIGURATION_VIEW, 'can:'.AccessPermission::CONFIGURATION_UPDATE])->name('konfigurasi.update');
             Route::middleware('can:'.AccessPermission::APP_RELEASES_VIEW)->prefix('app-releases')->name('app-releases.')->group(function () {
                 Route::get('/', [AppReleaseController::class, 'index'])->name('index');
                 Route::post('/', [AppReleaseController::class, 'store'])->middleware(['can:'.AccessPermission::APP_RELEASES_MANAGE, 'throttle:10,1'])->name('store');

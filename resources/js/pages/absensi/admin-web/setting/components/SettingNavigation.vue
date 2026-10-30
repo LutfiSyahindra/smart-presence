@@ -9,6 +9,7 @@ const isSuperAdmin = computed(() => page.props.auth.roles.includes('super-admin'
 const can = (permission: string) => isSuperAdmin.value || page.props.auth.permissions.includes(permission);
 
 const items = [
+    { title: 'Konfigurasi', href: '/absensi/admin-web/setting/konfigurasi', permission: 'configuration.view' },
     { title: 'Pengguna', href: '/absensi/admin-web/setting/users', permission: 'users.view' },
     { title: 'Role', href: '/absensi/admin-web/setting/roles', permission: 'roles.view' },
     { title: 'Permission', href: '/absensi/admin-web/setting/permissions', permission: 'permissions.view' },

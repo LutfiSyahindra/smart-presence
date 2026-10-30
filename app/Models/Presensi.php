@@ -122,6 +122,7 @@ class Presensi extends Model
             $scheduledClockOut->addDay();
         }
         $scheduledClockIn->addMinutes($this->lemburAllowance('late_arrival', $scheduledClockIn, $scheduledClockOut));
+        $scheduledClockIn->addMinutes(app(\App\Services\Absensi\ConfigurationService::class)->current()->clock_in_tolerance_minutes);
 
         return $this->clock_in_at->gt($scheduledClockIn)
             ? (int) $scheduledClockIn->diffInMinutes($this->clock_in_at)
@@ -177,24 +178,23 @@ class Presensi extends Model
     /** Keep the SQL filters and totals consistent with the approved arrival boundary. */
     public static function constrainArrivalStatus(Builder $query, bool $late): Builder
     {
+        $tolerance = app(\App\Services\Absensi\ConfigurationService::class)->current()->clock_in_tolerance_minutes;
+
         return $query->where('presensis.is_day_off', false)->whereNotNull('presensis.clock_in_at')
-            ->whereExists(function ($shift) use ($late) {
-                $covered = fn ($usage) => $usage->selectRaw('1')->from('lembur_requests as usage')
-                    ->whereColumn('usage.pegawai_id', 'presensis.pegawai_id')->whereColumn('usage.shift_id', 'presensis.shift_id')
-                    ->whereColumn('usage.tanggal_lembur', 'presensis.tanggal_presensi')->where('usage.request_kind', 'usage')
-                    ->where('usage.usage_type', 'late_arrival')->where('usage.status', 'approved')
-                    ->whereRaw('substr(time(usage.shift_start_at), 1, 5) = substr(shifts.jam_masuk, 1, 5)')
-                    ->whereRaw('substr(time(usage.shift_end_at), 1, 5) = substr(shifts.jam_keluar, 1, 5)')
-                    ->whereColumn('usage.usage_end_at', '>=', 'presensis.clock_in_at');
+            ->whereExists(function ($shift) use ($query, $late, $tolerance) {
+                $allowance = "(select coalesce(sum(arrival_usage.duration_minutes), 0) from lembur_requests as arrival_usage
+                    where arrival_usage.pegawai_id = presensis.pegawai_id and arrival_usage.shift_id = presensis.shift_id
+                    and arrival_usage.tanggal_lembur = presensis.tanggal_presensi and arrival_usage.request_kind = 'usage'
+                    and arrival_usage.usage_type = 'late_arrival' and arrival_usage.status = 'approved'
+                    and substr(time(arrival_usage.shift_start_at), 1, 5) = substr(shifts.jam_masuk, 1, 5)
+                    and substr(time(arrival_usage.shift_end_at), 1, 5) = substr(shifts.jam_keluar, 1, 5))";
+                // lateMinutes() reports whole minutes. Both filters use that same boundary,
+                // including allowances that cross midnight and the global tolerance.
+                $boundary = $query->getConnection()->getDriverName() === 'sqlite'
+                    ? "datetime(presensis.tanggal_presensi || ' ' || shifts.jam_masuk, '+' || (? + $allowance + 1) || ' minutes')"
+                    : "timestampadd(MINUTE, (? + $allowance + 1), timestamp(presensis.tanggal_presensi, shifts.jam_masuk))";
                 $shift->selectRaw('1')->from('shifts')->whereColumn('shifts.id', 'presensis.shift_id')
-                    ->where(function ($arrival) use ($late, $covered) {
-                        $arrival->whereRaw('(date(presensis.clock_in_at) '.($late ? '>' : '<').' presensis.tanggal_presensi or (date(presensis.clock_in_at) = presensis.tanggal_presensi and time(presensis.clock_in_at) '.($late ? '>' : '<=').' shifts.jam_masuk))');
-                        if ($late) {
-                            $arrival->whereNotExists($covered);
-                        } else {
-                            $arrival->orWhereExists($covered);
-                        }
-                    });
+                    ->whereRaw('presensis.clock_in_at '.($late ? '>=' : '<').' '.$boundary, [$tolerance]);
             });
     }
 }

@@ -766,7 +766,7 @@ watch(
     <CutiSheet
         :open="Boolean(selected) && confirmingCancel"
         title="Batalkan pengajuan?"
-        description="Pengajuan akan dibatalkan dan approver akan diberi tahu. Jadwal aktif Anda tetap berlaku."
+        :description="selected?.status === 'approved' ? 'Pengajuan dibatalkan dan jadwal pada tanggal ini dikembalikan ke shift asal. Catatan clock-in dan clock-out tetap tersimpan.' : 'Pengajuan akan dibatalkan dan approver akan diberi tahu. Jadwal aktif Anda tetap berlaku.'"
         :busy="cancellation.processing"
         @close="closeDetail"
     >

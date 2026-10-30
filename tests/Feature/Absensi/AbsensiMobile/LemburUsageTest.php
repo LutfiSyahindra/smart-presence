@@ -68,6 +68,52 @@ class LemburUsageTest extends TestCase
         }
     }
 
+    public function test_approved_overtime_cannot_be_cancelled_while_its_balance_is_reserved(): void
+    {
+        $source = $this->earn();
+        $usage = $this->submit();
+        $service = app(LemburService::class);
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['cancel_approved_lembur' => true], $this->first->id);
+        $this->actingAs($this->employee)->post(self::URL.'/'.$source->id.'/cancel')->assertSessionHasErrors('cancel');
+        $this->assertSame('approved', $source->fresh()->status);
+        $this->approve($usage);
+        $this->post(self::URL.'/'.$usage->id.'/cancel')->assertSessionHasNoErrors();
+        $this->assertSame(180, $service->balance($this->employee)['available_minutes']);
+        $this->post(self::URL.'/'.$source->id.'/cancel')->assertSessionHasNoErrors();
+        $this->assertSame(0, $service->balance($this->employee)['earned_minutes']);
+    }
+
+    public function test_past_overtime_approval_obeys_configuration_at_each_level(): void
+    {
+        $request = app(LemburService::class)->submit($this->employee, [
+            'tanggal_lembur' => '2026-10-22', 'shift_id' => $this->shift->id, 'before_minutes' => 0,
+            'before_break_minutes' => 0, 'after_minutes' => 60, 'after_break_minutes' => 0,
+            'compensation' => 'time_off', 'alasan' => 'Pelayanan tambahan.',
+        ]);
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => false], $this->first->id);
+        $this->actingAs($this->first)->post(self::URL.'/'.$request->id.'/decision', ['decision' => 'approved'])->assertSessionHasErrors('decision');
+        $this->post(self::URL.'/'.$request->id.'/decision', ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $request->fresh()->approvals->first()->status);
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => true], $this->first->id);
+        $this->approve($request);
+        $this->assertSame('approved', $request->fresh()->status);
+    }
+
+    public function test_tolerance_adds_to_approved_late_arrival_usage(): void
+    {
+        $this->earn();
+        $usage = $this->submit();
+        $this->approve($usage);
+        app(\App\Services\Absensi\ConfigurationService::class)->update(['clock_in_tolerance_minutes' => 10], $this->first->id);
+        $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-10-23', 'clock_in_at' => '2026-10-23 09:10:00', 'is_day_off' => false]);
+        $this->assertSame(0, $record->lateMinutes());
+        $this->assertTrue(Presensi::constrainArrivalStatus(Presensi::query(), false)->exists());
+        $record->update(['clock_in_at' => '2026-10-23 09:11:00']);
+        $this->assertSame(1, $record->lateMinutes());
+        $this->assertTrue(Presensi::constrainArrivalStatus(Presensi::query(), true)->exists());
+    }
+
     private function earn(array $overrides = []): LemburRequest
     {
         $request = app(LemburService::class)->submit($this->employee, array_replace([

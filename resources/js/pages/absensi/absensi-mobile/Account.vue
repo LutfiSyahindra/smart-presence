@@ -7,7 +7,6 @@ import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
     BadgeCheck,
     BriefcaseBusiness,
-    CalendarDays,
     Camera,
     Check,
     ChevronDown,
@@ -32,6 +31,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, onUnmounted, ref } from 'vue';
+import MobileNotificationBell from './components/MobileNotificationBell.vue';
 import MobileSubmissionSheet from './components/MobileSubmissionSheet.vue';
 
 type Profile = {
@@ -177,9 +177,6 @@ const { can } = usePermission();
                         <span><Sparkles /> Ruang personal</span>
                         <h1>Akun saya</h1>
                     </div>
-                    <Link :href="route('logout')" method="post" as="button" aria-label="Keluar dari akun">
-                        <LogOut />
-                    </Link>
                 </header>
 
                 <section class="profile-hero" aria-labelledby="profile-name">
@@ -369,17 +366,14 @@ const { can } = usePermission();
 
             <nav
                 class="bottom-navigation"
-                :style="{ gridTemplateColumns: `repeat(${4 + Number(can('mobile.attendance'))}, 1fr)` }"
+                :style="{ gridTemplateColumns: `repeat(${3 + Number(can('mobile.notifications')) + Number(can('mobile.attendance'))}, 1fr)` }"
                 aria-label="Navigasi utama"
             >
                 <Link :href="route('absensi.mobile.home')" class="bottom-item">
                     <span><Home /></span>
                     <small>Beranda</small>
                 </Link>
-                <button type="button" class="bottom-item" disabled>
-                    <span><CalendarDays /></span>
-                    <small>Jadwal</small>
-                </button>
+                <MobileNotificationBell navigation />
                 <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
                     <span><TimerReset /></span>
                     <small>Presensi</small>
@@ -494,23 +488,6 @@ const { can } = usePermission();
     font-size: 22px;
     font-weight: 880;
     letter-spacing: -0.045em;
-}
-
-.account-header > button {
-    width: 40px;
-    height: 40px;
-    display: grid;
-    place-items: center;
-    border: 1px solid #dde7e3;
-    border-radius: 14px;
-    color: #5c7073;
-    background: rgba(255, 255, 255, 0.82);
-    box-shadow: 0 8px 21px rgba(25, 61, 60, 0.07);
-}
-
-.account-header > button svg {
-    width: 17px;
-    height: 17px;
 }
 
 .profile-hero {
@@ -665,12 +642,11 @@ const { can } = usePermission();
 
 .hero-copy h2 {
     margin: 9px 0 0;
-    overflow: hidden;
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 880;
     letter-spacing: -0.035em;
-    line-height: 1.15;
-    text-overflow: ellipsis;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .hero-copy p {
@@ -1336,10 +1312,6 @@ const { can } = usePermission();
     background: transparent;
 }
 
-.bottom-item:disabled {
-    opacity: 1;
-}
-
 .bottom-item > span {
     width: 30px;
     height: 26px;
@@ -1434,7 +1406,7 @@ a:focus-visible {
     }
 
     .hero-copy h2 {
-        font-size: 17px;
+        font-size: 16px;
     }
 
     .photo-card {

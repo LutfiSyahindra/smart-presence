@@ -7,7 +7,6 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     ArrowRightLeft,
     BadgeCheck,
-    CalendarDays,
     CalendarRange,
     ChevronRight,
     CircleUserRound,
@@ -169,13 +168,6 @@ const { can } = usePermission();
                         <h1>{{ user.name }}</h1>
                         <span><AppLogoIcon class="size-4" /> RSARSY Presence</span>
                     </div>
-                </div>
-
-                <div class="header-actions">
-                    <MobileNotificationBell />
-                    <Link :href="route('logout')" method="post" as="button" aria-label="Keluar dari akun">
-                        <LogOut />
-                    </Link>
                 </div>
             </header>
 
@@ -423,17 +415,16 @@ const { can } = usePermission();
 
             <nav
                 class="bottom-navigation"
-                :style="{ gridTemplateColumns: `repeat(${3 + Number(canAccessAccount) + Number(can('mobile.attendance'))}, 1fr)` }"
+                :style="{
+                    gridTemplateColumns: `repeat(${2 + Number(can('mobile.notifications')) + Number(canAccessAccount) + Number(can('mobile.attendance'))}, 1fr)`,
+                }"
                 aria-label="Navigasi utama"
             >
                 <button type="button" class="bottom-item active" aria-current="page">
                     <span><Home /></span>
                     <small>Beranda</small>
                 </button>
-                <button type="button" class="bottom-item" @click="showFeedback('Halaman jadwal sedang disiapkan.')">
-                    <span><CalendarDays /></span>
-                    <small>Jadwal</small>
-                </button>
+                <MobileNotificationBell navigation />
                 <Link v-if="can('mobile.attendance')" :href="route('absensi.mobile.attendance')" class="bottom-item attendance-main">
                     <span><TimerReset /></span>
                     <small>Presensi</small>
@@ -660,6 +651,7 @@ const { can } = usePermission();
 
 .profile-greeting {
     min-width: 0;
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -721,6 +713,7 @@ const { can } = usePermission();
 
 .profile-copy {
     min-width: 0;
+    flex: 1;
 }
 
 .profile-copy p,
@@ -735,15 +728,13 @@ const { can } = usePermission();
 }
 
 .profile-copy h1 {
-    max-width: 235px;
     margin-top: 1px;
-    overflow: hidden;
     color: #173238;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 820;
     letter-spacing: -0.025em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .profile-copy > span {
@@ -761,48 +752,6 @@ const { can } = usePermission();
 .profile-copy > span svg {
     width: 10px;
     height: 10px;
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.header-actions button {
-    width: 39px;
-    height: 39px;
-    display: grid;
-    place-items: center;
-    position: relative;
-    border: 1px solid #e2eae7;
-    border-radius: 13px;
-    color: #50686d;
-    background: rgba(255, 255, 255, 0.85);
-    box-shadow: 0 6px 18px rgba(32, 67, 65, 0.05);
-    transition: 160ms ease;
-}
-
-.header-actions button:hover {
-    border-color: #c8dcd7;
-    color: #087f78;
-    transform: translateY(-1px);
-}
-
-.header-actions button svg {
-    width: 17px;
-    height: 17px;
-}
-
-.header-actions button i {
-    width: 7px;
-    height: 7px;
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    border: 1.5px solid #fff;
-    border-radius: 999px;
-    background: #d7a657;
 }
 
 .mobile-content {
@@ -1472,12 +1421,7 @@ a:focus-visible {
     }
 
     .profile-copy h1 {
-        max-width: 190px;
-        font-size: 16px;
-    }
-
-    .header-actions > button:first-child {
-        display: none;
+        font-size: 15px;
     }
 
     .schedule-card {

@@ -4,6 +4,8 @@ import { usePermission } from '@/composables/usePermission';
 import { Link } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 
+defineProps<{ navigation?: boolean }>();
+
 const { feed } = useMobileNotifications();
 const { can } = usePermission();
 </script>
@@ -12,10 +14,14 @@ const { can } = usePermission();
     <Link
         v-if="can('mobile.notifications')"
         class="mobile-bell"
+        :class="{ 'mobile-bell-navigation': navigation }"
         href="/absensi/mobile/notifikasi"
         :aria-label="`Buka Inbox, ${feed.unread_count} notifikasi belum dibaca`"
     >
-        <Bell /><span v-if="feed.unread_count">{{ feed.unread_count > 99 ? '99+' : feed.unread_count }}</span>
+        <span class="mobile-bell-icon">
+            <Bell /><span v-if="feed.unread_count" class="mobile-bell-count">{{ feed.unread_count > 99 ? '99+' : feed.unread_count }}</span>
+        </span>
+        <small v-if="navigation">Notifikasi</small>
     </Link>
 </template>
 
@@ -40,7 +46,11 @@ const { can } = usePermission();
     width: 20px;
     height: 20px;
 }
-.mobile-bell span {
+.mobile-bell-icon {
+    display: grid;
+    place-items: center;
+}
+.mobile-bell-count {
     position: absolute;
     top: -5px;
     right: -5px;
@@ -50,5 +60,40 @@ const { can } = usePermission();
     color: white;
     font-size: 10px;
     font-weight: 700;
+}
+.mobile-bell-navigation {
+    min-width: 0;
+    width: auto;
+    min-height: 48px;
+    height: auto;
+    padding: 4px 2px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-direction: column;
+    gap: 3px;
+    border: 0;
+    border-radius: 12px;
+    color: #93a09f;
+    background: transparent;
+}
+.mobile-bell-navigation .mobile-bell-icon {
+    width: 30px;
+    height: 26px;
+    position: relative;
+}
+.mobile-bell-navigation svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.9;
+}
+.mobile-bell-navigation .mobile-bell-count {
+    top: -4px;
+    right: -10px;
+    line-height: 1.2;
+}
+.mobile-bell-navigation small {
+    font-size: 11px;
+    font-weight: 720;
 }
 </style>

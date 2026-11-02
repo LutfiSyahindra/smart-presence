@@ -12,6 +12,7 @@ import {
     ChevronRight,
     CircleUserRound,
     Clock3,
+    FilePenLine,
     History,
     Home,
     LogIn,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import MobileNotificationBell from './components/MobileNotificationBell.vue';
+import MobileSubmissionSheet from './components/MobileSubmissionSheet.vue';
 
 const props = defineProps<{
     attendanceSubmissions?: AttendanceSubmissionStatus[];
@@ -52,6 +54,7 @@ const page = usePage<SharedData>();
 const user = computed(() => page.props.auth.user);
 const now = ref(new Date());
 const feedback = ref('');
+const submissionOpen = ref(false);
 let clockTimer: ReturnType<typeof setInterval> | undefined;
 let feedbackTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -435,8 +438,15 @@ const { can } = usePermission();
                     <span><TimerReset /></span>
                     <small>Presensi</small>
                 </Link>
-                <button type="button" class="bottom-item" @click="showFeedback('Halaman pengajuan sedang disiapkan.')">
-                    <span><FileText /></span>
+                <button
+                    type="button"
+                    class="bottom-item"
+                    :class="{ active: submissionOpen }"
+                    aria-haspopup="dialog"
+                    :aria-expanded="submissionOpen"
+                    @click="submissionOpen = true"
+                >
+                    <span><FilePenLine /></span>
                     <small>Pengajuan</small>
                 </button>
                 <Link v-if="canAccessAccount" :href="route('absensi.mobile.account.show')" class="bottom-item">
@@ -453,6 +463,7 @@ const { can } = usePermission();
             </Transition>
         </div>
     </main>
+    <MobileSubmissionSheet :open="submissionOpen" @close="submissionOpen = false" />
 </template>
 
 <style scoped>

@@ -80,6 +80,17 @@ class PerubahanShiftTest extends TestCase
         return PerubahanShiftRequest::query()->latest('id')->firstOrFail();
     }
 
+    public function test_instant_shift_entry_opens_a_new_form_but_ordinary_and_detail_pages_do_not(): void
+    {
+        $this->actingAs($this->employee)->get(self::URL.'?action=create')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('initialCreate', true)
+                ->where('initialRequest', null)->where('currentShift.id', $this->original->id));
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('initialCreate', false));
+        $item = $this->submit();
+        $this->get(self::URL.'/'.$item->id.'?action=create')
+            ->assertInertia(fn (Assert $page) => $page->where('initialCreate', false)->where('initialRequest.id', $item->id));
+    }
+
     public function test_empty_page_has_real_employee_shift_and_separate_shift_approval_line(): void
     {
         $this->actingAs($this->employee)->get(self::URL)->assertOk()->assertInertia(fn (Assert $page) => $page

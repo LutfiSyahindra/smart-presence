@@ -44,6 +44,7 @@ const props = defineProps<{
     unavailableReason: string | null;
     today: string;
     initialRequest?: CutiRow | null;
+    initialCreate?: boolean;
 }>();
 const page = usePage<SharedData>();
 const sheet = ref<'balance' | 'filter' | 'create' | null>(null);
@@ -93,6 +94,7 @@ function create() {
     sheet.value = 'create';
 }
 function submit() {
+    if (form.processing || props.unavailableReason || !can('mobile.cuti.create')) return;
     form.post(route('absensi.mobile.cuti.store'), {
         replace: true,
         preserveScroll: true,
@@ -155,6 +157,8 @@ const removeBackHandler = registerMobileBackHandler(() => {
 });
 onUnmounted(removeBackHandler);
 const { can } = usePermission();
+// Open only on entry; realtime prop updates must preserve drafts and closed sheets.
+if (props.initialCreate && !props.initialRequest && can('mobile.cuti.create')) create();
 </script>
 
 <template>
@@ -417,7 +421,10 @@ const { can } = usePermission();
             :busy="form.processing"
             @close="sheet = null"
         >
-            <form id="cuti-request-form" class="sheet-body leave-form" @submit.prevent="submit">
+            <div v-if="unavailableReason" class="notice unavailable" role="alert">
+                <ShieldCheck /><span>{{ unavailableReason }}</span>
+            </div>
+            <form v-else id="cuti-request-form" class="sheet-body leave-form" @submit.prevent="submit">
                 <div class="employee-card">
                     <span class="soft-icon"><Leaf /></span>
                     <div>

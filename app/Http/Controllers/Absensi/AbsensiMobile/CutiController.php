@@ -81,8 +81,10 @@ class CutiController extends Controller
             'requests' => $query->whereDate('tanggal_mulai', '<=', $month->endOfMonth()->toDateString())
                 ->whereDate('tanggal_selesai', '>=', $month->toDateString())
                 ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
-                ->latest('id')->paginate(8)->withQueryString()->through($serialize),
+                ->latest('id')->paginate(8)->appends($request->except('action'))->through($serialize),
             'initialRequest' => $cutiRequest?->exists ? $serialize($cutiRequest) : null,
+            'initialCreate' => ! $cutiRequest?->exists && $request->query('action') === 'create'
+                && $user->can(AccessPermission::MOBILE_CUTI_CREATE),
             'balance' => $annual ? [
                 'name' => $annual['nama'], 'year' => $month->year, 'total' => $annual['jumlah_hari'], 'available' => $annual['sisa'],
                 'used' => (int) $usage->get('approved', 0), 'pending' => (int) $usage->get('pending', 0),

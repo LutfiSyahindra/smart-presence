@@ -44,6 +44,7 @@ class PerubahanShiftController extends Controller
             'scope' => $scope, 'allPeriods' => $allPeriods,
             'approvalCount' => PerubahanShiftRequest::query()->awaitingApprovalBy($user)->count(),
             'initialRequest' => $perubahanShiftRequest?->exists ? $this->serialize($perubahanShiftRequest, $user) : null,
+            'initialCreate' => ! $perubahanShiftRequest?->exists && $request->query('action') === 'create',
             'summary' => ['count' => (clone $query)->count(), 'pending' => (clone $query)->where('status', 'pending')->count()],
             'requests' => $query->with('approvals')->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
                 ->latest('tanggal_perubahan')->latest('id')->paginate(10)

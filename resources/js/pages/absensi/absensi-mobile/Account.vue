@@ -13,7 +13,7 @@ import {
     ChevronDown,
     ChevronRight,
     CircleUserRound,
-    FileText,
+    FilePenLine,
     FolderOpen,
     GraduationCap,
     Home,
@@ -32,6 +32,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, onUnmounted, ref } from 'vue';
+import MobileSubmissionSheet from './components/MobileSubmissionSheet.vue';
 
 type Profile = {
     name: string;
@@ -54,6 +55,7 @@ const previewUrl = ref<string | null>(null);
 const fullPhotoUrl = ref<string | null>(null);
 const localError = ref('');
 const preparingPhoto = ref(false);
+const submissionOpen = ref(false);
 let photoSelection = 0;
 
 const form = useForm<{ photo: File | null }>({ photo: null });
@@ -382,8 +384,15 @@ const { can } = usePermission();
                     <span><TimerReset /></span>
                     <small>Presensi</small>
                 </Link>
-                <button type="button" class="bottom-item" disabled>
-                    <span><FileText /></span>
+                <button
+                    type="button"
+                    class="bottom-item"
+                    :class="{ active: submissionOpen }"
+                    aria-haspopup="dialog"
+                    :aria-expanded="submissionOpen"
+                    @click="submissionOpen = true"
+                >
+                    <span><FilePenLine /></span>
                     <small>Pengajuan</small>
                 </button>
                 <button type="button" class="bottom-item active" aria-current="page">
@@ -393,6 +402,7 @@ const { can } = usePermission();
             </nav>
         </div>
     </main>
+    <MobileSubmissionSheet :open="submissionOpen" @close="submissionOpen = false" />
 
     <Dialog :open="fullPhotoUrl !== null" class="photo-viewer" @close="fullPhotoUrl = null">
         <div class="photo-viewer-backdrop" aria-hidden="true"></div>

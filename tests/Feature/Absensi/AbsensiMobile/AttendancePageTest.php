@@ -7,9 +7,11 @@ use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
+use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AttendancePageTest extends TestCase
@@ -50,6 +52,27 @@ class AttendancePageTest extends TestCase
             'longitude' => 106.8166667,
             'radius_meters' => 100,
         ]);
+    }
+
+    public function test_instant_attendance_entry_goes_directly_to_the_current_clock_action(): void
+    {
+        $this->travelTo('2026-09-16 08:00:00');
+        $this->actingAs($this->user)->get('/absensi/mobile/presensi?action=create')
+            ->assertRedirectToRoute('absensi.mobile.clock-in.create');
+        $attendance = Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-09-16', 'clock_in_at' => '2026-09-16 07:00:00',
+        ]);
+        $this->get('/absensi/mobile/presensi?action=create')->assertRedirectToRoute('absensi.mobile.clock-out.create');
+        $attendance->update(['clock_out_at' => '2026-09-16 15:00:00']);
+        $this->get('/absensi/mobile/presensi?action=create')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('attendance.status', 'complete'));
+    }
+
+    public function test_instant_attendance_respects_the_permission_for_the_current_clock_action(): void
+    {
+        Role::findByName('pegawai')->revokePermissionTo(AccessPermission::MOBILE_CLOCK_IN);
+        $this->actingAs($this->user)->get('/absensi/mobile/presensi?action=create')->assertForbidden();
     }
 
     public function test_attendance_service_is_ready_for_clock_in(): void
@@ -140,5 +163,6 @@ class AttendancePageTest extends TestCase
                 ->where('attendance.status', 'ready_to_clock_out')
                 ->where('attendance.clock_in.time', '21:55')
                 ->where('attendance.clock_out', null));
+        $this->get('/absensi/mobile/presensi?action=create')->assertRedirectToRoute('absensi.mobile.clock-out.create');
     }
 }

@@ -11,6 +11,7 @@ use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,7 +24,7 @@ class AttendanceController extends Controller
         private readonly AttendanceScheduleService $schedules,
     ) {}
 
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request): Response|RedirectResponse
     {
         $pegawai = $request->user()?->pegawai()
             ->with('shift')
@@ -45,6 +46,20 @@ class AttendanceController extends Controller
         $clockIn = $attendance?->clock_in_at;
         $clockOut = $attendance?->clock_out_at;
         $schedule = $this->schedules->resolve($pegawai?->id, $shift, $attendanceDate);
+        $status = $isOnCuti ? 'on_leave' : ($isDayOff ? 'day_off' : $this->status($pegawai, $attendance, $office));
+
+        if ($request->query('action') === 'create') {
+            $action = match ($status) {
+                'ready_to_clock_in' => 'clock-in',
+                'ready_to_clock_out' => 'clock-out',
+                default => null,
+            };
+            if ($action) {
+                abort_unless($request->user()->can('mobile.'.$action), 403);
+
+                return to_route('absensi.mobile.'.$action.'.create');
+            }
+        }
 
         return Inertia::render('absensi/absensi-mobile/Attendance', [
             'canAccessAccount' => $request->user()?->can(AccessPermission::MOBILE_ACCOUNT) ?? false,
@@ -61,7 +76,7 @@ class AttendanceController extends Controller
             'attendance' => [
                 'is_day_off' => $isDayOff,
                 'is_on_leave' => $isOnCuti,
-                'status' => $isOnCuti ? 'on_leave' : ($isDayOff ? 'day_off' : $this->status($pegawai, $attendance, $office)),
+                'status' => $status,
                 'duration' => $this->durationLabel($clockIn, $clockOut),
                 'notes' => $attendance?->notes ?? $dayOffReason,
                 'clock_in' => $clockIn ? [

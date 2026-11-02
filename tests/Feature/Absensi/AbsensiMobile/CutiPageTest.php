@@ -115,6 +115,25 @@ class CutiPageTest extends TestCase
         $this->assertDatabaseCount('presensis', 0);
     }
 
+    public function test_instant_leave_entry_requests_a_new_form_with_real_employee_options(): void
+    {
+        $this->actingAs($this->employee)->get(self::URL.'?action=create')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('initialCreate', true)
+                ->where('initialRequest', null)->where('unavailableReason', null)->has('leaveOptions', 1)
+                ->where('requests.first_page_url', fn (string $url) => ! str_contains($url, 'action=')));
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('initialCreate', false));
+        $cuti = $this->submit();
+        $this->get(self::URL.'/'.$cuti->id.'?action=create')
+            ->assertInertia(fn (Assert $page) => $page->where('initialCreate', false)->where('initialRequest.id', $cuti->id));
+    }
+
+    public function test_read_only_leave_access_does_not_open_an_instant_submission_form(): void
+    {
+        Role::findByName('pegawai')->revokePermissionTo(AccessPermission::MOBILE_CUTI_CREATE);
+        $this->actingAs($this->employee)->get(self::URL.'?action=create')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('initialCreate', false));
+    }
+
     public function test_mobile_employee_can_view_and_submit_without_admin_access(): void
     {
         $this->assertFalse($this->employee->can(AccessPermission::ADMIN_ACCESS));

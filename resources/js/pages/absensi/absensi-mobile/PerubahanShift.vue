@@ -49,6 +49,7 @@ const props = defineProps<{
     allPeriods: boolean;
     approvalCount: number;
     initialRequest: ShiftRequest | null;
+    initialCreate?: boolean;
     month: string;
     today: string;
     status: Status;
@@ -68,7 +69,8 @@ const props = defineProps<{
     unavailableReason: string | null;
 }>();
 const page = usePage<SharedData>();
-const sheet = ref<'month' | 'filter' | 'create' | 'discard' | null>(null);
+// Initialize once so background refreshes never reset a draft or reopen a closed form.
+const sheet = ref<'month' | 'filter' | 'create' | 'discard' | null>(props.initialCreate && !props.initialRequest ? 'create' : null);
 const selected = ref<ShiftRequest | null>(props.initialRequest ?? null);
 const confirmingCancel = ref(false);
 const cancellation = useForm({});
@@ -81,10 +83,13 @@ const draftStatus = ref<Status>(props.status);
 const loading = ref(false);
 const error = ref('');
 const form = useForm({ tanggal_perubahan: props.today, original_shift_id: props.currentShift?.id ?? null, requested_shift_id: '', alasan: '' });
-watch(() => props.currentShift?.id, (id) => {
-    form.original_shift_id = id ?? null;
-    if (Number(form.requested_shift_id) === id) form.requested_shift_id = '';
-});
+watch(
+    () => props.currentShift?.id,
+    (id) => {
+        form.original_shift_id = id ?? null;
+        if (Number(form.requested_shift_id) === id) form.requested_shift_id = '';
+    },
+);
 const submissionError = computed(() => (form.errors as Record<string, string | undefined>).pengajuan);
 const statuses: { value: Status; label: string; description: string }[] = [
     { value: '', label: 'Semua', description: 'Seluruh pengajuan pada periode pilihan' },
@@ -766,7 +771,11 @@ watch(
     <CutiSheet
         :open="Boolean(selected) && confirmingCancel"
         title="Batalkan pengajuan?"
-        :description="selected?.status === 'approved' ? 'Pengajuan dibatalkan dan jadwal pada tanggal ini dikembalikan ke shift asal. Catatan clock-in dan clock-out tetap tersimpan.' : 'Pengajuan akan dibatalkan dan approver akan diberi tahu. Jadwal aktif Anda tetap berlaku.'"
+        :description="
+            selected?.status === 'approved'
+                ? 'Pengajuan dibatalkan dan jadwal pada tanggal ini dikembalikan ke shift asal. Catatan clock-in dan clock-out tetap tersimpan.'
+                : 'Pengajuan akan dibatalkan dan approver akan diberi tahu. Jadwal aktif Anda tetap berlaku.'
+        "
         :busy="cancellation.processing"
         @close="closeDetail"
     >

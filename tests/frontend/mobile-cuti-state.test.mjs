@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(script, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-function runtime() {
+function runtime(overrides = {}, permissions = null) {
     const request = { id: 42, status: 'pending', can_cancel: true, can_decide: false };
     const props = vue.reactive({
         today: '2026-10-26',
@@ -20,6 +20,7 @@ function runtime() {
         requests: { data: [request] },
         initialRequest: request,
         leaveOptions: [{ id: 1, is_tahunan: true, tahun: 2026, sisa: 10 }],
+        ...overrides,
     });
     const posts = [];
     let back;
@@ -36,7 +37,8 @@ function runtime() {
                         return () => {};
                     },
                 };
-            if (name === '@/composables/usePermission') return { usePermission: () => ({ can: () => true }) };
+            if (name === '@/composables/usePermission')
+                return { usePermission: () => ({ can: (permission) => !permissions || permissions.includes(permission) }) };
             if (name === '@inertiajs/vue3')
                 return {
                     usePage: () => ({ props: { flash: {} } }),
@@ -65,6 +67,37 @@ function runtime() {
     const state = scope.run(() => exports.default.setup(props, { expose() {} }));
     return { props, state, posts, back: () => back(), close: () => scope.stop() };
 }
+
+test('instant leave entry opens the form with its annual type without reopening or clearing drafts on refresh', async () => {
+    const app = runtime({ initialCreate: true, initialRequest: null });
+    try {
+        assert.equal(app.state.sheet.value, 'create');
+        assert.equal(app.state.form.master_cuti_id, '1');
+        app.state.form.alasan = 'Draf cuti keluarga';
+        app.props.leaveOptions = [...app.props.leaveOptions];
+        app.props.requests = { data: [] };
+        await vue.nextTick();
+        assert.equal(app.state.form.alasan, 'Draf cuti keluarga');
+        app.state.sheet.value = null;
+        app.props.initialCreate = false;
+        await vue.nextTick();
+        app.props.initialCreate = true;
+        await vue.nextTick();
+        assert.equal(app.state.sheet.value, null);
+    } finally {
+        app.close();
+    }
+});
+
+test('instant leave form requires create permission and never replaces a request detail', () => {
+    for (const app of [runtime({ initialCreate: true, initialRequest: null }, ['mobile.cuti.view']), runtime({ initialCreate: true })]) {
+        try {
+            assert.equal(app.state.sheet.value, null);
+        } finally {
+            app.close();
+        }
+    }
+});
 
 test('leave submission replaces its history entry and closes and resets the submitted form', () => {
     const app = runtime();

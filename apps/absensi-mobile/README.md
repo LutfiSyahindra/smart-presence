@@ -114,6 +114,23 @@ Buka `http://localhost:8600/login`, bukan port Vite, karena halaman membutuhkan 
 Jalankan `android:connect` jika perangkat baru dinyalakan setelah Vite.
 Mode build di atas tidak memerlukan Vite/HMR yang berjalan.
 
+## Menu Pengajuan
+
+Navigasi bawah Beranda dan Akun membuka panel **Ajukan untuk** dengan ikon
+pena-dokumen. Panel yang sama dipakai PWA, Android, dan iOS melalui frontend
+Laravel/Inertia. Cuti dan Perubahan Shift langsung membuka formulir baru melalui
+`?action=create`; Lembur langsung membuka `/lembur/ajukan`. Formulir hanya dibuka
+saat masuk agar penyegaran realtime tidak menghapus draf atau membuka ulang panel
+yang telah ditutup. Absensi langsung menuju clock-in atau clock-out sesuai status
+kehadiran hari ini; status cuti, libur, selesai, atau konfigurasi belum lengkap
+ditampilkan pada halaman presensi. Pilihan mengikuti izin untuk mengajukan.
+Reimbursement dan Perubahan Data ditandai **Segera** dan belum dapat dipilih.
+
+Panel mendukung safe area, gulir pada layar pendek, animasi dengan preferensi
+reduced motion, penguncian fokus, serta penutupan melalui tombol tutup, backdrop,
+Escape, dan tombol kembali Android. Uji regresi menu:
+`node --test tests/frontend/mobile-submission-sheet.test.mjs`.
+
 ## Navigasi kembali Android, PWA, dan iOS
 
 ### Pembaruan data dan pengajuan selesai

@@ -95,12 +95,14 @@ class DeepFaceEngine:
 
         with self._inference_lock:
             deepface = self._library()
-            clock_in_face = self._extract_single_face(
+            clock_in_detection = self._detect_single_face(
                 deepface,
                 clock_in_image,
                 profile_photo=False,
             )
+            clock_in_face = self._face_crop(clock_in_detection)
             profile_embedding = self._cached_profile_embedding(profile_cache_key)
+            profile_cache_hit = profile_embedding is not None
 
             try:
                 if profile_embedding is None:
@@ -171,6 +173,18 @@ class DeepFaceEngine:
                 )
             )
 
+            if not matched:
+                self._log_rejection(
+                    "face_mismatch", clock_in_image,
+                    backend=clock_in_detection.get("_detector_backend"),
+                    detection=clock_in_detection,
+                    distance=distance, threshold=threshold,
+                    configured_distance_threshold=self.settings.distance_threshold,
+                    confidence=normalized_similarity, minimum_confidence=minimum_similarity,
+                    model_verified=result.get("verified") is True,
+                    reference_cached=profile_cache_hit,
+                )
+
             return {
                 "verified": matched,
                 "similarity": normalized_similarity,
@@ -179,7 +193,7 @@ class DeepFaceEngine:
                 "minimum_similarity": minimum_similarity,
                 "provider": f"deepface-{self.settings.model_name.lower()}"[:50],
                 "model": self.settings.model_name,
-                "detector_backend": self.settings.detector_backend,
+                "detector_backend": clock_in_detection.get("_detector_backend", self.settings.detector_backend),
                 "anti_spoofing_enabled": self.settings.anti_spoofing,
             }
 
@@ -211,6 +225,7 @@ class DeepFaceEngine:
             except FaceNotDetected:
                 continue
             except SpoofDetected as exception:
+                self._log_rejection("spoof_detected", image, backend=backend, profile_photo=profile_photo)
                 raise FaceServiceError(
                     "spoof_detected",
                     "Foto clock-in tidak lolos pemeriksaan anti-spoofing.",
@@ -229,6 +244,7 @@ class DeepFaceEngine:
             # Retry only a missing detection. Multiple faces and spoof failures
             # must never become acceptable through a second detector.
             if len(faces) != 1:
+                self._log_rejection("multiple_faces", image, backend=backend, profile_photo=profile_photo, face_count=len(faces))
                 if profile_photo:
                     raise FaceServiceError(
                         "invalid_profile_photo",
@@ -239,19 +255,51 @@ class DeepFaceEngine:
                     "Foto clock-in hanya boleh memuat satu wajah.",
                 )
 
-            if (
-                self.settings.anti_spoofing
-                and not profile_photo
-                and faces[0].get("is_real") is not True
-            ):
-                raise FaceServiceError(
-                    "spoof_detected",
-                    "Foto clock-in tidak lolos pemeriksaan anti-spoofing.",
-                )
+            if self.settings.anti_spoofing and not profile_photo:
+                is_real = faces[0].get("is_real")
+                if is_real is not True:
+                    reason = "spoof_detected" if is_real is False else "incomplete_anti_spoofing"
+                    self._log_rejection(reason, image, backend=backend, detection=faces[0])
+                    if is_real is False:
+                        raise FaceServiceError(
+                            "spoof_detected",
+                            "Pemeriksaan keaslian wajah belum berhasil. Gunakan cahaya merata dan tahan HP tetap stabil.",
+                        )
+                    raise FaceServiceError(
+                        "service_unavailable", "Hasil pemeriksaan keaslian wajah tidak lengkap.", status_code=503,
+                    )
 
+            faces[0]["_detector_backend"] = backend
             return faces[0]
 
+        self._log_rejection("face_not_found", image, profile_photo=profile_photo, detectors=self._detector_backends())
         raise self._face_detection_error(profile_photo)
+
+    def _log_rejection(
+        self, reason: str, image: NDArray[np.uint8], *,
+        backend: str | None = None, detection: dict[str, Any] | None = None,
+        **details: Any,
+    ) -> None:
+        # Keep diagnostics numeric: never log photos, embeddings, or employee data.
+        diagnostics = {
+            "reason": reason, "model": self.settings.model_name,
+            "distance_metric": self.settings.distance_metric, "detector": backend,
+            "image_width": int(image.shape[1]), "image_height": int(image.shape[0]),
+            **details,
+        }
+        if detection is not None:
+            diagnostics["anti_spoof_score"] = self._optional_float(detection.get("antispoof_score"))
+            area = detection.get("facial_area")
+            if not isinstance(area, dict):
+                area = {}
+            x, y, width, height = (int(self._optional_float(area.get(key)) or 0) for key in ("x", "y", "w", "h"))
+            diagnostics.update(face_width=width, face_height=height)
+            crop = image[max(0, y):max(0, y + height), max(0, x):max(0, x + width)]
+            if crop.size:
+                gray = cv2.cvtColor(cv2.resize(crop, (160, 160), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+                diagnostics["face_brightness"] = round(float(gray.mean()), 2)
+                diagnostics["face_sharpness"] = round(float(cv2.Laplacian(gray, cv2.CV_64F).var()), 2)
+        logger.warning("face_verification_rejected %s", diagnostics, extra={"face_verification": diagnostics})
 
     @staticmethod
     def _face_crop(detection: dict[str, Any]) -> NDArray[Any]:

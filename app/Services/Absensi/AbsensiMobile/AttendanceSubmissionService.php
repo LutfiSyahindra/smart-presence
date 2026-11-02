@@ -272,7 +272,7 @@ class AttendanceSubmissionService
             $message = match ($exception->reason) {
                 FaceVerificationException::INVALID_PROFILE_PHOTO => 'Foto profil tidak dapat digunakan untuk verifikasi. Perbarui foto profil dengan satu wajah yang terlihat jelas.',
                 FaceVerificationException::MULTIPLE_FACES => 'Terdeteksi lebih dari satu wajah. Pastikan hanya Anda yang terlihat lalu coba verifikasi kembali.',
-                FaceVerificationException::SPOOF_DETECTED => 'Wajah terindikasi berasal dari layar, cetakan, atau rekaman. Hadapkan wajah langsung ke kamera lalu coba kembali.',
+                FaceVerificationException::SPOOF_DETECTED => 'Pemeriksaan keaslian wajah belum berhasil. Hadapkan wajah langsung ke kamera, gunakan cahaya merata, dan tahan HP tetap stabil lalu coba kembali.',
                 default => 'Wajah tidak terdeteksi dengan jelas. Hadapkan wajah ke kamera lalu coba verifikasi kembali.',
             };
 

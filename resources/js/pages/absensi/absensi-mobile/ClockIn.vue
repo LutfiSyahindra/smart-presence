@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { cancelAndroidAttendanceLocation, getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
+import { captureAttendancePhoto } from '@/lib/attendance-camera';
 import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { registerMobileRefreshGuard, resumeMobileRefresh } from '@/lib/mobile-refresh';
 import type { SharedData } from '@/types';
@@ -196,7 +197,7 @@ const globalFormError = computed(() => (form.errors as Record<string, string>).a
 const locationProofError = computed(() => (form.errors as Record<string, string>).location_proof);
 const verificationButtonLabel = computed(() => {
     if (checkingLocation.value) return 'Memeriksa keamanan GPS...';
-    if (capturingPhoto.value) return 'Mengambil foto wajah...';
+    if (capturingPhoto.value) return 'Tahan posisi sebentar...';
     if (!form.processing) return `Verifikasi & ${actionTitle.value}`;
     if (verificationElapsedSeconds.value < 2) return 'Mengirim foto...';
     return `Memverifikasi wajah... ${verificationElapsedSeconds.value} dtk`;
@@ -602,6 +603,12 @@ const startCamera = async () => {
     }
 };
 
+const restartCamera = () => {
+    if (form.processing || checkingLocation.value || capturingPhoto.value) return;
+    stopCamera();
+    void startCamera();
+};
+
 const capturePhoto = async (): Promise<File | null> => {
     const video = cameraVideo.value;
     if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
@@ -613,24 +620,14 @@ const capturePhoto = async (): Promise<File | null> => {
     photoError.value = '';
     form.clearErrors();
 
+    const requestId = cameraRequestId;
+    const isCurrent = () => requestId === cameraRequestId && currentStep.value === 2 && cameraVideo.value === video;
     try {
-        const maximumSide = 1280;
-        const scale = Math.min(1, maximumSide / Math.max(video.videoWidth, video.videoHeight));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(video.videoWidth * scale);
-        canvas.height = Math.round(video.videoHeight * scale);
-
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Foto kamera tidak dapat diproses.');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-        if (!blob) throw new Error('Foto kamera tidak dapat diproses.');
-
+        const photo = await captureAttendancePhoto(video, `${actionSlug.value}-${Date.now()}.jpg`, isCurrent);
         cameraError.value = '';
-        return new File([blob], `${actionSlug.value}-${Date.now()}.jpg`, { type: 'image/jpeg' });
-    } catch {
-        photoError.value = 'Foto kamera gagal diambil. Silakan coba lagi.';
+        return photo;
+    } catch (error) {
+        if (isCurrent()) photoError.value = error instanceof Error ? error.message : 'Foto kamera gagal diambil. Silakan coba lagi.';
         return null;
     } finally {
         capturingPhoto.value = false;
@@ -947,7 +944,9 @@ onUnmounted(() => {
                             <i class="corner top-left"></i><i class="corner top-right"></i> <i class="corner bottom-left"></i
                             ><i class="corner bottom-right"></i>
                         </div>
-                        <span v-if="cameraActive" class="camera-live-status"><i></i> Siap mengambil foto</span>
+                        <span v-if="cameraActive" class="camera-live-status"
+                            ><i></i> {{ cameraStarting ? 'Menyiapkan kamera' : 'Posisikan wajah di tengah' }}</span
+                        >
                         <div v-if="form.processing || capturingPhoto || checkingLocation" class="verification-overlay" aria-live="polite">
                             <span><LoaderCircle class="spin" /></span>
                             <strong>{{ verificationButtonLabel }}</strong>
@@ -955,7 +954,13 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <button v-if="cameraError && !cameraStarting" type="button" class="camera-retry" @click="startCamera">
+                    <button
+                        v-if="(cameraError || photoError || form.errors.photo) && !cameraStarting"
+                        type="button"
+                        class="camera-retry"
+                        :disabled="form.processing || checkingLocation || capturingPhoto"
+                        @click="restartCamera"
+                    >
                         <RefreshCw /> Aktifkan ulang kamera
                     </button>
                     <p v-if="cameraError || photoError || form.errors.photo" class="field-error">
@@ -964,7 +969,9 @@ onUnmounted(() => {
 
                     <div class="verification-facts">
                         <div>
-                            <Focus /><span><strong>Wajah terlihat jelas</strong><small>Buka kaca helm sepenuhnya dan hadapkan wajah ke cahaya</small></span>
+                            <Focus /><span
+                                ><strong>Wajah terlihat jelas</strong><small>Hadapkan wajah ke cahaya dan tahan HP tetap stabil</small></span
+                            >
                         </div>
                         <div>
                             <ShieldCheck /><span
@@ -1008,7 +1015,9 @@ onUnmounted(() => {
                         <span>{{ verificationButtonLabel }}</span>
                         <Check v-if="!form.processing && !capturingPhoto && !checkingLocation" />
                     </button>
-                    <p class="auto-capture-note"><Camera /> Kamera mengambil satu foto hanya saat tombol di atas ditekan.</p>
+                    <p class="auto-capture-note">
+                        <Camera /> Tahan posisi sebentar setelah menekan tombol. Satu foto terbaik dikirim untuk verifikasi.
+                    </p>
                 </template>
             </footer>
 

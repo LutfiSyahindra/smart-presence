@@ -39,6 +39,16 @@ openssl rand -hex 32
 
 Masukkan hasilnya sebagai `FACE_SERVICE_TOKEN` pada `.env`, tanpa menuliskannya ke log atau source control.
 
+## Pengambilan kamera dan diagnosis penolakan
+
+Foto profil tetap menjadi satu-satunya referensi wajah; pegawai tidak perlu melakukan pendaftaran wajah tambahan. Frontend Clock In dan Clock Out yang dipakai bersama oleh Android, PWA, dan iOS mengambil empat gambar kamera selama sekitar 0,6 detik setelah tombol ditekan. Ketajaman dan pencahayaan bagian tengah gambar dipakai untuk memilih satu gambar. Ini hanya perkiraan kualitas gambar, bukan deteksi wajah atau keputusan liveness. Hanya satu foto JPEG yang dikirim ke server, dengan rasio gambar utuh, sisi terpanjang maksimal 1280 piksel, tanpa filter, pemotongan, atau pembalikan gambar. Buffer gambar sementara dilepas setelah pengambilan selesai atau dibatalkan.
+
+Keputusan jarak model, minimum confidence, dan anti-spoofing tetap diterapkan. Pesan penolakan anti-spoofing menjelaskan bahwa pemeriksaan keaslian belum berhasil, karena hasil prediksi tidak membuktikan bahwa pegawai memakai tangkapan layar. Hasil anti-spoofing yang hilang/tidak valid diperlakukan sebagai gangguan layanan dan tetap tidak meloloskan presensi.
+
+Penolakan menghasilkan log `face_verification_rejected` pada stderr service. `reason=spoof_detected` terjadi sebelum pencocokan referensi; `reason=face_mismatch` memuat `distance`, `threshold`, `confidence`, serta batas tambahan yang berlaku. Log juga mencantumkan detector yang benar-benar dipakai, resolusi gambar, ukuran/ketajaman/pencahayaan area wajah, dan `anti_spoof_score` bila tersedia. Skor anti-spoofing adalah skor kelas yang dipilih model, bukan selalu probabilitas wajah asli. Tidak ada foto, embedding, token, atau identitas pegawai dalam log ini.
+
+Untuk menerapkan perubahan, jalankan `npm run build` dari root proyek, deploy frontend/backend, restart service FastAPI (atau rebuild container), lalu `php artisan queue:restart`. Perubahan frontend bersama ini tidak memerlukan APK baru pada wrapper Android yang memuat frontend server. Validasi dengan HP Android asli tetap diperlukan: bandingkan percobaan wajah asli pada beberapa kondisi cahaya dengan foto cetak/video di layar. Tes otomatis memeriksa alur pengambilan, pembatalan, dan keputusan penolakan; tes tersebut tidak mengukur tingkat salah tolak model pada pegawai.
+
 ## Menjalankan dengan Docker
 
 Dari root proyek:

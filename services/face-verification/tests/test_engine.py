@@ -200,7 +200,7 @@ def test_missing_face_after_both_detectors_is_rejected(profile_photo: bool, code
 @pytest.mark.parametrize("detection,code,status", [
     ([{"is_real": True}, {"is_real": True}], "multiple_faces", 422),
     ([{"is_real": False}], "spoof_detected", 422),
-    ([{}], "spoof_detected", 422),
+    ([{}], "service_unavailable", 503),
     (SpoofDetected("Spoof detected"), "spoof_detected", 422),
     (ValueError("Detector model is invalid"), "service_unavailable", 503),
 ])
@@ -363,3 +363,53 @@ def test_profile_validation_rejects_an_unusable_embedding(embedding: Any) -> Non
 
     assert caught.value.code == "invalid_profile_photo"
     assert not engine._profile_embeddings
+
+
+def test_mismatch_logs_scores_and_actual_fallback_without_biometric_payloads(caplog: pytest.LogCaptureFixture) -> None:
+    fake = FakeDeepFace(verified=False, confidence=42)
+    fake.detections = [[], [{
+        "face": np.zeros((160, 160, 3), dtype=np.float32),
+        "facial_area": {"x": 100, "y": 100, "w": 240, "h": 240},
+        "is_real": True, "antispoof_score": 0.83,
+    }]]
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+    engine._deepface = fake
+
+    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+
+    assert result["verified"] is False
+    assert result["detector_backend"] == "opencv"
+    diagnostics = caplog.records[-1].face_verification
+    assert diagnostics["reason"] == "face_mismatch"
+    assert diagnostics["detector"] == "opencv"
+    assert diagnostics["distance"] == 0.1
+    assert diagnostics["threshold"] == 0.3
+    assert diagnostics["confidence"] == 42
+    assert diagnostics["anti_spoof_score"] == 0.83
+    assert diagnostics["face_width"] == 240
+    assert diagnostics["face_brightness"] == 255
+    assert diagnostics["reference_cached"] is False
+    assert not any(key in diagnostics for key in ("photo", "embedding", "token", "user_id"))
+    assert TOKEN not in caplog.text
+
+
+@pytest.mark.parametrize("is_real,reason,code", [
+    (False, "spoof_detected", "spoof_detected"),
+    (None, "incomplete_anti_spoofing", "service_unavailable"),
+])
+def test_anti_spoof_rejections_log_the_score_before_matching(
+    caplog: pytest.LogCaptureFixture, is_real: bool | None, reason: str, code: str,
+) -> None:
+    fake = FakeDeepFace()
+    fake.detections = [[{"is_real": is_real, "antispoof_score": 0.72}]]
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+    engine._deepface = fake
+
+    with pytest.raises(FaceServiceError) as caught:
+        engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+
+    assert caught.value.code == code
+    assert caplog.records[-1].face_verification["reason"] == reason
+    assert caplog.records[-1].face_verification["anti_spoof_score"] == 0.72
+    assert not fake.represent_calls
+    assert not fake.verify_calls

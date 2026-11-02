@@ -180,7 +180,7 @@ class QueuedAttendanceTest extends TestCase
         $this->process($submission);
         $this->assertSame('failed', $submission->fresh()->status);
         $this->assertSame(1, $submission->fresh()->attempts);
-        $this->assertStringContainsString('layar', $submission->fresh()->error_message);
+        $this->assertStringContainsString('Pemeriksaan keaslian wajah belum berhasil', $submission->fresh()->error_message);
     }
 
     public function test_repeated_post_with_consumed_proof_returns_the_existing_submission(): void

@@ -7,7 +7,7 @@ import ts from 'typescript';
 const component = await readFile(new URL('../../resources/js/pages/absensi/absensi-mobile/ClockIn.vue', import.meta.url), 'utf8');
 const source = component.split('<script setup lang="ts">')[1].split('</script>')[0];
 const { outputText } = ts.transpileModule(
-    `${source}\nexport { requestLocation, submitClockIn, goBack, currentLocation, locationSamples, locating, locationError, currentStep, cameraActive, cameraVideo, cameraStream, outsideDialogOpen, checkingLocation, photoError, form };`,
+    `${source}\nexport { requestLocation, submitClockIn, goBack, restartCamera, currentLocation, locationSamples, locating, locationError, currentStep, cameraActive, cameraVideo, cameraStream, outsideDialogOpen, checkingLocation, photoError, form };`,
     {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     },
@@ -33,6 +33,7 @@ function load({
     let intervalCalls = 0;
     let nativeCalls = 0;
     let reloads = 0;
+    let cameraOpens = 0;
     let elapsed = 0;
     const serverTime = Date.now();
     const posts = [];
@@ -49,6 +50,7 @@ function load({
         },
     };
     const vue = {
+        nextTick: async () => {},
         ref: (value) => ({ value }),
         computed: (getter) => ({
             get value() {
@@ -111,6 +113,9 @@ function load({
                 return nativeLocation();
             },
         },
+        '@/lib/attendance-camera': {
+            captureAttendancePhoto: async (_video, filename) => new File(['photo'], filename, { type: 'image/jpeg' }),
+        },
         '@/lib/mobile-navigation': {
             mobileGoBack: (fallback) => {
                 callbacks.fallback = fallback;
@@ -159,6 +164,12 @@ function load({
             clearInterval: () => {},
         },
         navigator: {
+            mediaDevices: {
+                getUserMedia: async () => {
+                    cameraOpens += 1;
+                    return { getTracks: () => [] };
+                },
+            },
             geolocation: {
                 watchPosition: (success, error, options) => {
                     Object.assign(callbacks, { success, error, options });
@@ -184,6 +195,7 @@ function load({
         intervalCalls: () => intervalCalls,
         nativeCalls: () => nativeCalls,
         reloads: () => reloads,
+        cameraOpens: () => cameraOpens,
         deviceNow: () => serverTime + clockSkew + elapsed,
         advance: (milliseconds) => {
             elapsed += milliseconds;
@@ -204,6 +216,26 @@ function load({
 }
 
 const fix = (changes = {}) => ({ latitude: -6.2, longitude: 106.8166667, accuracy: 8, captured_at: Date.now(), is_mock: false, ...changes });
+
+test('retrying the camera releases the previous stream and acquires a fresh one', async () => {
+    const state = load();
+    state.openCamera();
+    let stopped = 0;
+    state.cameraStream.value = { getTracks: () => [{ stop: () => stopped += 1 }] };
+    state.cameraVideo.value.play = async () => {};
+    state.photoError.value = 'Foto kamera gagal diambil.';
+    state.restartCamera();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(stopped, 1);
+    assert.equal(state.cameraOpens(), 1);
+    assert.equal(state.cameraActive.value, true);
+    assert.equal(state.cameraVideo.value.srcObject, state.cameraStream.value);
+    assert.equal(state.photoError.value, '');
+
+    state.form.processing = true;
+    state.restartCamera();
+    assert.equal(state.cameraOpens(), 1);
+});
 
 test('the first accurate browser location is ready immediately without a sampling timer', () => {
     const state = load();

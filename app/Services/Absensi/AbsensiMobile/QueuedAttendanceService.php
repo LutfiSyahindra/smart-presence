@@ -270,12 +270,12 @@ class QueuedAttendanceService
     {
         $today = $pegawai->presensis()->with('shift')->where('tanggal_presensi', now()->toDateString())->first();
         if ($today) {
-            return $today;
+            return $this->schedules->continuingBeforeDayOff($pegawai, $today);
         }
         $previous = $pegawai->presensis()->with('shift')->where('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')->latest('clock_in_at')->first();
 
-        return $previous?->shift && $previous->shift->jam_keluar <= $previous->shift->jam_masuk ? $previous : null;
+        return $previous?->shift && ! $previous->shift->is_day_off && $previous->shift->jam_keluar <= $previous->shift->jam_masuk ? $previous : null;
     }
 
     private function distance(float $latitude, float $longitude, OfficeLocation $office): float

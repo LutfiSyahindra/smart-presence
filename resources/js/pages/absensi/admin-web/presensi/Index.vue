@@ -83,6 +83,7 @@ interface PegawaiOption {
 interface ShiftOption {
     id: number;
     nama: string;
+    is_day_off: boolean;
     jam_masuk: string;
     jam_keluar: string;
 }
@@ -168,7 +169,7 @@ const shiftOptions = computed<SearchableSelectOption[]>(() =>
     (props.options?.shifts ?? []).map((shift) => ({
         value: shift.id,
         label: shift.nama,
-        description: `${shift.jam_masuk}–${shift.jam_keluar}`,
+        description: shift.is_day_off ? 'OFF / Libur · Tanpa jam kerja' : `${shift.jam_masuk}–${shift.jam_keluar}`,
         searchText: `${shift.nama} ${shift.jam_masuk} ${shift.jam_keluar}`,
     })),
 );
@@ -264,6 +265,7 @@ const openCreate = (pegawaiId = 0, date = props.filters.date_from) => {
         pegawai_id: pegawaiId,
         tanggal_presensi: date,
         shift_id: assignedShiftId,
+        is_day_off: props.options?.shifts.find((shift) => shift.id === assignedShiftId)?.is_day_off ?? false,
     });
     form.reset();
     form.clearErrors();
@@ -316,6 +318,10 @@ const submitForm = () => {
     if (editing.value) form.put(`${manageUrl}/${editing.value.id}`, options);
     else form.post(manageUrl, options);
 };
+
+watch(selectedShift, (shift) => {
+    if (shift?.is_day_off) form.is_day_off = true;
+});
 
 watch(
     () => form.is_day_off,
@@ -438,7 +444,10 @@ watch(
                                 <td>
                                     <div v-if="record.shift" class="shift-cell">
                                         <strong>{{ record.shift.nama }}</strong>
-                                        <span><Clock3 /> {{ record.shift.jam_masuk }} – {{ record.shift.jam_keluar }}</span>
+                                        <span
+                                            ><Clock3 />
+                                            {{ record.is_day_off ? 'OFF / Libur' : `${record.shift.jam_masuk} – ${record.shift.jam_keluar}` }}</span
+                                        >
                                     </div>
                                     <span v-else class="muted-value">-</span>
                                 </td>
@@ -513,7 +522,9 @@ watch(
                         </header>
                         <div class="mobile-shift">
                             <span><BriefcaseBusiness /> {{ record.shift?.nama || '-' }}</span>
-                            <small v-if="record.shift">{{ record.shift.jam_masuk }} – {{ record.shift.jam_keluar }}</small>
+                            <small v-if="record.shift">{{
+                                record.is_day_off ? 'OFF / Libur' : `${record.shift.jam_masuk} – ${record.shift.jam_keluar}`
+                            }}</small>
                         </div>
                         <div class="mobile-clock-grid">
                             <ClockDetail
@@ -573,7 +584,7 @@ watch(
                             <p>
                                 {{
                                     selectedShift
-                                        ? `${selectedShift.nama} · ${selectedShift.jam_masuk}–${selectedShift.jam_keluar}`
+                                        ? `${selectedShift.nama} · ${selectedShift.is_day_off ? 'OFF / Libur' : `${selectedShift.jam_masuk}–${selectedShift.jam_keluar}`}`
                                         : 'Shift belum dipilih'
                                 }}
                             </p>
@@ -623,7 +634,7 @@ watch(
                         </div>
 
                         <label class="day-off-toggle">
-                            <input v-model="form.is_day_off" type="checkbox" />
+                            <input v-model="form.is_day_off" type="checkbox" :disabled="selectedShift?.is_day_off" />
                             <span><Coffee /></span>
                             <div><strong>Liburkan pegawai</strong><small>Clock-in, clock-out, dan lembur akan dikosongkan</small></div>
                         </label>

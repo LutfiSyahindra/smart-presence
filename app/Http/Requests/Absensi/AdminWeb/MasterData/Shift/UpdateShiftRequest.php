@@ -17,8 +17,9 @@ class UpdateShiftRequest extends FormRequest
     {
         return [
             'nama' => ['required', 'string', 'max:100', Rule::unique('shifts', 'nama')->ignore($this->route('shift'))],
-            'jam_masuk' => ['required', 'date_format:H:i'],
-            'jam_keluar' => ['required', 'date_format:H:i'],
+            'is_day_off' => ['required', 'boolean'],
+            'jam_masuk' => ['exclude_if:is_day_off,true', 'required', 'date_format:H:i'],
+            'jam_keluar' => ['exclude_if:is_day_off,true', 'required', 'date_format:H:i'],
             'libur_sabtu' => ['sometimes', 'boolean'],
             'libur_minggu' => ['sometimes', 'boolean'],
             'libur_nasional' => ['sometimes', 'boolean'],
@@ -31,6 +32,7 @@ class UpdateShiftRequest extends FormRequest
     {
         return [
             'nama.unique' => 'Nama shift sudah digunakan.',
+            'is_day_off.boolean' => 'Jenis shift tidak valid.',
             'jam_masuk.date_format' => 'Jam masuk harus menggunakan format jam yang valid.',
             'jam_keluar.date_format' => 'Jam keluar harus menggunakan format jam yang valid.',
         ];
@@ -40,6 +42,7 @@ class UpdateShiftRequest extends FormRequest
     {
         $this->merge([
             'nama' => str($this->input('nama'))->squish()->toString(),
+            'is_day_off' => $this->input('is_day_off', false),
             'jam_masuk' => trim((string) $this->input('jam_masuk')),
             'jam_keluar' => trim((string) $this->input('jam_keluar')),
         ]);

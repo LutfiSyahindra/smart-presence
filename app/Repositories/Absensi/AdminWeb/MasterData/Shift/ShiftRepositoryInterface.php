@@ -10,7 +10,7 @@ interface ShiftRepositoryInterface
     /** @param array{search?: string|null} $filters */
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator;
 
-    /** @return array{total: int, morning: int, afternoon: int, night: int} */
+    /** @return array{total: int, morning: int, afternoon: int, night: int, off: int} */
     public function overview(): array;
 
     /** @param array<string, mixed> $attributes */

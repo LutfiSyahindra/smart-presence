@@ -25,6 +25,7 @@ import type { Paginated } from '../../setting/types';
 interface ShiftOption {
     id: number;
     nama: string;
+    is_day_off: boolean;
     jam_masuk: string;
     jam_keluar: string;
 }
@@ -98,7 +99,7 @@ const searchableShiftOptions = computed<SearchableSelectOption[]>(() =>
     props.shifts.map((shift) => ({
         value: shift.id,
         label: shift.nama,
-        description: `${shift.jam_masuk}–${shift.jam_keluar}`,
+        description: shift.is_day_off ? 'OFF / Libur · Tanpa jam kerja' : `${shift.jam_masuk}–${shift.jam_keluar}`,
         searchText: `${shift.nama} ${shift.jam_masuk} ${shift.jam_keluar}`,
     })),
 );
@@ -377,7 +378,9 @@ const saveBulk = () => {
                                         />
                                         <div v-else-if="pegawai.shift" class="shift-badge">
                                             <strong>{{ pegawai.shift.nama }}</strong
-                                            ><small>{{ pegawai.shift.jam_masuk }}–{{ pegawai.shift.jam_keluar }}</small>
+                                            ><small>{{
+                                                pegawai.shift.is_day_off ? 'OFF / Libur' : `${pegawai.shift.jam_masuk}–${pegawai.shift.jam_keluar}`
+                                            }}</small>
                                         </div>
                                         <span v-else class="no-shift"><TimerOff /> Belum ada shift</span>
                                     </td>
@@ -439,7 +442,9 @@ const saveBulk = () => {
                                 />
                                 <div v-else-if="pegawai.shift" class="shift-badge">
                                     <strong>{{ pegawai.shift.nama }}</strong
-                                    ><small>{{ pegawai.shift.jam_masuk }}–{{ pegawai.shift.jam_keluar }}</small>
+                                    ><small>{{
+                                        pegawai.shift.is_day_off ? 'OFF / Libur' : `${pegawai.shift.jam_masuk}–${pegawai.shift.jam_keluar}`
+                                    }}</small>
                                 </div>
                                 <span v-else class="no-shift"><TimerOff /> Belum ada shift</span>
                                 <button

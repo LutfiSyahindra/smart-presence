@@ -138,4 +138,53 @@ class ShiftManagementTest extends TestCase
             ->assertForbidden();
         $this->delete("/absensi/admin-web/master-data/shift/{$shift->id}")->assertForbidden();
     }
+
+    public function test_off_shift_can_be_created_without_times_and_ignores_working_hours_and_holiday_policy(): void
+    {
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/shift', [
+            'nama' => ' OFF / Libur ', 'is_day_off' => true,
+            'jam_masuk' => '07:00', 'jam_keluar' => '15:00', 'libur_sabtu' => true,
+        ])->assertSessionHasNoErrors();
+
+        $shift = Shift::query()->sole();
+        $this->assertTrue($shift->is_day_off);
+        $this->assertNull($shift->jam_masuk);
+        $this->assertNull($shift->jam_keluar);
+        $this->assertFalse($shift->libur_sabtu);
+        $this->get('/absensi/admin-web/master-data/shift')->assertInertia(fn (Assert $page) => $page
+            ->where('shifts.data.0.is_day_off', true)->where('overview.total', 1)
+            ->where('overview.off', 1)->where('overview.morning', 0)
+            ->where('overview.afternoon', 0)->where('overview.night', 0));
+    }
+
+    public function test_dynamic_input_supports_a_mix_of_work_and_off_shifts(): void
+    {
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/shift', ['shifts' => [
+            ['nama' => 'Pagi', 'jam_masuk' => '07:00', 'jam_keluar' => '15:00'],
+            ['nama' => 'OFF', 'is_day_off' => true],
+        ]])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('shifts', ['nama' => 'Pagi', 'is_day_off' => false, 'jam_masuk' => '07:00']);
+        $this->assertDatabaseHas('shifts', ['nama' => 'OFF', 'is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null]);
+    }
+
+    public function test_shift_type_can_be_changed_but_working_shifts_still_require_times(): void
+    {
+        $shift = Shift::query()->create(['nama' => 'Pagi', 'jam_masuk' => '07:00', 'jam_keluar' => '15:00']);
+        $url = "/absensi/admin-web/master-data/shift/{$shift->id}";
+        $this->actingAs($this->admin)->put($url, ['nama' => 'OFF', 'is_day_off' => true])->assertSessionHasNoErrors();
+        $this->assertNull($shift->fresh()->jam_masuk);
+        $this->put($url, ['nama' => 'Pagi', 'is_day_off' => false])->assertSessionHasErrors(['jam_masuk', 'jam_keluar']);
+        $this->assertTrue($shift->fresh()->is_day_off);
+        $this->put($url, ['nama' => 'Pagi', 'is_day_off' => false, 'jam_masuk' => '07:00', 'jam_keluar' => '15:00'])
+            ->assertSessionHasNoErrors();
+        $this->assertFalse($shift->fresh()->is_day_off);
+
+        $this->post('/absensi/admin-web/master-data/shift', ['shifts' => [
+            ['nama' => 'Libur', 'is_day_off' => true],
+            ['nama' => 'Tanpa jam', 'is_day_off' => false],
+            ['nama' => 'Tidak valid', 'is_day_off' => 'off'],
+        ]])->assertSessionHasErrors(['shifts.1.jam_masuk', 'shifts.1.jam_keluar', 'shifts.2.is_day_off']);
+        $this->assertDatabaseCount('shifts', 1);
+    }
 }

@@ -20,8 +20,9 @@ class StoreShiftRequest extends FormRequest
                 'shifts' => ['required', 'array', 'min:1', 'max:25'],
                 'shifts.*' => ['required', 'array'],
                 'shifts.*.nama' => ['required', 'string', 'max:100', 'distinct:ignore_case', Rule::unique('shifts', 'nama')],
-                'shifts.*.jam_masuk' => ['required', 'date_format:H:i'],
-                'shifts.*.jam_keluar' => ['required', 'date_format:H:i'],
+                'shifts.*.is_day_off' => ['required', 'boolean'],
+                'shifts.*.jam_masuk' => ['exclude_if:shifts.*.is_day_off,true', 'required', 'date_format:H:i'],
+                'shifts.*.jam_keluar' => ['exclude_if:shifts.*.is_day_off,true', 'required', 'date_format:H:i'],
                 'shifts.*.libur_sabtu' => ['sometimes', 'boolean'],
                 'shifts.*.libur_minggu' => ['sometimes', 'boolean'],
                 'shifts.*.libur_nasional' => ['sometimes', 'boolean'],
@@ -31,8 +32,9 @@ class StoreShiftRequest extends FormRequest
 
         return [
             'nama' => ['required', 'string', 'max:100', Rule::unique('shifts', 'nama')],
-            'jam_masuk' => ['required', 'date_format:H:i'],
-            'jam_keluar' => ['required', 'date_format:H:i'],
+            'is_day_off' => ['required', 'boolean'],
+            'jam_masuk' => ['exclude_if:is_day_off,true', 'required', 'date_format:H:i'],
+            'jam_keluar' => ['exclude_if:is_day_off,true', 'required', 'date_format:H:i'],
             'libur_sabtu' => ['sometimes', 'boolean'],
             'libur_minggu' => ['sometimes', 'boolean'],
             'libur_nasional' => ['sometimes', 'boolean'],
@@ -45,6 +47,8 @@ class StoreShiftRequest extends FormRequest
     {
         return [
             'nama.unique' => 'Nama shift sudah digunakan.',
+            'is_day_off.boolean' => 'Jenis shift tidak valid.',
+            'shifts.*.is_day_off.boolean' => 'Jenis shift tidak valid.',
             'jam_masuk.date_format' => 'Jam masuk harus menggunakan format jam yang valid.',
             'jam_keluar.date_format' => 'Jam keluar harus menggunakan format jam yang valid.',
             'shifts.required' => 'Minimal satu input shift harus tersedia.',
@@ -67,6 +71,7 @@ class StoreShiftRequest extends FormRequest
             $shifts = collect($this->input('shifts'))
                 ->map(fn ($shift) => is_array($shift) ? [
                     'nama' => str($shift['nama'] ?? '')->squish()->toString(),
+                    'is_day_off' => $shift['is_day_off'] ?? false,
                     'jam_masuk' => trim((string) ($shift['jam_masuk'] ?? '')),
                     'jam_keluar' => trim((string) ($shift['jam_keluar'] ?? '')),
                     'libur_sabtu' => $shift['libur_sabtu'] ?? false,
@@ -83,6 +88,7 @@ class StoreShiftRequest extends FormRequest
 
         $this->merge([
             'nama' => str($this->input('nama'))->squish()->toString(),
+            'is_day_off' => $this->input('is_day_off', false),
             'jam_masuk' => trim((string) $this->input('jam_masuk')),
             'jam_keluar' => trim((string) $this->input('jam_keluar')),
         ]);

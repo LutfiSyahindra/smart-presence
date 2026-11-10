@@ -29,9 +29,10 @@ class ShiftRepository implements ShiftRepositoryInterface
 
         return [
             'total' => (clone $base)->count(),
-            'morning' => (clone $base)->whereTime('jam_masuk', '<', '12:00:00')->count(),
-            'afternoon' => (clone $base)->whereTime('jam_masuk', '>=', '12:00:00')->whereTime('jam_masuk', '<', '18:00:00')->count(),
-            'night' => (clone $base)->whereTime('jam_masuk', '>=', '18:00:00')->count(),
+            'morning' => (clone $base)->where('is_day_off', false)->whereTime('jam_masuk', '<', '12:00:00')->count(),
+            'afternoon' => (clone $base)->where('is_day_off', false)->whereTime('jam_masuk', '>=', '12:00:00')->whereTime('jam_masuk', '<', '18:00:00')->count(),
+            'night' => (clone $base)->where('is_day_off', false)->whereTime('jam_masuk', '>=', '18:00:00')->count(),
+            'off' => (clone $base)->where('is_day_off', true)->count(),
         ];
     }
 

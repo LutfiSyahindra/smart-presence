@@ -6,9 +6,11 @@ use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Models\Jabatan;
 use App\Models\LemburRequest;
+use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Services\Notifications\LemburNotificationService;
 use App\Support\AccessPermission;
@@ -152,7 +154,7 @@ class LemburService
                 }
                 ['pegawai' => $pegawai, 'jabatan' => $jabatan, 'line' => $line] = $context;
                 $shift = Shift::query()->lockForUpdate()->find($data['shift_id']);
-                if (! $shift) {
+                if (! $shift || $shift->is_day_off) {
                     throw ValidationException::withMessages(['shift_id' => 'Shift tidak tersedia. Pilih kembali shift.']);
                 }
                 $before = (int) $data['before_minutes'];
@@ -237,7 +239,7 @@ class LemburService
             $lembur = LemburRequest::query()->lockForUpdate()->findOrFail($lembur->id);
             // Even a super-admin must be the current assigned approver.
             abort_unless($lembur->canBeDecidedBy($actor), 403);
-            app(\App\Services\Absensi\ConfigurationService::class)->assertCanDecide($lembur->tanggal_lembur);
+            app(ConfigurationService::class)->assertCanDecide($lembur->tanggal_lembur);
             $current = $lembur->approvals()->where('level', $lembur->current_level)->lockForUpdate()->firstOrFail();
             $current->update(['status' => $data['decision'], 'note' => $data['note'] ?? null, 'decided_at' => now()]);
             if ($data['decision'] === 'rejected') {
@@ -262,7 +264,7 @@ class LemburService
     {
         DB::transaction(function () use ($lembur, $actor) {
             // Match usage submission's employee -> source lock order.
-            \App\Models\Pegawai::query()->lockForUpdate()->find($lembur->pegawai_id);
+            Pegawai::query()->lockForUpdate()->find($lembur->pegawai_id);
             $lembur = LemburRequest::query()->lockForUpdate()->findOrFail($lembur->id);
             abort_unless((int) $lembur->user_id === (int) $actor->id, 403);
             if (! $lembur->canBeCancelledBy($actor)) {

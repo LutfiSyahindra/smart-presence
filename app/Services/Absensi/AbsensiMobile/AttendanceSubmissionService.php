@@ -324,7 +324,7 @@ class AttendanceSubmissionService
             ->whereDate('tanggal_presensi', now()->toDateString())
             ->first();
         if ($today) {
-            return $today;
+            return $this->schedules->continuingBeforeDayOff($pegawai, $today);
         }
 
         $previous = $pegawai->presensis()
@@ -334,7 +334,7 @@ class AttendanceSubmissionService
             ->latest('clock_in_at')
             ->first();
 
-        return $previous?->shift && (string) $previous->shift->jam_keluar <= (string) $previous->shift->jam_masuk
+        return $previous?->shift && ! $previous->shift->is_day_off && (string) $previous->shift->jam_keluar <= (string) $previous->shift->jam_masuk
             ? $previous
             : null;
     }

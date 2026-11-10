@@ -16,7 +16,8 @@ class AttendanceScheduleService
     public function clockInRecord(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()->with('shift')->whereDate('tanggal_presensi', now()->toDateString())->first();
-        if ($today || ! $pegawai->shift || $pegawai->shift->jam_keluar > $pegawai->shift->jam_masuk) {
+        $today = $this->continuingBeforeDayOff($pegawai, $today);
+        if ($today || ! $pegawai->shift || $pegawai->shift->is_day_off || $pegawai->shift->jam_keluar > $pegawai->shift->jam_masuk) {
             return $today;
         }
 
@@ -41,10 +42,24 @@ class AttendanceScheduleService
         return $record;
     }
 
+    /** An OFF schedule today must still allow an unfinished overnight shift to clock out. */
+    public function continuingBeforeDayOff(Pegawai $pegawai, ?Presensi $today): ?Presensi
+    {
+        if (! $today || $today->clock_in_at || (! $today->is_day_off && ! $today->shift?->is_day_off)) {
+            return $today;
+        }
+
+        $previous = $pegawai->presensis()->with('shift')->whereDate('tanggal_presensi', now()->subDay()->toDateString())
+            ->whereNotNull('clock_in_at')->whereNull('clock_out_at')->first();
+
+        return $previous?->shift && ! $previous->shift->is_day_off && $previous->shift->jam_keluar <= $previous->shift->jam_masuk
+            ? $previous : $today;
+    }
+
     /** Resolve the employee's schedule for one shift date, including approved overtime usage. */
     public function resolve(?int $pegawaiId, ?Shift $shift, CarbonInterface $date, ?Collection $approvedUsage = null): array
     {
-        if (! $shift) {
+        if (! $shift || $shift->is_day_off) {
             return ['start_at' => null, 'end_at' => null, 'start_time' => null, 'end_time' => null,
                 'late_arrival_minutes' => 0, 'early_departure_minutes' => 0, 'note' => null];
         }

@@ -109,7 +109,7 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
     {
         $reason = $response->json('error.code');
         $message = $response->json('error.message');
-
+  
         if (! is_string($reason)) {
             return $this->unavailable();
         }

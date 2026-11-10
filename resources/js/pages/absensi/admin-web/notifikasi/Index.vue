@@ -329,7 +329,8 @@ onBeforeUnmount(() => {
                                     <template v-else-if="cuti.request_type === 'perubahan-shift'"
                                         ><strong>Perubahan shift</strong><small>{{ date(cuti.tanggal_mulai) }}</small
                                         ><small>{{ cuti.original_shift?.name }} → {{ cuti.requested_shift?.name }}</small
-                                        ><small
+                                        ><small v-if="cuti.requested_shift?.is_day_off">OFF / Libur · Tanpa jam kerja</small
+                                        ><small v-else
                                             >{{ cuti.requested_shift?.start_time }} – {{ cuti.requested_shift?.end_time
                                             }}{{ cuti.requested_shift?.next_day ? ' (+1 hari)' : '' }}</small
                                         ></template

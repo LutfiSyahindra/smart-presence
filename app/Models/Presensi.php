@@ -133,7 +133,7 @@ class Presensi extends Model
 
     public function lateMinutes(): int
     {
-        if ($this->is_day_off || ! $this->clock_in_at || ! $this->shift || ! $this->tanggal_presensi) {
+        if ($this->is_day_off || ! $this->clock_in_at || ! $this->shift || $this->shift->is_day_off || ! $this->tanggal_presensi) {
             return 0;
         }
 
@@ -156,7 +156,7 @@ class Presensi extends Model
 
     public function earlyDepartureMinutes(): int
     {
-        if ($this->is_day_off || ! $this->clock_out_at || ! $this->shift || ! $this->tanggal_presensi) {
+        if ($this->is_day_off || ! $this->clock_out_at || ! $this->shift || $this->shift->is_day_off || ! $this->tanggal_presensi) {
             return 0;
         }
 

@@ -30,6 +30,10 @@ class ShiftHolidayService
             return null;
         }
 
+        if ($shift->is_day_off) {
+            return ['type' => 'day_off', 'label' => 'OFF / Libur', 'reason' => $shift->nama];
+        }
+
         $date = $date instanceof CarbonInterface ? $date : Carbon::parse($date);
         $types = array_filter([
             $shift->libur_nasional ? HariLibur::NASIONAL : null,

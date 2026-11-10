@@ -7,13 +7,13 @@ use App\Models\CutiRequest;
 use App\Models\Jabatan;
 use App\Models\LemburRequest;
 use App\Models\Pegawai;
-use App\Models\Presensi;
 use App\Models\PerubahanShiftRequest;
+use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
-use App\Services\Notifications\PerubahanShiftNotificationService;
-use App\Services\Absensi\ShiftHolidayService;
 use App\Services\Absensi\ConfigurationService;
+use App\Services\Absensi\ShiftHolidayService;
+use App\Services\Notifications\PerubahanShiftNotificationService;
 use App\Support\AccessPermission;
 use App\Support\PengajuanAccess;
 use Carbon\CarbonImmutable;
@@ -56,8 +56,9 @@ class PerubahanShiftService
     public static function shiftSnapshot(Shift $shift): array
     {
         return ['id' => $shift->id, 'name' => $shift->nama,
-            'start_time' => substr($shift->jam_masuk, 0, 5), 'end_time' => substr($shift->jam_keluar, 0, 5),
-            'next_day' => $shift->jam_keluar <= $shift->jam_masuk];
+            'is_day_off' => (bool) $shift->is_day_off,
+            'start_time' => substr((string) $shift->jam_masuk, 0, 5), 'end_time' => substr((string) $shift->jam_keluar, 0, 5),
+            'next_day' => ! $shift->is_day_off && $shift->jam_keluar <= $shift->jam_masuk];
     }
 
     public function submit(User $user, array $data): PerubahanShiftRequest
@@ -80,9 +81,13 @@ class PerubahanShiftService
             $date = $data['tanggal_perubahan'];
             $record = $pegawai->presensis()->whereDate('tanggal_presensi', $date)->lockForUpdate()->first();
             $allowClocked = app(ConfigurationService::class)->current()->perubahan_shift_after_clock_in && $record?->clock_in_at;
-            if (! $allowClocked && (CarbonImmutable::parse($date.' '.$original->jam_masuk)->lte(now())
-                || CarbonImmutable::parse($date.' '.$target->jam_masuk)->lte(now()))) {
+            if (! $allowClocked && ($date < now()->toDateString()
+                || (! $original->is_day_off && CarbonImmutable::parse($date.' '.$original->jam_masuk)->lte(now()))
+                || (! $target->is_day_off && CarbonImmutable::parse($date.' '.$target->jam_masuk)->lte(now())))) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Perubahan hanya dapat diajukan sebelum shift asal dan shift tujuan dimulai.']);
+            }
+            if ($target->is_day_off && $record?->clock_in_at) {
+                throw ValidationException::withMessages(['tanggal_perubahan' => 'Presensi sudah dimulai. Shift tidak dapat diubah menjadi OFF / Libur.']);
             }
             if ($record && (! $allowClocked || (int) $record->shift_id !== (int) $original->id)) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Tanggal ini sudah memiliki catatan presensi. Pilih tanggal lain.']);
@@ -162,13 +167,18 @@ class PerubahanShiftService
         $configuration = app(ConfigurationService::class)->current();
         $allowClocked = $configuration->perubahan_shift_after_clock_in && $record?->clock_in_at;
         $allowPast = $configuration->approve_past_requests && $date < now()->toDateString();
-        if (! $allowClocked && ! $allowPast && (CarbonImmutable::parse($date.' '.$request->original_shift['start_time'])->lte(now())
-            || CarbonImmutable::parse($date.' '.$shift->jam_masuk)->lte(now()))) {
+        if (! $allowClocked && ! $allowPast && ($date < now()->toDateString()
+            || (! ($request->original_shift['is_day_off'] ?? false) && CarbonImmutable::parse($date.' '.$request->original_shift['start_time'])->lte(now()))
+            || (! $shift->is_day_off && CarbonImmutable::parse($date.' '.$shift->jam_masuk)->lte(now())))) {
             throw ValidationException::withMessages(['decision' => 'Shift sudah dimulai atau tanggal pengajuan telah lewat. Perubahan tidak dapat diterapkan.']);
         }
-        if (substr($shift->jam_masuk, 0, 5) !== $request->requested_shift['start_time']
-            || substr($shift->jam_keluar, 0, 5) !== $request->requested_shift['end_time']) {
-            throw ValidationException::withMessages(['decision' => 'Jam shift tujuan telah berubah sejak pengajuan. Minta pemohon mengajukan ulang.']);
+        if ((bool) $shift->is_day_off !== ($request->requested_shift['is_day_off'] ?? false)
+            || substr((string) $shift->jam_masuk, 0, 5) !== $request->requested_shift['start_time']
+            || substr((string) $shift->jam_keluar, 0, 5) !== $request->requested_shift['end_time']) {
+            throw ValidationException::withMessages(['decision' => 'Jenis atau jam shift tujuan telah berubah sejak pengajuan. Minta pemohon mengajukan ulang.']);
+        }
+        if ($shift->is_day_off && $record?->clock_in_at) {
+            throw ValidationException::withMessages(['decision' => 'Presensi sudah dimulai. Shift tidak dapat diubah menjadi OFF / Libur.']);
         }
         if (($record && (! $allowClocked || (int) $record->shift_id !== (int) $request->original_shift_id))
             || CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('status', 'approved')
@@ -176,11 +186,11 @@ class PerubahanShiftService
             || LemburRequest::query()->where('pegawai_id', $pegawai->id)->whereDate('tanggal_lembur', $date)->whereIn('status', ['pending', 'approved'])->exists()) {
             throw ValidationException::withMessages(['decision' => 'Tanggal ini sudah memiliki presensi, cuti, atau pengajuan lembur aktif. Selesaikan konflik jadwal terlebih dahulu.']);
         }
-        if (app(ShiftHolidayService::class)->reason($shift, $date)) {
+        if (! $shift->is_day_off && app(ShiftHolidayService::class)->reason($shift, $date)) {
             throw ValidationException::withMessages(['decision' => 'Tanggal ini merupakan hari libur pada shift tujuan. Pilih shift atau tanggal lain.']);
         }
         // A dated schedule uses the existing attendance record; the employee's default shift stays unchanged.
-        $values = ['shift_id' => $shift->id, 'is_day_off' => false,
+        $values = ['shift_id' => $shift->id, 'is_day_off' => (bool) $shift->is_day_off,
             'notes' => trim(($record?->notes ? $record->notes."\n" : '').'Perubahan shift disetujui #'.$request->id), 'updated_by' => $actor->id];
         if ($record) {
             $record->update($values);

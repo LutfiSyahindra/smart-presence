@@ -43,6 +43,7 @@ class HomeController extends Controller
 
             if (
                 $previousPresensi?->shift
+                && ! $previousPresensi->shift->is_day_off
                 && (string) $previousPresensi->shift->jam_keluar <= (string) $previousPresensi->shift->jam_masuk
                 && ! $this->cutiSchedule->isOnCuti($pegawai, $previousPresensi)
             ) {

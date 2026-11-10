@@ -29,15 +29,23 @@ class PerubahanShiftApprovalTest extends TestCase
     use RefreshDatabase;
 
     private const MOBILE = '/absensi/mobile/perubahan-shift';
+
     private const WEB = '/absensi/admin-web/notifikasi';
 
     private User $owner;
+
     private User $first;
+
     private User $second;
+
     private User $admin;
+
     private Pegawai $pegawai;
+
     private Shift $original;
+
     private Shift $target;
+
     private ApprovalLine $line;
 
     protected function setUp(): void
@@ -81,6 +89,38 @@ class PerubahanShiftApprovalTest extends TestCase
     private function web(PerubahanShiftRequest $item): string
     {
         return self::WEB.'/pengajuan/perubahan-shift/'.$item->id;
+    }
+
+    public function test_approved_off_shift_applies_only_to_the_requested_date(): void
+    {
+        $this->target->update(['nama' => 'OFF', 'is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null]);
+        $this->line->steps()->where('level', 2)->delete();
+        $item = $this->submit();
+        $this->assertTrue($item->requested_shift['is_day_off']);
+        $this->assertFalse($item->requested_shift['next_day']);
+        $this->actingAs($this->first)->post($this->web($item).'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $record = Presensi::query()->sole();
+        $this->assertTrue($record->is_day_off);
+        $this->assertNull($record->clock_in_at);
+        $this->assertSame($this->original->id, $this->pegawai->fresh()->shift_id);
+        $this->travelTo('2026-10-26 09:00:00');
+        $this->actingAs($this->owner)->get('/absensi/mobile')->assertInertia(fn (Assert $page) => $page
+            ->where('todayAttendance.is_day_off', true)->where('todaySchedule.start_time', null));
+        $this->travelTo('2026-10-27 09:00:00');
+        $this->get('/absensi/mobile')->assertInertia(fn (Assert $page) => $page
+            ->where('todayAttendance.is_day_off', false)->where('todaySchedule.shift_name', 'Shift Pagi'));
+    }
+
+    public function test_an_off_default_shift_can_be_changed_to_a_working_shift_for_one_date(): void
+    {
+        $this->original->update(['nama' => 'OFF', 'is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null]);
+        $this->line->steps()->where('level', 2)->delete();
+        $item = $this->submit();
+        $this->actingAs($this->first)->post($this->web($item).'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertFalse(Presensi::query()->sole()->is_day_off);
+        $this->travelTo('2026-10-26 09:00:00');
+        $this->actingAs($this->owner)->get('/absensi/mobile')->assertInertia(fn (Assert $page) => $page
+            ->where('todayAttendance.is_day_off', false)->where('todaySchedule.shift_name', 'Shift Malam'));
     }
 
     public function test_web_then_mobile_approval_updates_only_the_requested_date_and_notifies_every_stage(): void

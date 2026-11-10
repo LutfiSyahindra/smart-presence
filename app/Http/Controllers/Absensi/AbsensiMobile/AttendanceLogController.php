@@ -137,7 +137,7 @@ class AttendanceLogController extends Controller
             'day_number' => $date->format('d'),
             'day_name' => $date->copy()->locale('id')->translatedFormat('D'),
             'shift_name' => $dayOffReason ?? ($onLeave ? ($leave->nama_cuti ?: 'Cuti disetujui') : $shift?->nama),
-            'schedule' => $shift && $workday ? $schedule['start_time'].' â€“ '.$schedule['end_time'] : null,
+            'schedule' => $shift && $workday ? $schedule['start_time'].' – '.$schedule['end_time'] : null,
             'status' => $status,
             'status_label' => $label,
             'tone' => $tone,

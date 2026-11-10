@@ -50,7 +50,7 @@ class PresensiService
             ->values();
         $presensis = Presensi::query()
             ->with([
-                'shift:id,nama,jam_masuk,jam_keluar',
+                'shift:id,nama,is_day_off,jam_masuk,jam_keluar',
                 'clockInLocation:id,name,address,latitude,longitude',
                 'clockOutLocation:id,name,address,latitude,longitude',
                 'updatedBy:id,name',
@@ -91,10 +91,11 @@ class PresensiService
                 ])->all(),
             'shifts' => Shift::query()
                 ->orderBy('jam_masuk')
-                ->get(['id', 'nama', 'jam_masuk', 'jam_keluar'])
+                ->get(['id', 'nama', 'is_day_off', 'jam_masuk', 'jam_keluar'])
                 ->map(fn (Shift $shift) => [
                     'id' => $shift->id,
                     'nama' => $shift->nama,
+                    'is_day_off' => $shift->is_day_off,
                     'jam_masuk' => substr((string) $shift->jam_masuk, 0, 5),
                     'jam_keluar' => substr((string) $shift->jam_keluar, 0, 5),
                 ])->all(),
@@ -172,14 +173,14 @@ class PresensiService
     /** @param array<string, mixed> $data */
     private function attributes(array $data, int $updatedBy): array
     {
-        $dayOff = (bool) $data['is_day_off'];
+        $shift = isset($data['shift_id']) ? Shift::query()->find($data['shift_id']) : null;
+        $dayOff = (bool) $data['is_day_off'] || $shift?->is_day_off;
         $clockIn = $dayOff ? null : $this->dateTime($data['tanggal_presensi'], $data['clock_in_time'] ?? null);
         $clockOut = $dayOff ? null : $this->dateTime($data['tanggal_presensi'], $data['clock_out_time'] ?? null);
 
         if ($clockOut && $clockIn && $clockOut->lt($clockIn)) {
             $clockOut->addDay();
         } elseif ($clockOut && ! $clockIn && isset($data['shift_id'])) {
-            $shift = Shift::query()->find($data['shift_id']);
             if ($shift && (string) $shift->jam_keluar <= (string) $shift->jam_masuk) {
                 $clockOut->addDay();
             }

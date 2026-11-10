@@ -73,7 +73,8 @@ function decide(decision: 'approved' | 'rejected') {
                         <div v-for="(shift, index) in [shiftRequest.original_shift, shiftRequest.requested_shift]" :key="index" class="al-info">
                             <small>{{ index ? 'SHIFT TUJUAN' : 'SHIFT SAAT INI' }}</small>
                             <h3>{{ shift.name }}</h3>
-                            <p>{{ shift.start_time }} – {{ shift.end_time }}{{ shift.next_day ? ' (+1 hari)' : '' }}</p>
+                            <p v-if="shift.is_day_off">OFF / Libur · Tanpa jam kerja</p>
+                            <p v-else>{{ shift.start_time }} – {{ shift.end_time }}{{ shift.next_day ? ' (+1 hari)' : '' }}</p>
                         </div>
                     </div>
                     <div>

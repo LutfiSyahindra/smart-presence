@@ -65,6 +65,23 @@ class PresensiManagementTest extends TestCase
         $this->get('/absensi/admin-web/presensi/set-pegawai')->assertForbidden();
     }
 
+    public function test_selecting_off_shift_saves_a_day_off_without_clock_times_or_overtime(): void
+    {
+        $off = Shift::query()->create(['nama' => 'OFF', 'is_day_off' => true]);
+        $this->actingAs($this->admin)->post('/absensi/admin-web/presensi/set-pegawai', [
+            'pegawai_id' => $this->pegawai->id, 'shift_id' => $off->id, 'tanggal_presensi' => '2026-11-02',
+            'is_day_off' => false, 'clock_in_time' => '07:00', 'clock_out_time' => '15:00', 'overtime_minutes' => 60,
+        ])->assertSessionHasNoErrors();
+        $record = Presensi::query()->sole();
+        $this->assertTrue($record->is_day_off);
+        $this->assertNull($record->clock_in_at);
+        $this->assertNull($record->clock_out_at);
+        $this->assertSame(0, $record->overtime_minutes);
+        $this->get('/absensi/admin-web/presensi/pegawai?date_from=2026-11-02&date_to=2026-11-02')->assertInertia(fn (Assert $page) => $page
+            ->where('records.data.0.status', 'day-off')->where('records.data.0.shift.jam_masuk', null)
+            ->where('overview.day_off', 1)->where('overview.present', 0));
+    }
+
     public function test_history_exposes_shift_clock_location_photo_and_late_status(): void
     {
         $location = OfficeLocation::query()->create([

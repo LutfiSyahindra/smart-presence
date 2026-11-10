@@ -10,6 +10,12 @@ Isian yang belum dikirim meminta konfirmasi sebelum dihapus.
 Pengajuan berisi satu tanggal perubahan (hari ini atau mendatang), shift asal,
 shift tujuan yang berbeda, dan alasan maksimal 200 karakter. Tanggal mengacu
 pada awal shift dan waktu mengikuti WIB. Shift malam diberi keterangan +1 hari.
+Shift **OFF / Libur** dapat dipilih sebagai asal atau tujuan tanpa jam kerja.
+Tujuan OFF yang disetujui membuat jadwal libur hanya pada tanggal pengajuan;
+pengajuan ke OFF ditolak jika clock-in sudah tercatat. Perubahan jenis atau jam
+shift tujuan sejak pengajuan harus diajukan ulang. Hari libur rutin pada shift
+kerja tetap mengikuti pemeriksaan kalender yang berlaku.
+
 Server menentukan identitas pegawai, shift asal, status, dan approver; nilai
 identitas/status yang dikirim klien diabaikan. Perubahan ditolak jika salah satu
 shift telah dimulai, tanggal sudah memiliki catatan presensi/cuti disetujui,

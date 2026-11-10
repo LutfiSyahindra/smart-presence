@@ -49,7 +49,7 @@ Penolakan menghasilkan log `face_verification_rejected` pada stderr service. `re
 
 Untuk menerapkan perubahan, jalankan `npm run build` dari root proyek, deploy frontend/backend, restart service FastAPI (atau rebuild container), lalu `php artisan queue:restart`. Perubahan frontend bersama ini tidak memerlukan APK baru pada wrapper Android yang memuat frontend server. Validasi dengan HP Android asli tetap diperlukan: bandingkan percobaan wajah asli pada beberapa kondisi cahaya dengan foto cetak/video di layar. Tes otomatis memeriksa alur pengambilan, pembatalan, dan keputusan penolakan; tes tersebut tidak mengukur tingkat salah tolak model pada pegawai.
 
-## Menjalankan dengan Docker
+ ## Menjalankan dengan Docker
 
 Dari root proyek:
 

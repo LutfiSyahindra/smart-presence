@@ -10,6 +10,7 @@ class Shift extends Model
     /** @var list<string> */
     protected $fillable = [
         'nama',
+        'is_day_off',
         'jam_masuk',
         'jam_keluar',
         'libur_sabtu',
@@ -21,6 +22,7 @@ class Shift extends Model
     protected function casts(): array
     {
         return [
+            'is_day_off' => 'boolean',
             'libur_sabtu' => 'boolean',
             'libur_minggu' => 'boolean',
             'libur_nasional' => 'boolean',

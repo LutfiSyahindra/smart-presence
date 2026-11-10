@@ -256,7 +256,7 @@ class MobileController extends Controller
             ->whereNotNull('clock_in_at')
             ->latest('clock_in_at')
             ->first();
-        if (! $previous?->shift || (string) $previous->shift->jam_keluar > (string) $previous->shift->jam_masuk
+        if (! $previous?->shift || $previous->shift->is_day_off || (string) $previous->shift->jam_keluar > (string) $previous->shift->jam_masuk
             || $this->cutiSchedule->isOnCuti($pegawai, $previous)) {
             return null;
         }

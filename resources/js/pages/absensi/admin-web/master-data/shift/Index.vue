@@ -11,11 +11,13 @@ import Pagination from '../../setting/components/Pagination.vue';
 import type { Paginated } from '../../setting/types';
 import HolidayCalendar from './HolidayCalendar.vue';
 import HolidayPolicyFields from './HolidayPolicyFields.vue';
+import ShiftTypeField from './ShiftTypeField.vue';
 import { defaultHolidayPolicy, holidayOptions, holidayPolicyLabel, type HolidayPolicy, type HolidayRow, type HolidaySyncInfo } from './types';
 
 interface ShiftRow extends HolidayPolicy {
     id: number;
     nama: string;
+    is_day_off: boolean;
     jam_masuk: string;
     jam_keluar: string;
     created_at: string | null;
@@ -26,13 +28,23 @@ interface ShiftInput extends HolidayPolicy {
     [key: string]: string | number | boolean;
     inputKey: number;
     nama: string;
+    is_day_off: boolean;
     jam_masuk: string;
     jam_keluar: string;
 }
 
+type ShiftForm = HolidayPolicy & {
+    [key: string]: string | boolean | ShiftInput[];
+    nama: string;
+    is_day_off: boolean;
+    jam_masuk: string;
+    jam_keluar: string;
+    shifts: ShiftInput[];
+};
+
 const props = defineProps<{
     shifts: Paginated<ShiftRow>;
-    overview: { total: number; morning: number; afternoon: number; night: number };
+    overview: { total: number; morning: number; afternoon: number; night: number; off: number };
     filters: { search?: string };
     can: { create: boolean; update: boolean; delete: boolean; sync: boolean };
     holidays: HolidayRow[];
@@ -59,13 +71,15 @@ const newShiftInput = (): ShiftInput => ({
     ...defaultHolidayPolicy(),
     inputKey: ++nextInputKey,
     nama: '',
+    is_day_off: false,
     jam_masuk: '',
     jam_keluar: '',
 });
 
-const form = useForm({
+const form = useForm<ShiftForm>({
     ...defaultHolidayPolicy(),
     nama: '',
+    is_day_off: false,
     jam_masuk: '',
     jam_keluar: '',
     shifts: [newShiftInput()],
@@ -77,14 +91,14 @@ const resultSummary = computed(() => {
 });
 
 const summaryCards = computed(() => [
-    { label: 'Total shift', value: props.overview.total, note: 'Jadwal kerja tersimpan', icon: AlarmClock, tone: 'indigo' },
+    { label: 'Total shift', value: props.overview.total, note: `${props.overview.off} shift OFF / Libur`, icon: AlarmClock, tone: 'indigo' },
     { label: 'Mulai pagi', value: props.overview.morning, note: 'Sebelum pukul 12.00', icon: Sunrise, tone: 'amber' },
     { label: 'Mulai siang', value: props.overview.afternoon, note: 'Pukul 12.00–17.59', icon: Sun, tone: 'cyan' },
     { label: 'Mulai malam', value: props.overview.night, note: 'Mulai pukul 18.00', icon: Moon, tone: 'violet' },
 ]);
 
 const resetForm = () => {
-    form.defaults({ ...defaultHolidayPolicy(), nama: '', jam_masuk: '', jam_keluar: '', shifts: [newShiftInput()] });
+    form.defaults({ ...defaultHolidayPolicy(), nama: '', is_day_off: false, jam_masuk: '', jam_keluar: '', shifts: [newShiftInput()] });
     form.reset();
     form.clearErrors();
 };
@@ -105,6 +119,7 @@ const openEdit = (shift: ShiftRow) => {
         libur_nasional: shift.libur_nasional,
         libur_cuti_bersama: shift.libur_cuti_bersama,
         nama: shift.nama,
+        is_day_off: shift.is_day_off,
         jam_masuk: shift.jam_masuk,
         jam_keluar: shift.jam_keluar,
         shifts: [],
@@ -129,7 +144,7 @@ const removeShiftInput = (index: number) => {
     form.clearErrors();
 };
 
-const inputError = (index: number, field: 'nama' | 'jam_masuk' | 'jam_keluar' | keyof HolidayPolicy) =>
+const inputError = (index: number, field: 'nama' | 'is_day_off' | 'jam_masuk' | 'jam_keluar' | keyof HolidayPolicy) =>
     (form.errors as Record<string, string | undefined>)[`shifts.${index}.${field}`];
 
 const submit = () => {
@@ -314,19 +329,25 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                             <span><AlarmClock /></span>
                                             <div>
                                                 <strong>{{ shift.nama }}</strong
-                                                ><small>ID #{{ String(shift.id).padStart(4, '0') }}</small>
+                                                ><small
+                                                    >{{ shift.is_day_off ? 'OFF / Libur · ' : '' }}ID #{{ String(shift.id).padStart(4, '0') }}</small
+                                                >
                                             </div>
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="shift-time start"><Sunrise /> {{ shift.jam_masuk }}</span>
+                                        <span class="shift-time start"><Sunrise /> {{ shift.is_day_off ? '—' : shift.jam_masuk }}</span>
                                     </td>
                                     <td>
-                                        <span class="shift-time end"><Moon /> {{ shift.jam_keluar }}</span>
+                                        <span class="shift-time end"><Moon /> {{ shift.is_day_off ? '—' : shift.jam_keluar }}</span>
                                     </td>
                                     <td>
-                                        <span class="shift-duration">{{ durationLabel(shift.jam_masuk, shift.jam_keluar) }}</span>
-                                        <small v-if="crossesMidnight(shift.jam_masuk, shift.jam_keluar)" class="shift-next-day">Lintas hari</small>
+                                        <span class="shift-duration">{{
+                                            shift.is_day_off ? 'Tanpa jam kerja' : durationLabel(shift.jam_masuk, shift.jam_keluar)
+                                        }}</span>
+                                        <small v-if="!shift.is_day_off && crossesMidnight(shift.jam_masuk, shift.jam_keluar)" class="shift-next-day"
+                                            >Lintas hari</small
+                                        >
                                     </td>
                                     <td>
                                         <span class="shift-holiday-label">{{ holidayPolicyLabel(shift) }}</span>
@@ -369,7 +390,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                     <span><AlarmClock /></span>
                                     <div>
                                         <strong>{{ shift.nama }}</strong
-                                        ><small>ID #{{ String(shift.id).padStart(4, '0') }}</small>
+                                        ><small>{{ shift.is_day_off ? 'OFF / Libur · ' : '' }}ID #{{ String(shift.id).padStart(4, '0') }}</small>
                                     </div>
                                 </div>
                                 <div class="shift-actions">
@@ -381,16 +402,16 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                             </header>
                             <div class="shift-mobile-times">
                                 <span
-                                    ><small>Masuk</small><strong>{{ shift.jam_masuk }}</strong></span
+                                    ><small>Masuk</small><strong>{{ shift.is_day_off ? '—' : shift.jam_masuk }}</strong></span
                                 >
                                 <ArrowRight />
                                 <span
-                                    ><small>Keluar</small><strong>{{ shift.jam_keluar }}</strong></span
+                                    ><small>Keluar</small><strong>{{ shift.is_day_off ? '—' : shift.jam_keluar }}</strong></span
                                 >
                             </div>
                             <footer>
-                                <span>{{ durationLabel(shift.jam_masuk, shift.jam_keluar) }}</span>
-                                <small v-if="crossesMidnight(shift.jam_masuk, shift.jam_keluar)">Lintas hari</small>
+                                <span>{{ shift.is_day_off ? 'Tanpa jam kerja' : durationLabel(shift.jam_masuk, shift.jam_keluar) }}</span>
+                                <small v-if="!shift.is_day_off && crossesMidnight(shift.jam_masuk, shift.jam_keluar)">Lintas hari</small>
                             </footer>
                             <p class="shift-holiday-label">Libur: {{ holidayPolicyLabel(shift) }}</p>
                         </article>
@@ -424,7 +445,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                         <div v-if="editing">
                             <small>Pratinjau waktu</small>
                             <strong>{{ form.nama.trim() || 'Nama shift' }}</strong>
-                            <p>
+                            <p v-if="form.is_day_off">OFF / Libur · Tanpa jam kerja</p>
+                            <p v-else>
                                 {{ form.jam_masuk || '--:--' }} <ArrowRight /> {{ form.jam_keluar || '--:--' }} ·
                                 {{ durationLabel(form.jam_masuk, form.jam_keluar) }}
                             </p>
@@ -438,6 +460,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                     </div>
 
                     <section v-if="editing" class="shift-input-card single">
+                        <ShiftTypeField v-model="form.is_day_off" :error="form.errors.is_day_off" />
                         <div class="shift-fields">
                             <div class="shift-field name-field">
                                 <label for="nama">Nama shift <b>*</b></label>
@@ -453,7 +476,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                 </div>
                                 <p v-if="form.errors.nama">{{ form.errors.nama }}</p>
                             </div>
-                            <div class="shift-field">
+                            <div v-if="!form.is_day_off" class="shift-field">
                                 <label for="jam-masuk">Jam masuk <b>*</b><small>24 jam</small></label>
                                 <div :class="{ invalid: form.errors.jam_masuk }">
                                     <Sunrise /><input
@@ -471,7 +494,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                 </div>
                                 <p v-if="form.errors.jam_masuk">{{ form.errors.jam_masuk }}</p>
                             </div>
-                            <div class="shift-field">
+                            <div v-if="!form.is_day_off" class="shift-field">
                                 <label for="jam-keluar">Jam keluar <b>*</b><small>24 jam</small></label>
                                 <div :class="{ invalid: form.errors.jam_keluar }">
                                     <Moon /><input
@@ -493,7 +516,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                     </section>
 
                     <HolidayPolicyFields
-                        v-if="editing"
+                        v-if="editing && !form.is_day_off"
                         :policy="form"
                         :error="holidayOptions.map((option) => form.errors[option.key]).find(Boolean)"
                         @change="(field, value) => (form[field] = value)"
@@ -528,6 +551,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                         <Trash2 />
                                     </button>
                                 </header>
+                                <ShiftTypeField v-model="shiftInput.is_day_off" :error="inputError(index, 'is_day_off')" />
                                 <div class="shift-fields">
                                     <div class="shift-field name-field">
                                         <label :for="`nama-${shiftInput.inputKey}`">Nama shift <b>*</b></label>
@@ -543,7 +567,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                         </div>
                                         <p v-if="inputError(index, 'nama')">{{ inputError(index, 'nama') }}</p>
                                     </div>
-                                    <div class="shift-field">
+                                    <div v-if="!shiftInput.is_day_off" class="shift-field">
                                         <label :for="`masuk-${shiftInput.inputKey}`">Jam masuk <b>*</b><small>24 jam</small></label>
                                         <div :class="{ invalid: inputError(index, 'jam_masuk') }">
                                             <Sunrise /><input
@@ -561,7 +585,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                         </div>
                                         <p v-if="inputError(index, 'jam_masuk')">{{ inputError(index, 'jam_masuk') }}</p>
                                     </div>
-                                    <div class="shift-field">
+                                    <div v-if="!shiftInput.is_day_off" class="shift-field">
                                         <label :for="`keluar-${shiftInput.inputKey}`">Jam keluar <b>*</b><small>24 jam</small></label>
                                         <div :class="{ invalid: inputError(index, 'jam_keluar') }">
                                             <Moon /><input
@@ -581,13 +605,21 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                                     </div>
                                 </div>
                                 <HolidayPolicyFields
+                                    v-if="!shiftInput.is_day_off"
                                     :policy="shiftInput"
                                     :error="holidayOptions.map((option) => inputError(index, option.key)).find(Boolean)"
                                     @change="(field, value) => (shiftInput[field] = value)"
                                 />
                                 <footer>
-                                    <Clock3 /> {{ durationLabel(shiftInput.jam_masuk, shiftInput.jam_keluar) }}
-                                    <span v-if="crossesMidnight(shiftInput.jam_masuk, shiftInput.jam_keluar)">Berakhir hari berikutnya</span>
+                                    <Clock3 />
+                                    {{
+                                        shiftInput.is_day_off
+                                            ? 'OFF / Libur · Tanpa jam kerja'
+                                            : durationLabel(shiftInput.jam_masuk, shiftInput.jam_keluar)
+                                    }}
+                                    <span v-if="!shiftInput.is_day_off && crossesMidnight(shiftInput.jam_masuk, shiftInput.jam_keluar)"
+                                        >Berakhir hari berikutnya</span
+                                    >
                                 </footer>
                             </article>
                         </div>
@@ -599,7 +631,9 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                 </div>
 
                 <div class="admin-modal-footer shift-form-footer">
-                    <span>{{ editing ? 'Pastikan waktu shift sudah sesuai.' : `${form.shifts.length} data akan disimpan sekaligus.` }}</span>
+                    <span>{{
+                        editing ? 'Pastikan jenis dan waktu shift sudah sesuai.' : `${form.shifts.length} data akan disimpan sekaligus.`
+                    }}</span>
                     <div>
                         <button type="button" class="btn btn-outline-secondary" :disabled="form.processing" @click="closeForm">Batal</button>
                         <button type="submit" class="btn btn-primary" :disabled="form.processing || (Boolean(editing) && !form.isDirty)">
@@ -614,7 +648,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
         <ConfirmDelete
             :open="Boolean(selected)"
             title="Hapus shift?"
-            :description="`Shift ${selected?.nama ?? ''} (${selected?.jam_masuk ?? '--:--'}–${selected?.jam_keluar ?? '--:--'}) akan dihapus permanen dari master data.`"
+            :description="`Shift ${selected?.nama ?? ''} (${selected?.is_day_off ? 'OFF / Libur' : `${selected?.jam_masuk ?? '--:--'}–${selected?.jam_keluar ?? '--:--'}`}) akan dihapus permanen dari master data.`"
             :processing="deleting"
             @close="selected = null"
             @confirm="destroy"

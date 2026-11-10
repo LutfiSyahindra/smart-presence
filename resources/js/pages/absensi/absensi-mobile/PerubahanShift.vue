@@ -26,7 +26,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CutiSheet from './components/CutiSheet.vue';
 import MobileBackLink from './components/MobileBackLink.vue';
 
-type Shift = { id: number; name: string; start_time: string; end_time: string; next_day: boolean };
+type Shift = { id: number; name: string; is_day_off?: boolean; start_time: string; end_time: string; next_day: boolean };
 type Status = '' | 'pending' | 'approved' | 'rejected' | 'cancelled';
 type Approval = { level: number; name: string; status: string; note?: string | null };
 type ShiftRequest = {
@@ -116,7 +116,8 @@ const ready = computed(
 const statusLabel = (status: Status) => statuses.find((item) => item.value === status)?.label ?? status;
 const dateLabel = (date: string) =>
     new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00`));
-const timeLabel = (shift: Shift) => `${shift.start_time} – ${shift.end_time}${shift.next_day ? ' (+1 hari)' : ''}`;
+const timeLabel = (shift: Shift) =>
+    shift.is_day_off ? 'OFF / Libur · Tanpa jam kerja' : `${shift.start_time} – ${shift.end_time}${shift.next_day ? ' (+1 hari)' : ''}`;
 const approvalLabel = (status: string) =>
     ({ pending: 'Menunggu persetujuan', waiting: 'Tahap berikutnya', approved: 'Disetujui', rejected: 'Ditolak', skipped: 'Dilewati' })[status] ??
     status;

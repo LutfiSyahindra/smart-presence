@@ -33,7 +33,7 @@ class ShiftAssignmentService
                 'user:id,name,email,email_verified_at',
                 'unitKerja:id,nama',
                 'jabatan:id,nama',
-                'shift:id,nama,jam_masuk,jam_keluar',
+                'shift:id,nama,is_day_off,jam_masuk,jam_keluar',
                 'shiftAssignedBy:id,name',
             ])
             ->when($filters['search'] ?? null, function ($query, string $search) {
@@ -95,13 +95,13 @@ class ShiftAssignmentService
         ];
     }
 
-    /** @return array<int, array{id: int, nama: string, jam_masuk: string, jam_keluar: string}> */
+    /** @return array<int, array{id: int, nama: string, is_day_off: bool, jam_masuk: string, jam_keluar: string}> */
     public function shiftOptions(): array
     {
         return Shift::query()
             ->orderBy('jam_masuk')
             ->orderBy('nama')
-            ->get(['id', 'nama', 'jam_masuk', 'jam_keluar'])
+            ->get(['id', 'nama', 'is_day_off', 'jam_masuk', 'jam_keluar'])
             ->map(fn (Shift $shift) => $this->shiftRow($shift))
             ->all();
     }
@@ -120,12 +120,13 @@ class ShiftAssignmentService
             ]));
     }
 
-    /** @return array{id: int, nama: string, jam_masuk: string, jam_keluar: string} */
+    /** @return array{id: int, nama: string, is_day_off: bool, jam_masuk: string, jam_keluar: string} */
     private function shiftRow(Shift $shift): array
     {
         return [
             'id' => (int) $shift->id,
             'nama' => $shift->nama,
+            'is_day_off' => $shift->is_day_off,
             'jam_masuk' => substr((string) $shift->jam_masuk, 0, 5),
             'jam_keluar' => substr((string) $shift->jam_keluar, 0, 5),
         ];

@@ -19,11 +19,13 @@ export const defaultHolidayPolicy = (): HolidayPolicy => ({
     libur_cuti_bersama: false,
 });
 
-export const holidayPolicyLabel = (policy: HolidayPolicy) =>
-    holidayOptions
-        .filter((option) => policy[option.key])
-        .map((option) => option.label)
-        .join(', ') || 'Tetap masuk setiap hari';
+export const holidayPolicyLabel = (policy: HolidayPolicy & { is_day_off?: boolean }) =>
+    policy.is_day_off
+        ? 'OFF / Libur'
+        : holidayOptions
+              .filter((option) => policy[option.key])
+              .map((option) => option.label)
+              .join(', ') || 'Tetap masuk setiap hari';
 
 export interface HolidayRow {
     id: number;

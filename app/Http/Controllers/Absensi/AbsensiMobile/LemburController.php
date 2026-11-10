@@ -83,7 +83,7 @@ class LemburController extends Controller
                 'name' => $context['pegawai']->nama, 'position' => $context['jabatan']?->nama, 'unit' => $context['jabatan']?->unitKerja?->nama,
             ] : null,
             'defaultShiftId' => $context['pegawai']?->shift_id,
-            'shifts' => Shift::query()->orderBy('nama')->get()->map(fn ($shift) => [
+            'shifts' => Shift::query()->where('is_day_off', false)->orderBy('nama')->get()->map(fn ($shift) => [
                 'id' => $shift->id, 'name' => $shift->nama, 'start_time' => substr($shift->jam_masuk, 0, 5), 'end_time' => substr($shift->jam_keluar, 0, 5),
             ]),
             'approvalPreview' => $context['line']?->steps->map(fn ($step) => [
@@ -110,11 +110,13 @@ class LemburController extends Controller
             'today' => now()->toDateString(), 'balance' => $service->balance($request->user()),
             'employee' => $context['pegawai'] ? ['name' => $context['pegawai']->nama,
                 'position' => $context['jabatan']?->nama, 'unit' => $context['jabatan']?->unitKerja?->nama] : null,
-            'shift' => $shift ? ['id' => $shift->id, 'name' => $shift->nama,
+            'shift' => $shift && ! $shift->is_day_off ? ['id' => $shift->id, 'name' => $shift->nama,
                 'start_time' => substr($shift->jam_masuk, 0, 5), 'end_time' => substr($shift->jam_keluar, 0, 5)] : null,
             'approvalPreview' => $context['line']?->steps->map(fn ($step) => ['level' => $step->level,
                 'name' => $step->user?->name ?? 'Pengguna tidak tersedia'])->values() ?? [],
-            'unavailableReason' => $context['unavailable_reason'] ?? ($shift ? null : 'Shift Anda belum diatur. Hubungi administrator.'),
+            'unavailableReason' => $context['unavailable_reason'] ?? ($shift?->is_day_off
+                ? 'Penggunaan lembur tidak tersedia untuk shift OFF / Libur.'
+                : ($shift ? null : 'Shift Anda belum diatur. Hubungi administrator.')),
         ]);
     }
 

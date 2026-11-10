@@ -74,6 +74,8 @@ class ShiftHolidayAttendanceTest extends TestCase
     public static function holidayPolicies(): array
     {
         return [
+            'OFF on weekday' => ['2026-10-21', ['is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null], null, true],
+            'OFF on Sunday without weekend policy' => ['2026-10-25', ['is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null], null, true],
             'Saturday off' => ['2026-10-24', ['libur_sabtu' => true], null, true],
             'Sunday still working' => ['2026-10-25', ['libur_sabtu' => true], null, false],
             'Sunday off' => ['2026-10-25', ['libur_minggu' => true], null, true],
@@ -89,10 +91,14 @@ class ShiftHolidayAttendanceTest extends TestCase
     }
 
     #[DataProvider('attendanceActions')]
-    public function test_holidays_block_action_pages_and_direct_submissions(string $action, bool $api): void
+    public function test_holidays_block_action_pages_and_direct_submissions(string $action, bool $api, bool $offShift = false): void
     {
-        $this->shift->update(['libur_nasional' => true]);
-        HariLibur::query()->create(['tanggal' => now()->toDateString(), 'nama' => 'Libur Uji', 'jenis' => HariLibur::NASIONAL]);
+        if ($offShift) {
+            $this->shift->update(['is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null]);
+        } else {
+            $this->shift->update(['libur_nasional' => true]);
+            HariLibur::query()->create(['tanggal' => now()->toDateString(), 'nama' => 'Libur Uji', 'jenis' => HariLibur::NASIONAL]);
+        }
         $this->mock(FaceVerifier::class)->shouldNotReceive('compare');
         if ($api) {
             Sanctum::actingAs($this->user, ['mobile']);
@@ -109,7 +115,42 @@ class ShiftHolidayAttendanceTest extends TestCase
 
     public static function attendanceActions(): array
     {
-        return [['clock-in', false], ['clock-out', false], ['clock-in', true], ['clock-out', true]];
+        return [
+            ['clock-in', false], ['clock-out', false], ['clock-in', true], ['clock-out', true],
+            ['clock-in', false, true], ['clock-out', false, true], ['clock-in', true, true], ['clock-out', true, true],
+        ];
+    }
+
+    public function test_dated_off_shift_is_a_holiday_in_the_log_and_does_not_change_the_default_shift(): void
+    {
+        $off = Shift::query()->create(['nama' => 'OFF', 'is_day_off' => true]);
+        Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $off->id,
+            'tanggal_presensi' => '2026-10-20', 'is_day_off' => true]);
+        $this->actingAs($this->user)->get('/absensi/mobile/presensi/log?month=2026-10')->assertInertia(fn (Assert $page) => $page
+            ->where('days.19.status', 'day_off')->where('days.19.flags.absent', false)
+            ->where('days.19.schedule', null)->where('days.19.day_off_type', 'day_off'));
+        $this->assertSame($this->shift->id, $this->pegawai->fresh()->shift_id);
+    }
+
+    public function test_dated_off_schedule_allows_finishing_the_previous_night_shift(): void
+    {
+        $this->travelTo('2026-10-22 06:00:00');
+        $this->shift->update(['jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
+        $off = Shift::query()->create(['nama' => 'OFF', 'is_day_off' => true]);
+        $night = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-10-21', 'clock_in_at' => '2026-10-21 22:00:00']);
+        Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $off->id,
+            'tanggal_presensi' => '2026-10-22', 'is_day_off' => true]);
+        $this->pegawai->update(['shift_id' => $off->id]);
+
+        $this->actingAs($this->user)->get('/absensi/mobile/presensi')->assertInertia(fn (Assert $page) => $page
+            ->where('attendance.is_day_off', false)->where('attendance.status', 'ready_to_clock_out'));
+        $this->get('/absensi/mobile/clock-out')->assertOk();
+        Sanctum::actingAs($this->user, ['mobile']);
+        $this->getJson('/api/mobile/v1/attendance/clock-out')->assertOk();
+        $this->getJson('/api/mobile/v1/attendance')->assertJsonPath('data.status', 'ready_to_clock_out');
+        $night->update(['clock_out_at' => now()]);
+        $this->getJson('/api/mobile/v1/attendance')->assertJsonPath('data.is_day_off', true);
     }
 
     public function test_an_overnight_shift_can_finish_on_a_holiday(): void

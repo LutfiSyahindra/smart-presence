@@ -1,5 +1,29 @@
 # Kalender libur shift
 
+## Shift OFF / Libur
+
+Di **Admin Web → Master Data → Shift**, tekan **Tambah shift** atau **Edit shift**,
+lalu pilih **Jenis shift → OFF / Libur** dan isi nama (misalnya `OFF`). Jam masuk,
+jam keluar, dan kebijakan libur mingguan tidak perlu diisi. Shift kerja yang
+sudah ada tetap bertipe **Kerja** dan tetap memerlukan kedua jam tersebut.
+
+Shift OFF dapat dipilih di **Assign Shift** sebagai shift default pegawai.
+Untuk libur pada tanggal tertentu, pilih shift OFF di **Presensi → Set Pegawai**
+atau sebagai tujuan pengajuan **Perubahan Shift**. Jadwal bertanggal tidak
+mengubah shift default pegawai. Memilih OFF otomatis menyimpan hari libur
+tanpa clock-in, clock-out, atau menit lembur. Shift OFF tidak dihitung sebagai
+shift pagi/siang/malam, tidak mewajibkan presensi, dan ditampilkan sebagai libur
+di log. Shift malam sebelumnya yang belum clock-out masih dapat diselesaikan.
+
+Pembaruan instalasi yang sudah ada:
+
+```sh
+php artisan migrate
+npm run build
+```
+
+## Libur rutin pada shift kerja
+
 Di **Admin Web → Master Data → Shift**, setiap shift memilih libur Sabtu, Minggu,
 libur nasional, dan cuti bersama secara terpisah. Dua kategori terakhir memakai
 tanggal dalam kalender lokal. Presensi mobile dan API membaca kalender lokal;

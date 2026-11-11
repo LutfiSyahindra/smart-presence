@@ -160,7 +160,12 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
             Route::delete('shift/holidays/{hariLibur}', [HariLiburController::class, 'destroy'])->middleware('can:'.AccessPermission::SHIFT_DELETE)->name('shift.holidays.destroy');
             Route::post('shift', [ShiftController::class, 'store'])->middleware('can:'.AccessPermission::SHIFT_CREATE)->name('shift.store');
             Route::get('shift/assign', [ShiftAssignmentController::class, 'index'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.assign.index');
+            Route::get('shift/assign/calendar', [ShiftAssignmentController::class, 'calendar'])->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.assign.calendar');
+            Route::get('shift/assign/{pegawai}/schedule', [ShiftAssignmentController::class, 'schedule'])->whereNumber('pegawai')->middleware('can:'.AccessPermission::SHIFT_VIEW)->name('shift.assign.schedule');
+            Route::put('shift/assign/{pegawai}/schedule', [ShiftAssignmentController::class, 'updateSchedule'])->whereNumber('pegawai')->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.assign.schedule.update');
             Route::put('shift/assign', [ShiftAssignmentController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.assign.update');
+            Route::post('shift/assign/template', [ShiftAssignmentController::class, 'template'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.assign.template');
+            Route::post('shift/assign/import', [ShiftAssignmentController::class, 'import'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.assign.import');
             Route::put('shift/{shift}', [ShiftController::class, 'update'])->middleware('can:'.AccessPermission::SHIFT_UPDATE)->name('shift.update');
             Route::delete('shift/{shift}', [ShiftController::class, 'destroy'])->middleware('can:'.AccessPermission::SHIFT_DELETE)->name('shift.destroy');
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Absensi\AdminWeb\MasterData;
 
 use App\Models\Pegawai;
+use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
 use App\Support\AccessPermission;
@@ -92,6 +93,32 @@ class ShiftAssignmentTest extends TestCase
                 ->where('can.assign', true));
     }
 
+    public function test_directory_uses_todays_schedule_and_respects_default_holidays_and_unassigned_employees(): void
+    {
+        $this->travelTo('2026-11-01 08:00:00');
+        $this->morning->update(['libur_minggu' => true]);
+        $employee = $this->employeeWithUser('A Default', 'default@example.test');
+        $employee->update(['shift_id' => $this->morning->id]);
+        foreach (['2026-10-31', '2026-11-02'] as $date) {
+            Presensi::query()->create(['pegawai_id' => $employee->id, 'tanggal_presensi' => $date, 'shift_id' => $this->night->id]);
+        }
+        $this->employeeWithUser('B Tanpa Shift', 'unassigned@example.test');
+        $manualOff = $this->employeeWithUser('C Libur', 'off@example.test');
+        Presensi::query()->create(['pegawai_id' => $manualOff->id, 'tanggal_presensi' => '2026-11-01', 'shift_id' => $this->night->id, 'is_day_off' => true]);
+
+        $this->actingAs($this->admin)->get('/absensi/admin-web/master-data/shift/assign')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('assignments.data.0.today_schedule.source', 'default')
+                ->where('assignments.data.0.today_schedule.shift.id', $this->morning->id)
+                ->where('assignments.data.0.today_schedule.is_day_off', true)
+                ->where('assignments.data.0.today_schedule.day_off_reason', 'Libur Minggu')
+                ->where('assignments.data.1.today_schedule.source', 'default')
+                ->where('assignments.data.1.today_schedule.shift', null)
+                ->where('assignments.data.1.today_schedule.is_day_off', false)
+                ->where('assignments.data.2.today_schedule.source', 'scheduled')
+                ->where('assignments.data.2.today_schedule.is_day_off', true));
+    }
+
     public function test_admin_can_assign_shift_to_one_or_multiple_employees_and_clear_it(): void
     {
         $first = $this->employeeWithUser('Budi Santoso', 'budi@example.test');
@@ -158,6 +185,70 @@ class ShiftAssignmentTest extends TestCase
             ->assertForbidden();
 
         $this->assertNull($employee->refresh()->shift_id);
+    }
+
+    public function test_monthly_schedule_shows_daily_assignments_and_default_fallback_without_changing_the_employee(): void
+    {
+        $this->travelTo(now()->setDate(2026, 11, 10)->startOfDay());
+        $employee = $this->employeeWithUser('Pegawai Terjadwal', 'jadwal@example.test');
+        $employee->update(['shift_id' => $this->morning->id]);
+        $other = $this->employeeWithUser('Pegawai Lain', 'lain@example.test');
+        $off = Shift::query()->create(['nama' => 'DAYOFF', 'is_day_off' => true, 'jam_masuk' => '00:00', 'jam_keluar' => '00:00']);
+        foreach ([['2026-11-02', $this->morning->id], ['2026-12-02', $this->night->id], ['2026-12-03', $off->id]] as [$date, $shiftId]) {
+            Presensi::query()->create(['pegawai_id' => $employee->id, 'tanggal_presensi' => $date, 'shift_id' => $shiftId, 'is_day_off' => $shiftId === $off->id]);
+        }
+        Presensi::query()->create(['pegawai_id' => $other->id, 'tanggal_presensi' => '2026-12-02', 'shift_id' => $this->morning->id]);
+
+        $url = '/absensi/admin-web/master-data/shift/assign/'.$employee->id.'/schedule';
+        $this->actingAs($this->admin)->getJson($url)->assertOk()
+            ->assertJsonPath('month', '2026-12')
+            ->assertJsonPath('default_shift.nama', 'Shift Pagi')
+            ->assertJsonCount(31, 'days')
+            ->assertJsonPath('days.0.date', '2026-12-01')
+            ->assertJsonPath('days.0.source', 'default')
+            ->assertJsonPath('days.0.shift.nama', 'Shift Pagi')
+            ->assertJsonPath('days.1.source', 'scheduled')
+            ->assertJsonPath('days.1.shift.nama', 'Shift Malam')
+            ->assertJsonPath('days.2.shift.nama', 'DAYOFF')
+            ->assertJsonPath('days.2.is_day_off', true)
+            ->assertJsonPath('days.30.source', 'default');
+        $this->getJson($url.'?month=2028-02')->assertOk()->assertJsonCount(29, 'days')
+            ->assertJsonPath('days.28.date', '2028-02-29');
+        $this->assertSame($this->morning->id, $employee->refresh()->shift_id);
+        $this->assertDatabaseCount('presensis', 4);
+    }
+
+    public function test_monthly_schedule_respects_shift_holidays_and_an_unassigned_employee(): void
+    {
+        $this->travelTo(now()->setDate(2026, 11, 10)->startOfDay());
+        $employee = $this->employeeWithUser('Pegawai Default', 'default@example.test');
+        $url = '/absensi/admin-web/master-data/shift/assign/'.$employee->id.'/schedule';
+        $this->actingAs($this->admin)->getJson($url)->assertOk()
+            ->assertJsonPath('month', '2026-11')
+            ->assertJsonPath('days.0.shift', null)
+            ->assertJsonPath('days.0.is_day_off', false);
+        $this->morning->update(['libur_minggu' => true]);
+        $employee->update(['shift_id' => $this->morning->id]);
+        $this->getJson($url.'?month=2026-11')->assertOk()
+            ->assertJsonPath('days.0.date', '2026-11-01')
+            ->assertJsonPath('days.0.is_day_off', true)
+            ->assertJsonPath('days.1.is_day_off', false);
+    }
+
+    public function test_monthly_schedule_requires_view_permission_and_validates_the_month_and_employee(): void
+    {
+        $employee = $this->employeeWithUser('Pegawai Kalender', 'kalender@example.test');
+        $url = '/absensi/admin-web/master-data/shift/assign/'.$employee->id.'/schedule';
+        $this->get($url)->assertRedirect('/absensi/admin-web/login');
+        $viewer = User::factory()->create();
+        $this->actingAs($viewer)->getJson($url)->assertForbidden();
+        $viewer->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::SHIFT_VIEW]);
+        $this->getJson($url.'?month=2026-12')->assertOk();
+        foreach (['2026-13', '2026-12-01', 'invalid'] as $month) {
+            $this->getJson($url.'?month='.$month)->assertUnprocessable()->assertJsonValidationErrors('month');
+        }
+        $withoutUser = Pegawai::query()->create(['nama' => 'Tanpa Akun', 'nik' => 'NO-CALENDAR']);
+        $this->getJson('/absensi/admin-web/master-data/shift/assign/'.$withoutUser->id.'/schedule')->assertNotFound();
     }
 
     private function employeeWithUser(string $name, string $email): Pegawai

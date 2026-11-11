@@ -3,14 +3,14 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { AlarmClock, ArrowRight, Clock3, LoaderCircle, Moon, Pencil, Plus, Save, Search, Sun, Sunrise, Trash2, X } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import ConfirmDelete from '../../setting/components/ConfirmDelete.vue';
-import CrudModal from '../../setting/components/CrudModal.vue';
 import FlashMessage from '../../setting/components/FlashMessage.vue';
 import Pagination from '../../setting/components/Pagination.vue';
 import type { Paginated } from '../../setting/types';
 import HolidayCalendar from './HolidayCalendar.vue';
 import HolidayPolicyFields from './HolidayPolicyFields.vue';
+import ShiftFormModal from './ShiftFormModal.vue';
 import ShiftTypeField from './ShiftTypeField.vue';
 import { defaultHolidayPolicy, holidayOptions, holidayPolicyLabel, type HolidayPolicy, type HolidayRow, type HolidaySyncInfo } from './types';
 
@@ -64,6 +64,8 @@ const creating = ref(false);
 const editing = ref<ShiftRow | null>(null);
 const selected = ref<ShiftRow | null>(null);
 const deleting = ref(false);
+const shiftFormElement = ref<HTMLFormElement | null>(null);
+const formNotice = ref('');
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 let nextInputKey = 0;
 
@@ -101,6 +103,7 @@ const resetForm = () => {
     form.defaults({ ...defaultHolidayPolicy(), nama: '', is_day_off: false, jam_masuk: '', jam_keluar: '', shifts: [newShiftInput()] });
     form.reset();
     form.clearErrors();
+    formNotice.value = '';
 };
 
 const openCreate = () => {
@@ -113,6 +116,7 @@ const openEdit = (shift: ShiftRow) => {
     creating.value = false;
     editing.value = shift;
     form.clearErrors();
+    formNotice.value = '';
     form.defaults({
         libur_sabtu: shift.libur_sabtu,
         libur_minggu: shift.libur_minggu,
@@ -120,8 +124,8 @@ const openEdit = (shift: ShiftRow) => {
         libur_cuti_bersama: shift.libur_cuti_bersama,
         nama: shift.nama,
         is_day_off: shift.is_day_off,
-        jam_masuk: shift.jam_masuk,
-        jam_keluar: shift.jam_keluar,
+        jam_masuk: shift.jam_masuk ?? '',
+        jam_keluar: shift.jam_keluar ?? '',
         shifts: [],
     });
     form.reset();
@@ -134,21 +138,44 @@ const closeForm = () => {
     resetForm();
 };
 
+const focusFormField = async (id: string) => {
+    await nextTick();
+    const field = shiftFormElement.value?.querySelector<HTMLElement>(`#${id}`);
+    field?.focus({ preventScroll: true });
+    field?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+};
+
 const addShiftInput = () => {
-    if (form.shifts.length < 25) form.shifts.push(newShiftInput());
+    if (form.processing || form.shifts.length >= 25) return;
+    const shift = newShiftInput();
+    form.shifts.push(shift);
+    formNotice.value = `Input shift ${form.shifts.length} ditambahkan.`;
+    void focusFormField(`nama-${shift.inputKey}`);
 };
 
 const removeShiftInput = (index: number) => {
-    if (form.shifts.length === 1) return;
+    if (form.processing || form.shifts.length === 1) return;
     form.shifts.splice(index, 1);
     form.clearErrors();
+    formNotice.value = `Input shift ${index + 1} dihapus. Tersisa ${form.shifts.length} input.`;
+    void focusFormField(`nama-${form.shifts[Math.min(index, form.shifts.length - 1)].inputKey}`);
 };
 
 const inputError = (index: number, field: 'nama' | 'is_day_off' | 'jam_masuk' | 'jam_keluar' | keyof HolidayPolicy) =>
     (form.errors as Record<string, string | undefined>)[`shifts.${index}.${field}`];
 
 const submit = () => {
-    const options = { preserveScroll: true, onSuccess: () => closeForm() };
+    if (form.processing) return;
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => closeForm(),
+        onError: async () => {
+            await nextTick();
+            const field = shiftFormElement.value?.querySelector<HTMLElement>('.invalid input, [aria-invalid="true"]');
+            field?.focus({ preventScroll: true });
+            field?.scrollIntoView({ block: 'center', behavior: 'auto' });
+        },
+    };
 
     if (editing.value) form.put(`${baseUrl}/${editing.value.id}`, options);
     else form.post(baseUrl, options);
@@ -432,202 +459,247 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
             <HolidayCalendar :holidays="holidays" :year="holidayYear" :search="search" :can="can" :sync-info="holidaySync" />
         </div>
 
-        <CrudModal
+        <ShiftFormModal
             :open="creating || Boolean(editing)"
             :title="editing ? `Edit shift: ${editing.nama}` : 'Tambah shift baru'"
             :description="editing ? 'Perbarui waktu kerja dan kebijakan libur shift.' : 'Tambahkan hingga 25 shift beserta kebijakan liburnya.'"
+            :busy="form.processing"
             @close="closeForm"
         >
-            <form class="shift-form" @submit.prevent="submit">
+            <form ref="shiftFormElement" class="shift-form" :aria-busy="form.processing" @submit.prevent="submit">
+                <p class="sr-only" role="status">{{ formNotice }}</p>
                 <div class="admin-modal-body shift-form-body">
-                    <div class="shift-form-summary">
-                        <span><Clock3 /></span>
-                        <div v-if="editing">
-                            <small>Pratinjau waktu</small>
-                            <strong>{{ form.nama.trim() || 'Nama shift' }}</strong>
-                            <p v-if="form.is_day_off">OFF / Libur · Tanpa jam kerja</p>
-                            <p v-else>
-                                {{ form.jam_masuk || '--:--' }} <ArrowRight /> {{ form.jam_keluar || '--:--' }} ·
-                                {{ durationLabel(form.jam_masuk, form.jam_keluar) }}
+                    <fieldset class="shift-form-fields" :disabled="form.processing">
+                        <legend class="sr-only">Detail shift dan kebijakan libur</legend>
+                        <div v-if="form.hasErrors" class="shift-root-error" role="alert">
+                            Ada data yang perlu diperbaiki. Periksa kolom bertanda merah sebelum menyimpan kembali.
+                        </div>
+                        <div class="shift-form-summary">
+                            <span><Clock3 /></span>
+                            <div v-if="editing">
+                                <small>Pratinjau waktu</small>
+                                <strong>{{ form.nama.trim() || 'Nama shift' }}</strong>
+                                <p v-if="form.is_day_off">OFF / Libur · Tanpa jam kerja</p>
+                                <p v-else>
+                                    {{ form.jam_masuk || '--:--' }} <ArrowRight /> {{ form.jam_keluar || '--:--' }} ·
+                                    {{ durationLabel(form.jam_masuk, form.jam_keluar) }}
+                                </p>
+                            </div>
+                            <div v-else>
+                                <small>Input dinamis</small>
+                                <strong>{{ form.shifts.length }} shift siap dilengkapi</strong>
+                                <p>Tambah atau hapus baris sesuai kebutuhan.</p>
+                            </div>
+                            <em v-if="!editing">{{ form.shifts.length }}/25 input</em>
+                            <em v-else-if="!form.is_day_off && crossesMidnight(form.jam_masuk, form.jam_keluar)">Lintas hari</em>
+                        </div>
+
+                        <section v-if="editing" class="shift-input-card single">
+                            <ShiftTypeField v-model="form.is_day_off" :error="form.errors.is_day_off" />
+                            <div class="shift-fields">
+                                <div class="shift-field name-field">
+                                    <label for="nama">Nama shift <b>*</b></label>
+                                    <div :class="{ invalid: form.errors.nama }">
+                                        <AlarmClock /><input
+                                            id="nama"
+                                            v-model="form.nama"
+                                            name="nama"
+                                            maxlength="100"
+                                            placeholder="Contoh: Shift Pagi"
+                                            autocomplete="off"
+                                            :aria-invalid="Boolean(form.errors.nama)"
+                                            :aria-describedby="form.errors.nama ? 'nama-error' : undefined"
+                                        />
+                                    </div>
+                                    <p v-if="form.errors.nama" id="nama-error">{{ form.errors.nama }}</p>
+                                </div>
+                                <div v-if="!form.is_day_off" class="shift-field">
+                                    <label for="jam-masuk">Jam masuk <b>*</b><small>24 jam</small></label>
+                                    <div :class="{ invalid: form.errors.jam_masuk }">
+                                        <Sunrise /><input
+                                            id="jam-masuk"
+                                            name="jam_masuk"
+                                            :value="form.jam_masuk"
+                                            type="text"
+                                            inputmode="numeric"
+                                            maxlength="5"
+                                            placeholder="HH:mm"
+                                            autocomplete="off"
+                                            aria-label="Jam masuk dalam format 24 jam"
+                                            :aria-invalid="Boolean(form.errors.jam_masuk)"
+                                            :aria-describedby="form.errors.jam_masuk ? 'jam-masuk-error' : undefined"
+                                            @input="updateEditTime('jam_masuk', $event)"
+                                            @blur="normalizeEditTime('jam_masuk')"
+                                        />
+                                    </div>
+                                    <p v-if="form.errors.jam_masuk" id="jam-masuk-error">{{ form.errors.jam_masuk }}</p>
+                                </div>
+                                <div v-if="!form.is_day_off" class="shift-field">
+                                    <label for="jam-keluar">Jam keluar <b>*</b><small>24 jam</small></label>
+                                    <div :class="{ invalid: form.errors.jam_keluar }">
+                                        <Moon /><input
+                                            id="jam-keluar"
+                                            name="jam_keluar"
+                                            :value="form.jam_keluar"
+                                            type="text"
+                                            inputmode="numeric"
+                                            maxlength="5"
+                                            placeholder="HH:mm"
+                                            autocomplete="off"
+                                            aria-label="Jam keluar dalam format 24 jam"
+                                            :aria-invalid="Boolean(form.errors.jam_keluar)"
+                                            :aria-describedby="form.errors.jam_keluar ? 'jam-keluar-error' : undefined"
+                                            @input="updateEditTime('jam_keluar', $event)"
+                                            @blur="normalizeEditTime('jam_keluar')"
+                                        />
+                                    </div>
+                                    <p v-if="form.errors.jam_keluar" id="jam-keluar-error">{{ form.errors.jam_keluar }}</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <HolidayPolicyFields
+                            v-if="editing && !form.is_day_off"
+                            :policy="form"
+                            :error="holidayOptions.map((option) => form.errors[option.key]).find(Boolean)"
+                            @change="(field, value) => (form[field] = value)"
+                        />
+
+                        <section v-if="!editing" class="shift-dynamic-section">
+                            <header>
+                                <div>
+                                    <small>Daftar input</small>
+                                    <h3>Detail shift</h3>
+                                    <p>Setiap baris akan dibuat menjadi satu data shift.</p>
+                                </div>
+                                <button type="button" :disabled="form.processing || form.shifts.length >= 25" @click="addShiftInput">
+                                    <Plus /> Tambah input
+                                </button>
+                            </header>
+
+                            <p v-if="form.errors.shifts" class="shift-root-error">{{ form.errors.shifts }}</p>
+
+                            <div class="shift-dynamic-list">
+                                <article v-for="(shiftInput, index) in form.shifts" :key="shiftInput.inputKey" class="shift-input-card">
+                                    <header>
+                                        <span>{{ String(index + 1).padStart(2, '0') }}</span>
+                                        <div>
+                                            <strong>Shift {{ index + 1 }}</strong
+                                            ><small>{{ shiftInput.nama.trim() || 'Input shift baru' }}</small>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            :disabled="form.processing || form.shifts.length === 1"
+                                            :aria-label="`Hapus input shift ${index + 1}`"
+                                            @click="removeShiftInput(index)"
+                                        >
+                                            <Trash2 />
+                                        </button>
+                                    </header>
+                                    <ShiftTypeField v-model="shiftInput.is_day_off" :error="inputError(index, 'is_day_off')" />
+                                    <div class="shift-fields">
+                                        <div class="shift-field name-field">
+                                            <label :for="`nama-${shiftInput.inputKey}`">Nama shift <b>*</b></label>
+                                            <div :class="{ invalid: inputError(index, 'nama') }">
+                                                <AlarmClock /><input
+                                                    :id="`nama-${shiftInput.inputKey}`"
+                                                    :name="`shifts.${index}.nama`"
+                                                    v-model="shiftInput.nama"
+                                                    maxlength="100"
+                                                    placeholder="Contoh: Shift Pagi"
+                                                    autocomplete="off"
+                                                    :aria-invalid="Boolean(inputError(index, 'nama'))"
+                                                    :aria-describedby="inputError(index, 'nama') ? `nama-error-${shiftInput.inputKey}` : undefined"
+                                                />
+                                            </div>
+                                            <p v-if="inputError(index, 'nama')" :id="`nama-error-${shiftInput.inputKey}`">
+                                                {{ inputError(index, 'nama') }}
+                                            </p>
+                                        </div>
+                                        <div v-if="!shiftInput.is_day_off" class="shift-field">
+                                            <label :for="`masuk-${shiftInput.inputKey}`">Jam masuk <b>*</b><small>24 jam</small></label>
+                                            <div :class="{ invalid: inputError(index, 'jam_masuk') }">
+                                                <Sunrise /><input
+                                                    :id="`masuk-${shiftInput.inputKey}`"
+                                                    :name="`shifts.${index}.jam_masuk`"
+                                                    :value="shiftInput.jam_masuk"
+                                                    type="text"
+                                                    inputmode="numeric"
+                                                    maxlength="5"
+                                                    placeholder="HH:mm"
+                                                    autocomplete="off"
+                                                    aria-label="Jam masuk dalam format 24 jam"
+                                                    :aria-invalid="Boolean(inputError(index, 'jam_masuk'))"
+                                                    :aria-describedby="
+                                                        inputError(index, 'jam_masuk') ? `masuk-error-${shiftInput.inputKey}` : undefined
+                                                    "
+                                                    @input="updateDynamicTime(shiftInput, 'jam_masuk', $event)"
+                                                    @blur="normalizeDynamicTime(shiftInput, 'jam_masuk')"
+                                                />
+                                            </div>
+                                            <p v-if="inputError(index, 'jam_masuk')" :id="`masuk-error-${shiftInput.inputKey}`">
+                                                {{ inputError(index, 'jam_masuk') }}
+                                            </p>
+                                        </div>
+                                        <div v-if="!shiftInput.is_day_off" class="shift-field">
+                                            <label :for="`keluar-${shiftInput.inputKey}`">Jam keluar <b>*</b><small>24 jam</small></label>
+                                            <div :class="{ invalid: inputError(index, 'jam_keluar') }">
+                                                <Moon /><input
+                                                    :id="`keluar-${shiftInput.inputKey}`"
+                                                    :name="`shifts.${index}.jam_keluar`"
+                                                    :value="shiftInput.jam_keluar"
+                                                    type="text"
+                                                    inputmode="numeric"
+                                                    maxlength="5"
+                                                    placeholder="HH:mm"
+                                                    autocomplete="off"
+                                                    aria-label="Jam keluar dalam format 24 jam"
+                                                    :aria-invalid="Boolean(inputError(index, 'jam_keluar'))"
+                                                    :aria-describedby="
+                                                        inputError(index, 'jam_keluar') ? `keluar-error-${shiftInput.inputKey}` : undefined
+                                                    "
+                                                    @input="updateDynamicTime(shiftInput, 'jam_keluar', $event)"
+                                                    @blur="normalizeDynamicTime(shiftInput, 'jam_keluar')"
+                                                />
+                                            </div>
+                                            <p v-if="inputError(index, 'jam_keluar')" :id="`keluar-error-${shiftInput.inputKey}`">
+                                                {{ inputError(index, 'jam_keluar') }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <HolidayPolicyFields
+                                        v-if="!shiftInput.is_day_off"
+                                        :policy="shiftInput"
+                                        :error="holidayOptions.map((option) => inputError(index, option.key)).find(Boolean)"
+                                        @change="(field, value) => (shiftInput[field] = value)"
+                                    />
+                                    <footer>
+                                        <Clock3 />
+                                        {{
+                                            shiftInput.is_day_off
+                                                ? 'OFF / Libur · Tanpa jam kerja'
+                                                : durationLabel(shiftInput.jam_masuk, shiftInput.jam_keluar)
+                                        }}
+                                        <span v-if="!shiftInput.is_day_off && crossesMidnight(shiftInput.jam_masuk, shiftInput.jam_keluar)"
+                                            >Berakhir hari berikutnya</span
+                                        >
+                                    </footer>
+                                </article>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="shift-add-bottom"
+                                :disabled="form.processing || form.shifts.length >= 25"
+                                @click="addShiftInput"
+                            >
+                                <Plus /> Tambah input shift lainnya
+                            </button>
+                            <p v-if="form.shifts.length >= 25" class="shift-limit-note" role="status">
+                                Batas 25 shift tercapai. Simpan daftar ini untuk melanjutkan.
                             </p>
-                        </div>
-                        <div v-else>
-                            <small>Input dinamis</small>
-                            <strong>{{ form.shifts.length }} shift siap dilengkapi</strong>
-                            <p>Tambah atau hapus baris sesuai kebutuhan.</p>
-                        </div>
-                        <em v-if="!editing">{{ form.shifts.length }}/25 input</em>
-                    </div>
-
-                    <section v-if="editing" class="shift-input-card single">
-                        <ShiftTypeField v-model="form.is_day_off" :error="form.errors.is_day_off" />
-                        <div class="shift-fields">
-                            <div class="shift-field name-field">
-                                <label for="nama">Nama shift <b>*</b></label>
-                                <div :class="{ invalid: form.errors.nama }">
-                                    <AlarmClock /><input
-                                        id="nama"
-                                        v-model="form.nama"
-                                        maxlength="100"
-                                        placeholder="Contoh: Shift Pagi"
-                                        autocomplete="off"
-                                        autofocus
-                                    />
-                                </div>
-                                <p v-if="form.errors.nama">{{ form.errors.nama }}</p>
-                            </div>
-                            <div v-if="!form.is_day_off" class="shift-field">
-                                <label for="jam-masuk">Jam masuk <b>*</b><small>24 jam</small></label>
-                                <div :class="{ invalid: form.errors.jam_masuk }">
-                                    <Sunrise /><input
-                                        id="jam-masuk"
-                                        :value="form.jam_masuk"
-                                        type="text"
-                                        inputmode="numeric"
-                                        maxlength="5"
-                                        placeholder="HH:mm"
-                                        autocomplete="off"
-                                        aria-label="Jam masuk dalam format 24 jam"
-                                        @input="updateEditTime('jam_masuk', $event)"
-                                        @blur="normalizeEditTime('jam_masuk')"
-                                    />
-                                </div>
-                                <p v-if="form.errors.jam_masuk">{{ form.errors.jam_masuk }}</p>
-                            </div>
-                            <div v-if="!form.is_day_off" class="shift-field">
-                                <label for="jam-keluar">Jam keluar <b>*</b><small>24 jam</small></label>
-                                <div :class="{ invalid: form.errors.jam_keluar }">
-                                    <Moon /><input
-                                        id="jam-keluar"
-                                        :value="form.jam_keluar"
-                                        type="text"
-                                        inputmode="numeric"
-                                        maxlength="5"
-                                        placeholder="HH:mm"
-                                        autocomplete="off"
-                                        aria-label="Jam keluar dalam format 24 jam"
-                                        @input="updateEditTime('jam_keluar', $event)"
-                                        @blur="normalizeEditTime('jam_keluar')"
-                                    />
-                                </div>
-                                <p v-if="form.errors.jam_keluar">{{ form.errors.jam_keluar }}</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <HolidayPolicyFields
-                        v-if="editing && !form.is_day_off"
-                        :policy="form"
-                        :error="holidayOptions.map((option) => form.errors[option.key]).find(Boolean)"
-                        @change="(field, value) => (form[field] = value)"
-                    />
-
-                    <section v-if="!editing" class="shift-dynamic-section">
-                        <header>
-                            <div>
-                                <small>Daftar input</small>
-                                <h3>Detail shift</h3>
-                                <p>Setiap baris akan dibuat menjadi satu data shift.</p>
-                            </div>
-                            <button type="button" :disabled="form.shifts.length >= 25" @click="addShiftInput"><Plus /> Tambah input</button>
-                        </header>
-
-                        <p v-if="form.errors.shifts" class="shift-root-error">{{ form.errors.shifts }}</p>
-
-                        <div class="shift-dynamic-list">
-                            <article v-for="(shiftInput, index) in form.shifts" :key="shiftInput.inputKey" class="shift-input-card">
-                                <header>
-                                    <span>{{ String(index + 1).padStart(2, '0') }}</span>
-                                    <div>
-                                        <strong>Shift {{ index + 1 }}</strong
-                                        ><small>{{ shiftInput.nama.trim() || 'Input shift baru' }}</small>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        :disabled="form.shifts.length === 1"
-                                        :aria-label="`Hapus input shift ${index + 1}`"
-                                        @click="removeShiftInput(index)"
-                                    >
-                                        <Trash2 />
-                                    </button>
-                                </header>
-                                <ShiftTypeField v-model="shiftInput.is_day_off" :error="inputError(index, 'is_day_off')" />
-                                <div class="shift-fields">
-                                    <div class="shift-field name-field">
-                                        <label :for="`nama-${shiftInput.inputKey}`">Nama shift <b>*</b></label>
-                                        <div :class="{ invalid: inputError(index, 'nama') }">
-                                            <AlarmClock /><input
-                                                :id="`nama-${shiftInput.inputKey}`"
-                                                v-model="shiftInput.nama"
-                                                maxlength="100"
-                                                placeholder="Contoh: Shift Pagi"
-                                                autocomplete="off"
-                                                :autofocus="index === 0"
-                                            />
-                                        </div>
-                                        <p v-if="inputError(index, 'nama')">{{ inputError(index, 'nama') }}</p>
-                                    </div>
-                                    <div v-if="!shiftInput.is_day_off" class="shift-field">
-                                        <label :for="`masuk-${shiftInput.inputKey}`">Jam masuk <b>*</b><small>24 jam</small></label>
-                                        <div :class="{ invalid: inputError(index, 'jam_masuk') }">
-                                            <Sunrise /><input
-                                                :id="`masuk-${shiftInput.inputKey}`"
-                                                :value="shiftInput.jam_masuk"
-                                                type="text"
-                                                inputmode="numeric"
-                                                maxlength="5"
-                                                placeholder="HH:mm"
-                                                autocomplete="off"
-                                                aria-label="Jam masuk dalam format 24 jam"
-                                                @input="updateDynamicTime(shiftInput, 'jam_masuk', $event)"
-                                                @blur="normalizeDynamicTime(shiftInput, 'jam_masuk')"
-                                            />
-                                        </div>
-                                        <p v-if="inputError(index, 'jam_masuk')">{{ inputError(index, 'jam_masuk') }}</p>
-                                    </div>
-                                    <div v-if="!shiftInput.is_day_off" class="shift-field">
-                                        <label :for="`keluar-${shiftInput.inputKey}`">Jam keluar <b>*</b><small>24 jam</small></label>
-                                        <div :class="{ invalid: inputError(index, 'jam_keluar') }">
-                                            <Moon /><input
-                                                :id="`keluar-${shiftInput.inputKey}`"
-                                                :value="shiftInput.jam_keluar"
-                                                type="text"
-                                                inputmode="numeric"
-                                                maxlength="5"
-                                                placeholder="HH:mm"
-                                                autocomplete="off"
-                                                aria-label="Jam keluar dalam format 24 jam"
-                                                @input="updateDynamicTime(shiftInput, 'jam_keluar', $event)"
-                                                @blur="normalizeDynamicTime(shiftInput, 'jam_keluar')"
-                                            />
-                                        </div>
-                                        <p v-if="inputError(index, 'jam_keluar')">{{ inputError(index, 'jam_keluar') }}</p>
-                                    </div>
-                                </div>
-                                <HolidayPolicyFields
-                                    v-if="!shiftInput.is_day_off"
-                                    :policy="shiftInput"
-                                    :error="holidayOptions.map((option) => inputError(index, option.key)).find(Boolean)"
-                                    @change="(field, value) => (shiftInput[field] = value)"
-                                />
-                                <footer>
-                                    <Clock3 />
-                                    {{
-                                        shiftInput.is_day_off
-                                            ? 'OFF / Libur · Tanpa jam kerja'
-                                            : durationLabel(shiftInput.jam_masuk, shiftInput.jam_keluar)
-                                    }}
-                                    <span v-if="!shiftInput.is_day_off && crossesMidnight(shiftInput.jam_masuk, shiftInput.jam_keluar)"
-                                        >Berakhir hari berikutnya</span
-                                    >
-                                </footer>
-                            </article>
-                        </div>
-
-                        <button type="button" class="shift-add-bottom" :disabled="form.shifts.length >= 25" @click="addShiftInput">
-                            <Plus /> Tambah input shift lainnya
-                        </button>
-                    </section>
+                        </section>
+                    </fieldset>
                 </div>
 
                 <div class="admin-modal-footer shift-form-footer">
@@ -643,7 +715,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
                     </div>
                 </div>
             </form>
-        </CrudModal>
+        </ShiftFormModal>
 
         <ConfirmDelete
             :open="Boolean(selected)"
@@ -1210,10 +1282,39 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 
 .shift-form-body {
-    display: grid;
-    gap: 18px;
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    border: 0;
     padding: 22px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scroll-padding-block: 22px;
+    contain: none;
     background: var(--rs-canvas);
+}
+.shift-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.shift-form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.shift-form-fields > * {
+    flex-shrink: 0;
 }
 .shift-form-summary {
     display: flex;
@@ -1241,6 +1342,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-form-summary > div {
     display: grid;
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .shift-form-summary small {
     color: var(--rs-primary-pale);
@@ -1256,15 +1359,17 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-form-summary p {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 5px;
     margin: 0;
     color: var(--rs-primary-border);
-    font-size: 10px;
+    font-size: 12px;
 }
 .shift-form-summary p svg {
     width: 12px;
 }
 .shift-form-summary em {
+    flex: 0 0 auto;
     padding: 5px 8px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.1);
@@ -1279,9 +1384,11 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     display: flex;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
 }
 .shift-dynamic-section > header > div {
     flex: 1;
+    min-width: 150px;
 }
 .shift-dynamic-section > header small {
     color: var(--shift-primary);
@@ -1306,12 +1413,13 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 8px 11px;
+    min-height: 40px;
+    padding: 10px 12px;
     border: 1px solid var(--rs-primary-border);
     border-radius: 9px;
     color: var(--rs-primary);
     background: var(--rs-primary-soft);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 750;
 }
 .shift-dynamic-section > header button:disabled,
@@ -1328,6 +1436,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     gap: 12px;
 }
 .shift-input-card {
+    min-width: 0;
     overflow: hidden;
     border: 1px solid var(--rs-border);
     border-radius: 15px;
@@ -1336,6 +1445,12 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-input-card.single {
     padding: 18px;
+}
+.shift-input-card:not(.single) :deep(.shift-type-field) {
+    margin: 15px 15px 0;
+}
+.shift-input-card :deep(.holiday-policy) {
+    margin: 0 15px 15px;
 }
 .shift-input-card > header {
     display: flex;
@@ -1359,19 +1474,22 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-input-card > header > div {
     display: grid;
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .shift-input-card > header strong {
     color: var(--shift-ink);
-    font-size: 11px;
+    font-size: 13px;
 }
 .shift-input-card > header small {
     color: var(--rs-muted);
-    font-size: 9px;
+    font-size: 11px;
 }
 .shift-input-card > header button {
     display: grid;
-    width: 30px;
-    height: 30px;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
     place-items: center;
     border: 0;
     border-radius: 8px;
@@ -1387,7 +1505,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-fields {
     display: grid;
-    grid-template-columns: 1.35fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
     gap: 12px;
     padding: 15px;
 }
@@ -1401,7 +1519,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     display: block;
     margin-bottom: 6px;
     color: var(--rs-ink);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 750;
 }
 .shift-field label b {
@@ -1410,7 +1528,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-field label small {
     float: right;
     color: var(--rs-muted);
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -1429,14 +1547,15 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 }
 .shift-field input {
     width: 100%;
-    height: 40px;
+    min-width: 0;
+    height: 44px;
     padding: 0 10px 0 34px;
     border: 1px solid var(--rs-border);
     border-radius: 10px;
     outline: none;
     color: var(--shift-ink);
     background: var(--rs-surface-subtle);
-    font-size: 11px;
+    font-size: 14px;
 }
 .shift-field input:focus {
     border-color: var(--rs-primary-pale);
@@ -1451,7 +1570,8 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-root-error {
     margin: 5px 0 0;
     color: #d73f55;
-    font-size: 9px;
+    font-size: 12px;
+    overflow-wrap: anywhere;
 }
 .shift-root-error {
     padding: 9px 11px;
@@ -1461,12 +1581,13 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
 .shift-input-card > footer {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
     padding: 9px 15px;
     border-top: 1px solid var(--rs-surface-muted);
     color: var(--rs-text-soft);
     background: var(--rs-surface-subtle);
-    font-size: 9px;
+    font-size: 11px;
 }
 .shift-input-card > footer svg {
     width: 13px;
@@ -1483,11 +1604,42 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     border-style: dashed;
 }
 .shift-form-footer {
+    flex: 0 0 auto;
     justify-content: space-between;
+}
+.shift-limit-note {
+    margin: 0;
+    color: var(--rs-text-soft);
+    font-size: 12px;
+}
+.shift-form button:not(:disabled),
+.shift-form :deep(.holiday-policy-options label) {
+    transition:
+        background-color 150ms ease,
+        border-color 150ms ease;
+}
+.shift-form button:focus-visible {
+    outline: 3px solid var(--rs-primary);
+    outline-offset: 2px;
+}
+.shift-form :deep(.holiday-policy-options label) {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--rs-border);
+    border-radius: 10px;
+    background: var(--rs-surface-subtle);
+}
+.shift-form :deep(.holiday-policy-options label:has(input:checked)) {
+    border-color: var(--rs-primary);
+    background: var(--rs-primary-soft);
+}
+.shift-form :deep(.holiday-policy-options label:focus-within) {
+    outline: 2px solid var(--rs-primary);
+    outline-offset: 2px;
 }
 .shift-form-footer > span {
     color: var(--shift-muted);
-    font-size: 10px;
+    font-size: 12px;
 }
 .shift-form-footer > div {
     display: flex;
@@ -1497,6 +1649,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    min-height: 44px;
 }
 .shift-form-footer .btn svg {
     width: 15px;
@@ -1621,7 +1774,7 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
         padding: 15px;
     }
     .shift-fields {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .shift-field.name-field {
         grid-column: 1 / -1;
@@ -1629,13 +1782,21 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     .shift-form-footer {
         align-items: stretch;
         flex-direction: column;
+        gap: 8px;
+        padding: 12px 15px;
     }
     .shift-form-footer > div {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: auto minmax(0, 1fr);
     }
     .shift-form-footer .btn {
         justify-content: center;
+        white-space: normal;
+        font-size: 13px;
+    }
+    .shift-field input,
+    .shift-form :deep(.shift-type-field select) {
+        font-size: 16px;
     }
 }
 
@@ -1647,10 +1808,10 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
         display: grid;
     }
     .shift-fields {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .shift-field.name-field {
-        grid-column: auto;
+        grid-column: 1 / -1;
     }
     .shift-dynamic-section > header {
         align-items: flex-start;
@@ -1660,6 +1821,15 @@ const normalizeDynamicTime = (shift: ShiftInput, field: TimeField) => {
     }
     .shift-form-summary em {
         display: none;
+    }
+}
+
+@media (max-height: 480px) {
+    .shift-form-footer > span {
+        display: none;
+    }
+    .shift-form-footer {
+        padding-block: 10px;
     }
 }
 

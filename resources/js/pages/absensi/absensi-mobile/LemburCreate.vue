@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { Head, router, useForm } from '@inertiajs/vue3';
+import { useScrollLock } from '@vueuse/core';
 import {
     ArrowLeft,
     ArrowRight,
@@ -58,6 +59,9 @@ const fileError = ref('');
 const previewFile = ref<File | null>(null);
 const discardOpen = ref(false);
 const submitted = ref(false);
+// Keep gestures on the header/footer from scrolling the document behind the form.
+// VueUse restores the previous overflow when this page is unmounted.
+const bodyScrollLocked = useScrollLock(() => (typeof document === 'undefined' ? null : document.body));
 let removeBackHandler: (() => void) | undefined;
 let removeNavigationGuard: (() => void) | undefined;
 const selectedShift = computed(() => props.shifts.find((shift) => shift.id === Number(form.shift_id)));
@@ -199,6 +203,7 @@ function submit() {
     });
 }
 onMounted(() => {
+    bodyScrollLocked.value = true;
     removeBackHandler = registerMobileBackHandler(() => {
         if (previewFile.value) {
             previewFile.value = null;
@@ -572,6 +577,12 @@ textarea {
     font: inherit;
 }
 .request-workspace {
+    position: fixed;
+    inset: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior-y: none;
     color: #233f35;
     color-scheme: light;
     font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
@@ -582,8 +593,7 @@ textarea {
     flex-direction: column;
     width: 100%;
     max-width: 500px;
-    height: 100vh;
-    height: 100dvh;
+    height: 100%;
     margin-inline: auto;
     overflow: hidden;
     background: #f6f7f1;
@@ -651,7 +661,7 @@ textarea {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    overscroll-behavior-y: contain;
+    overscroll-behavior-y: none;
     padding: 24px 18px 8px;
     scroll-padding-block: 20px;
     scrollbar-width: thin;
@@ -1541,13 +1551,13 @@ fieldset:disabled {
 }
 @media (max-height: 500px) {
     .request-header {
-        padding-block: 9px;
+        padding-block: calc(9px + env(safe-area-inset-top, 0px)) 9px;
     }
     .request-header p {
         display: none;
     }
     .request-actions {
-        padding-block: 9px;
+        padding-block: 9px calc(9px + env(safe-area-inset-bottom, 0px));
     }
     .footer-summary {
         display: none;

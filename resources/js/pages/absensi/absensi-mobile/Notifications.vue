@@ -154,6 +154,7 @@ async function readAll() {
                     :class="{ active: activeTab === 'notifications' }"
                     :aria-current="activeTab === 'notifications' ? 'page' : undefined"
                     preserve-scroll
+                    replace
                 >
                     <Bell /><span>Notifikasi</span><span v-if="unreadCount" class="tab-count">{{ compactCount(unreadCount) }}</span>
                 </Link>
@@ -162,6 +163,7 @@ async function readAll() {
                     :class="{ active: activeTab === 'approvals' }"
                     :aria-current="activeTab === 'approvals' ? 'page' : undefined"
                     preserve-scroll
+                    replace
                 >
                     <ShieldCheck /><span>Butuh persetujuan</span
                     ><span v-if="pendingApprovalCount" class="tab-count">{{ compactCount(pendingApprovalCount) }}</span>

@@ -107,6 +107,40 @@ class PresensiApprovalTest extends TestCase
         return self::WEB.'/pengajuan/presensi/'.$item->id;
     }
 
+    public function test_mobile_queue_filters_period_search_and_order_within_the_authorized_scope(): void
+    {
+        $this->first->givePermissionTo([AccessPermission::MOBILE_ACCESS, AccessPermission::MOBILE_NOTIFICATIONS]);
+        $october = $this->submit();
+        $november = $october->replicate()->fill(['action' => 'clock-out', 'tanggal_presensi' => '2026-11-01']);
+        $november->save();
+        foreach ($october->approvals as $step) {
+            $november->approvals()->create($step->only(['user_id', 'approver_name', 'level', 'status']));
+        }
+        $base = '/absensi/mobile/notifikasi/presensi';
+        $this->actingAs($this->first)->get($base)->assertInertia(fn (Assert $page) => $page
+            ->component('absensi/absensi-mobile/PresensiApprovals')
+            ->where('scope', 'delegation')->where('filters.sort', 'oldest')
+            ->where('totalRequests', 2)->where('requests.data.0.id', $october->id));
+        $this->get($base.'?month=2026-11&search=IGD&sort=newest')->assertInertia(fn (Assert $page) => $page
+            ->where('filters', ['search' => 'IGD', 'month' => '2026-11', 'sort' => 'newest'])
+            ->where('totalRequests', 2)->where('requests.total', 1)->where('requests.data.0.id', $november->id));
+        $this->get($base.'?sort=newest')->assertInertia(fn (Assert $page) => $page->where('requests.data.0.id', $november->id));
+        $this->get($base.'?month=2026-11&search=TidakAda')->assertInertia(fn (Assert $page) => $page
+            ->where('totalRequests', 2)->where('requests.total', 0));
+        $this->actingAs($this->owner)->get($base.'?scope=mine')->assertInertia(fn (Assert $page) => $page
+            ->where('scope', 'mine')->where('filters.sort', 'newest')->where('totalRequests', 2)
+            ->where('requests.data.0.id', $november->id)->where('requests.data.0.can_decide', false));
+        $this->actingAs($this->second)->get($base.'?month=2026-11&search=IGD')->assertInertia(fn (Assert $page) => $page
+            ->where('totalRequests', 0)->where('requests.total', 0));
+        $this->get($base.'?scope=mine&month=2026-11')->assertInertia(fn (Assert $page) => $page->where('requests.total', 0));
+    }
+
+    public function test_mobile_queue_rejects_invalid_period_and_order(): void
+    {
+        $this->actingAs($this->owner)->get('/absensi/mobile/notifikasi/presensi?month=2026-13&sort=invalid')
+            ->assertSessionHasErrors(['month', 'sort']);
+    }
+
     public function test_web_then_mobile_decision_advances_in_order_and_notifies_each_stage(): void
     {
         $item = $this->submit();

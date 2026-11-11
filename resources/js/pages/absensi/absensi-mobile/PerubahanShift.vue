@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import type { SharedData } from '@/types';
+import { Dialog, DialogDescription, DialogPanel, DialogTitle } from '@headlessui/vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowDown,
@@ -17,6 +18,7 @@ import {
     Info,
     LoaderCircle,
     Plus,
+    Search,
     Send,
     ShieldCheck,
     SlidersHorizontal,
@@ -82,6 +84,9 @@ const pickerYear = ref(Number(props.month.slice(0, 4)));
 const draftStatus = ref<Status>(props.status);
 const loading = ref(false);
 const error = ref('');
+const targetPickerOpen = ref(false);
+const targetSearch = ref('');
+const targetSearchInput = ref<HTMLInputElement | null>(null);
 const form = useForm({ tanggal_perubahan: props.today, original_shift_id: props.currentShift?.id ?? null, requested_shift_id: '', alasan: '' });
 watch(
     () => props.currentShift?.id,
@@ -118,6 +123,10 @@ const dateLabel = (date: string) =>
     new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00`));
 const timeLabel = (shift: Shift) =>
     shift.is_day_off ? 'OFF / Libur · Tanpa jam kerja' : `${shift.start_time} – ${shift.end_time}${shift.next_day ? ' (+1 hari)' : ''}`;
+const filteredTargetShifts = computed(() => {
+    const query = targetSearch.value.trim().toLocaleLowerCase('id-ID');
+    return targetShifts.value.filter((shift) => `${shift.name} ${timeLabel(shift)}`.toLocaleLowerCase('id-ID').includes(query));
+});
 const approvalLabel = (status: string) =>
     ({ pending: 'Menunggu persetujuan', waiting: 'Tahap berikutnya', approved: 'Disetujui', rejected: 'Ditolak', skipped: 'Dilewati' })[status] ??
     status;
@@ -204,8 +213,27 @@ function openForm() {
     form.clearErrors();
     sheet.value = 'create';
 }
+function openTargetPicker() {
+    if (form.processing || sheet.value !== 'create') return;
+    targetSearch.value = '';
+    targetPickerOpen.value = true;
+}
+function selectTargetShift(shift: Shift) {
+    if (form.processing || !targetShifts.value.some((item) => item.id === shift.id)) return;
+    form.requested_shift_id = String(shift.id);
+    form.clearErrors('requested_shift_id');
+    targetPickerOpen.value = false;
+}
+function clearTargetSearch() {
+    targetSearch.value = '';
+    targetSearchInput.value?.focus();
+}
 function closeSheet() {
     if (form.processing) return;
+    if (targetPickerOpen.value) {
+        targetPickerOpen.value = false;
+        return;
+    }
     if (sheet.value === 'discard') {
         sheet.value = 'create';
         return;
@@ -586,21 +614,24 @@ watch(
             <span class="change-direction" aria-hidden="true"><ArrowDown /></span>
             <div class="form-field">
                 <label for="target-shift">Shift tujuan <span>*</span></label>
-                <div class="select-wrap">
-                    <select
-                        id="target-shift"
-                        v-model="form.requested_shift_id"
-                        required
-                        :disabled="form.processing"
-                        :aria-invalid="Boolean(form.errors.requested_shift_id)"
-                        aria-describedby="target-shift-error"
-                    >
-                        <option disabled value="">Pilih shift pengganti</option>
-                        <option v-for="shift in targetShifts" :key="shift.id" :value="shift.id">
-                            {{ shift.name }} · {{ timeLabel(shift) }}
-                        </option></select
-                    ><ChevronDown />
-                </div>
+                <button
+                    id="target-shift"
+                    type="button"
+                    class="target-shift-trigger"
+                    :class="{ 'has-selection': targetShift }"
+                    :disabled="form.processing"
+                    aria-haspopup="dialog"
+                    :aria-expanded="targetPickerOpen"
+                    :aria-invalid="Boolean(form.errors.requested_shift_id)"
+                    :aria-describedby="form.errors.requested_shift_id ? 'target-shift-error' : undefined"
+                    @click="openTargetPicker"
+                >
+                    <span>
+                        <strong>{{ targetShift?.name || 'Pilih shift pengganti' }}</strong>
+                        <small>{{ targetShift ? timeLabel(targetShift) : 'Cari nama atau jam shift' }}</small>
+                    </span>
+                    <ChevronDown aria-hidden="true" />
+                </button>
                 <p v-if="form.errors.requested_shift_id" id="target-shift-error" class="field-error" role="alert">
                     {{ form.errors.requested_shift_id }}
                 </p>
@@ -649,6 +680,64 @@ watch(
                 <Info />Pengajuan akan disimpan dengan status menunggu. Pengiriman pengajuan tidak langsung mengubah jadwal aktif Anda.
             </p>
         </form>
+        <Dialog :open="targetPickerOpen" :initial-focus="targetSearchInput" class="target-shift-dialog" @close="targetPickerOpen = false">
+            <div class="target-picker-overlay" aria-hidden="true"></div>
+            <div class="target-picker-position">
+                <DialogPanel class="target-picker-panel">
+                    <header class="target-picker-heading">
+                        <div>
+                            <DialogTitle as="h2">Pilih shift tujuan</DialogTitle>
+                            <DialogDescription>Cari dan pilih shift pengganti Anda.</DialogDescription>
+                        </div>
+                        <button type="button" class="target-picker-close" aria-label="Tutup pilihan shift tujuan" @click="targetPickerOpen = false">
+                            <X />
+                        </button>
+                    </header>
+                    <div class="target-picker-search">
+                        <Search aria-hidden="true" />
+                        <input
+                            ref="targetSearchInput"
+                            v-model="targetSearch"
+                            type="search"
+                            placeholder="Cari nama atau jam shift…"
+                            aria-label="Cari shift tujuan"
+                            aria-controls="target-shift-options"
+                            autocomplete="off"
+                            @keydown.enter.prevent
+                        />
+                        <button v-if="targetSearch" type="button" aria-label="Hapus pencarian shift" @click="clearTargetSearch"><X /></button>
+                    </div>
+                    <p class="target-search-count" role="status">
+                        {{ filteredTargetShifts.length }} shift{{ targetSearch.trim() ? ' ditemukan' : ' tersedia' }}
+                    </p>
+                    <ul id="target-shift-options" class="target-picker-options" aria-label="Shift tujuan tersedia">
+                        <li v-for="shift in filteredTargetShifts" :key="shift.id">
+                            <button
+                                type="button"
+                                class="target-shift-option"
+                                :class="{ 'is-selected': targetShift?.id === shift.id }"
+                                :aria-pressed="targetShift?.id === shift.id"
+                                :disabled="form.processing"
+                                @click="selectTargetShift(shift)"
+                            >
+                                <Clock3 aria-hidden="true" />
+                                <span>
+                                    <strong>{{ shift.name }}</strong>
+                                    <small>{{ timeLabel(shift) }}</small>
+                                </span>
+                                <span class="target-option-check" aria-hidden="true"><Check v-if="targetShift?.id === shift.id" /></span>
+                            </button>
+                        </li>
+                    </ul>
+                    <div v-if="!filteredTargetShifts.length" class="target-search-empty">
+                        <Search aria-hidden="true" />
+                        <strong>Shift tidak ditemukan</strong>
+                        <p>Coba kata kunci lain atau hapus pencarian.</p>
+                        <button type="button" @click="clearTargetSearch">Hapus pencarian</button>
+                    </div>
+                </DialogPanel>
+            </div>
+        </Dialog>
         <template #footer
             ><button
                 v-if="!unavailableReason && targetShifts.length"
@@ -1745,7 +1834,6 @@ button:disabled {
     color: #a68b50;
 }
 .form-field input,
-.form-field select,
 .form-field textarea {
     display: block;
     width: 100%;
@@ -1778,23 +1866,271 @@ button:disabled {
     color: #9ca68f;
     font-size: 13px;
 }
-.form-field select {
-    appearance: none;
-    padding-right: 34px;
-    text-overflow: ellipsis;
-    background-image: none;
+.target-shift-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 68px;
+    padding: 12px 13px;
+    border: 1px solid #dce5d1;
+    border-radius: 14px;
+    background: #fff;
+    color: #738168;
+    font: inherit;
+    text-align: left;
 }
-.select-wrap {
-    position: relative;
+.target-shift-trigger.has-selection {
+    border-color: #cfdebf;
+    background: #f5f8f1;
+    color: #34513d;
 }
-.select-wrap > svg {
-    position: absolute;
-    right: 13px;
-    top: 17px;
-    width: 17px;
-    height: 17px;
+.target-shift-trigger > span,
+.target-shift-option > span:first-of-type {
+    min-width: 0;
+    flex: 1;
+}
+.target-shift-trigger strong,
+.target-shift-option strong {
+    display: block;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+.target-shift-trigger small,
+.target-shift-option small {
+    display: block;
+    margin-top: 4px;
+    color: #7e906f;
+    font-size: 11px;
+    line-height: 1.6;
+}
+.target-shift-trigger > svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
     color: #859775;
-    pointer-events: none;
+}
+:global(.target-shift-dialog) {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    color: #244735;
+    color-scheme: light;
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+.target-picker-overlay {
+    position: fixed;
+    inset: 0;
+    background: #102d36a6;
+    backdrop-filter: blur(7px);
+}
+.target-picker-position {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100dvh;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+}
+.target-picker-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    max-width: 480px;
+    max-height: min(640px, 100%);
+    overflow: hidden;
+    border: 1px solid #dce5d6;
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 24px 80px #102d3633;
+}
+.target-picker-heading {
+    display: flex;
+    flex-shrink: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px;
+    border-bottom: 1px solid #edf0e7;
+    background: linear-gradient(110deg, #f4f7ef, #fcfbf6);
+}
+.target-picker-heading h2 {
+    margin: 0;
+    font-size: 19px;
+    line-height: 1.4;
+    font-weight: 750;
+}
+.target-picker-heading p {
+    margin: 6px 0 0;
+    color: #6b7d64;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.target-picker-close,
+.target-picker-search button {
+    display: grid;
+    flex: 0 0 44px;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #e3eae5;
+    border-radius: 12px;
+    background: #fff;
+    color: #526f48;
+}
+.target-picker-close svg,
+.target-picker-search svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+.target-picker-search {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    margin: 16px 16px 0;
+    border: 1px solid #d7e1d5;
+    border-radius: 12px;
+    padding-left: 12px;
+    color: #6b7d64;
+    background: #fafcf8;
+}
+.target-picker-search:focus-within {
+    border-color: #8ba68a;
+    box-shadow: 0 0 0 3px #526f4810;
+}
+.target-picker-search input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    padding: 12px 8px 12px 0;
+    outline: none;
+    background: transparent;
+    color: #244735;
+    font: inherit;
+    font-size: 16px;
+    box-shadow: none;
+}
+.target-picker-search input::-webkit-search-cancel-button {
+    display: none;
+}
+.target-picker-search button {
+    border: 0;
+    background: transparent;
+}
+.target-search-count {
+    flex-shrink: 0;
+    margin: 10px 18px 6px;
+    color: #758266;
+    font-size: 11px;
+    line-height: 1.6;
+}
+.target-picker-options {
+    display: grid;
+    gap: 6px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block: 8px;
+    margin: 0;
+    padding: 8px 12px 16px;
+    list-style: none;
+}
+.target-shift-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 72px;
+    padding: 12px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+.target-shift-option:hover,
+.target-shift-option.is-selected {
+    border-color: #cfdebf;
+    background: #f0f5e9;
+}
+.target-shift-option > svg {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    color: #7e906f;
+}
+.target-option-check {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: 1px solid #d5dfcb;
+    border-radius: 50%;
+}
+.is-selected .target-option-check {
+    border-color: #597a45;
+    background: #597a45;
+    color: #fff;
+}
+.target-option-check svg {
+    width: 15px;
+    height: 15px;
+}
+.target-search-empty {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    padding: 24px 16px;
+    text-align: center;
+}
+.target-search-empty > svg {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    margin-bottom: 12px;
+    color: #8ba077;
+}
+.target-search-empty strong {
+    font-size: 14px;
+}
+.target-search-empty p {
+    margin: 8px 0 12px;
+    color: #6b7d64;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.target-search-empty button {
+    min-height: 44px;
+    border: 1px solid #c5d3bc;
+    border-radius: 10px;
+    padding: 8px 14px;
+    background: #f5f8f1;
+    color: #526f48;
+    font: inherit;
+    font-size: 12px;
+}
+.target-shift-trigger:focus-visible,
+.target-picker-panel button:focus-visible {
+    outline: 3px solid #b99754;
+    outline-offset: 2px;
+}
+.target-shift-trigger:disabled,
+.target-picker-panel button:disabled {
+    opacity: 0.55;
 }
 .form-field > small,
 .field-caption {

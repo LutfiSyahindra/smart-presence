@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PresensiRequest;
 use App\Services\Absensi\AbsensiMobile\PresensiApprovalService;
 use App\Support\AccessPermission;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -17,18 +18,32 @@ class PresensiApprovalController extends Controller
 {
     public function index(Request $request): Response
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:150'],
-            'scope' => ['nullable', Rule::in(['mine', 'delegation'])]]);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:150'],
+            'scope' => ['nullable', Rule::in(['mine', 'delegation'])],
+            'month' => ['nullable', 'date_format:Y-m'],
+            'sort' => ['nullable', Rule::in(['oldest', 'newest'])],
+        ]);
         $scope = $filters['scope'] ?? 'delegation';
         $search = trim($filters['search'] ?? '');
+        $month = $filters['month'] ?? '';
+        $sort = $filters['sort'] ?? ($scope === 'mine' ? 'newest' : 'oldest');
         $query = $scope === 'mine' ? PresensiRequest::query()->where('user_id', $request->user()->id)
             : PresensiRequest::query()->awaitingApprovalBy($request->user());
+        $totalRequests = (clone $query)->count();
+        if ($month !== '') {
+            $period = CarbonImmutable::createFromFormat('!Y-m', $month);
+            $query->whereBetween('tanggal_presensi', [$period->toDateString(), $period->endOfMonth()->toDateString()]);
+        }
 
         return Inertia::render('absensi/absensi-mobile/PresensiApprovals', [
             'scope' => $scope, 'search' => $search,
+            'filters' => ['search' => $search, 'month' => $month, 'sort' => $sort],
+            'totalRequests' => $totalRequests,
             'requests' => $query->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('nama_pegawai', 'like', "%{$search}%")->orWhere('nama_unit', 'like', "%{$search}%")))
-                ->with('approvals')->latest()->latest('id')->paginate(15)->withQueryString()
+                ->with('approvals')->orderBy('created_at', $sort === 'newest' ? 'desc' : 'asc')
+                ->orderBy('id', $sort === 'newest' ? 'desc' : 'asc')->paginate(15)->withQueryString()
                 ->through(fn ($item) => $this->serialize($item, $request)),
         ]);
     }

@@ -22,8 +22,8 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, nextTick, ref, useId, watch } from 'vue';
-import SearchableSelect from '../../presensi/components/SearchableSelect.vue';
 import type { BulkShiftOptions } from './bulk-shift';
+import SearchableMultiSelect from './components/SearchableMultiSelect.vue';
 
 const props = defineProps<{ open: boolean; options: BulkShiftOptions }>();
 const emit = defineEmits<{ close: [] }>();
@@ -34,7 +34,7 @@ const stepDescriptions = ['Atur tanggal', 'Tentukan penerima', 'Isi jadwal Excel
 const stepTips = [
     'Pilih sebulan penuh atau rentang tanggal tertentu dalam satu bulan.',
     'Pilihan pegawai tertentu tetap tersimpan saat pencarian atau filter berubah.',
-    'Gunakan kode shift dari dropdown Excel. Sel kosong akan dilewati saat import.',
+    'Gunakan nama shift dari dropdown Excel. Sel kosong akan dilewati saat import.',
     'Periode dan pegawai di file harus sesuai dengan pilihan pada batch ini.',
 ];
 const stepHeading = ref<HTMLElement | null>(null);
@@ -54,8 +54,8 @@ const form = useForm({
     date_from: `${props.options.month}-01`,
     date_to: endOfMonth(props.options.month),
     selection: 'all',
-    unit_kerja_id: '' as number | string,
-    jabatan_id: '' as number | string,
+    unit_kerja_ids: [] as number[],
+    jabatan_ids: [] as number[],
     pegawai_ids: [] as number[],
     file: null as File | null,
 });
@@ -65,26 +65,34 @@ const downloading = ref(false);
 const downloadError = ref('');
 const downloaded = ref(false);
 const busy = computed(() => downloading.value || form.processing);
-const positions = computed(() => props.options.positions.filter((item) => !form.unit_kerja_id || item.unit_kerja_id === Number(form.unit_kerja_id)));
+const positions = computed(() =>
+    props.options.positions.filter((item) => !form.unit_kerja_ids.length || form.unit_kerja_ids.includes(item.unit_kerja_id)),
+);
 const unitOptions = computed(() => props.options.units.map((item) => ({ value: item.id, label: item.nama })));
-const positionOptions = computed(() => positions.value.map((item) => ({ value: item.id, label: item.nama })));
-const matchingEmployees = computed(() =>
+const positionOptions = computed(() =>
+    positions.value.map((item) => ({
+        value: item.id,
+        label: item.nama,
+        description: props.options.units.find((unit) => unit.id === item.unit_kerja_id)?.nama,
+    })),
+);
+const filteredEmployees = computed(() =>
     props.options.employees.filter(
         (item) =>
-            (!form.unit_kerja_id || item.unit_kerja_id === Number(form.unit_kerja_id)) &&
-            (!form.jabatan_id || item.jabatan_id === Number(form.jabatan_id)) &&
-            `${item.nama} ${item.nik ?? ''}`.toLocaleLowerCase('id-ID').includes(employeeSearch.value.trim().toLocaleLowerCase('id-ID')),
+            (!form.unit_kerja_ids.length || (item.unit_kerja_id !== null && form.unit_kerja_ids.includes(item.unit_kerja_id))) &&
+            (!form.jabatan_ids.length || (item.jabatan_id !== null && form.jabatan_ids.includes(item.jabatan_id))),
+    ),
+);
+const matchingEmployees = computed(() =>
+    filteredEmployees.value.filter((item) =>
+        `${item.nama} ${item.nik ?? ''}`.toLocaleLowerCase('id-ID').includes(employeeSearch.value.trim().toLocaleLowerCase('id-ID')),
     ),
 );
 const selectedCount = computed(() =>
     form.selection === 'all'
         ? props.options.employees.length
         : form.selection === 'filtered'
-          ? props.options.employees.filter(
-                (item) =>
-                    (!form.unit_kerja_id || item.unit_kerja_id === Number(form.unit_kerja_id)) &&
-                    (!form.jabatan_id || item.jabatan_id === Number(form.jabatan_id)),
-            ).length
+          ? filteredEmployees.value.length
           : form.pegawai_ids.length,
 );
 const employeePages = computed(() => Math.max(1, Math.ceil(matchingEmployees.value.length / 12)));
@@ -110,7 +118,10 @@ const validPeriod = computed(
         form.date_to <= endOfMonth(form.month),
 );
 const validSelection = computed(
-    () => selectedCount.value > 0 && selectedCount.value <= 5000 && (form.selection !== 'filtered' || !!form.unit_kerja_id || !!form.jabatan_id),
+    () =>
+        selectedCount.value > 0 &&
+        selectedCount.value <= 5000 &&
+        (form.selection !== 'filtered' || !!form.unit_kerja_ids.length || !!form.jabatan_ids.length),
 );
 const errors = computed(() => [...new Set(Object.values(form.errors))]);
 watch([downloadError, errors], async () => {
@@ -130,7 +141,7 @@ const goToStep = async (target: number) => {
 const close = () => {
     if (!busy.value) emit('close');
 };
-watch([employeeSearch, () => form.unit_kerja_id, () => form.jabatan_id], () => {
+watch([employeeSearch, () => [...form.unit_kerja_ids], () => [...form.jabatan_ids]], () => {
     employeePage.value = 1;
 });
 
@@ -144,13 +155,13 @@ watch(
     },
 );
 watch(
-    () => form.unit_kerja_id,
+    () => [...form.unit_kerja_ids],
     () => {
-        if (!positions.value.some((item) => item.id === Number(form.jabatan_id))) form.jabatan_id = '';
+        form.jabatan_ids = form.jabatan_ids.filter((id) => positions.value.some((item) => item.id === id));
     },
 );
 watch(
-    () => [form.month, form.date_from, form.date_to, form.selection, form.unit_kerja_id, form.jabatan_id, ...form.pegawai_ids],
+    () => [form.month, form.date_from, form.date_to, form.selection, ...form.unit_kerja_ids, ...form.jabatan_ids, ...form.pegawai_ids],
     () => {
         downloaded.value = false;
         downloadError.value = '';
@@ -379,7 +390,7 @@ const importFile = () => {
                                             <label :class="{ active: form.selection === 'all' }"
                                                 ><input v-model="form.selection" type="radio" value="all" /><UsersRound /><strong
                                                     >Semua pegawai</strong
-                                                ><span>{{ options.employees.length }} pegawai berakun</span></label
+                                                ><span>{{ options.employees.length }} pegawai</span></label
                                             >
                                             <label :class="{ active: form.selection === 'filtered' }"
                                                 ><input v-model="form.selection" type="radio" value="filtered" /><Building2 /><strong
@@ -395,15 +406,15 @@ const importFile = () => {
                                         <div v-if="form.selection === 'all'" class="all-employees-note">
                                             <CheckCircle2 />
                                             <div>
-                                                <strong>Seluruh pegawai berakun akan disertakan</strong>
-                                                <p>Termasuk pegawai di halaman direktori lainnya.</p>
+                                                <strong>Seluruh pegawai akan disertakan</strong>
+                                                <p>Termasuk pegawai yang belum memiliki akun dan pegawai di halaman direktori lainnya.</p>
                                             </div>
                                         </div>
                                         <div v-if="form.selection !== 'all'" class="schedule-fields organization-fields">
                                             <div>
                                                 <label>Unit kerja</label
-                                                ><SearchableSelect
-                                                    v-model="form.unit_kerja_id"
+                                                ><SearchableMultiSelect
+                                                    v-model="form.unit_kerja_ids"
                                                     label="Unit kerja jadwal massal"
                                                     :options="unitOptions"
                                                     placeholder="Semua unit"
@@ -412,8 +423,8 @@ const importFile = () => {
                                             </div>
                                             <div>
                                                 <label>Jabatan</label
-                                                ><SearchableSelect
-                                                    v-model="form.jabatan_id"
+                                                ><SearchableMultiSelect
+                                                    v-model="form.jabatan_ids"
                                                     label="Jabatan jadwal massal"
                                                     :options="positionOptions"
                                                     placeholder="Semua jabatan"
@@ -421,6 +432,9 @@ const importFile = () => {
                                                 />
                                             </div>
                                         </div>
+                                        <p v-if="form.selection !== 'all'" class="schedule-help">
+                                            Bisa pilih lebih dari satu unit dan jabatan. Pegawai yang belum memiliki akun tetap bisa dijadwalkan.
+                                        </p>
                                         <div v-if="form.selection === 'custom'" class="employee-picker">
                                             <label class="employee-search"
                                                 ><Search />
@@ -523,8 +537,8 @@ const importFile = () => {
                                                     <div>
                                                         <strong>Isi shift pada tanggal yang diinginkan</strong>
                                                         <p>
-                                                            Pilih kode lewat dropdown. Daftar kode dan jam kerja ada di sheet Referensi Shift. Gunakan
-                                                            shift OFF untuk hari libur.
+                                                            Pilih nama shift lewat dropdown. Daftar nama dan jam kerja ada di sheet Referensi Shift.
+                                                            Untuk hari libur, pilih nama shift berjenis OFF / Libur.
                                                         </p>
                                                     </div>
                                                 </li>
@@ -624,7 +638,7 @@ const importFile = () => {
                                             <span>Pegawai dipilih</span><strong>{{ selectedCount.toLocaleString('id-ID') }} pegawai</strong
                                             ><small>{{
                                                 form.selection === 'all'
-                                                    ? 'Seluruh pegawai berakun'
+                                                    ? 'Seluruh pegawai'
                                                     : form.selection === 'filtered'
                                                       ? 'Berdasarkan unit / jabatan'
                                                       : 'Pilihan pegawai tertentu'

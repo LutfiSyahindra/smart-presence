@@ -7,6 +7,7 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use App\Notifications\EmployeeAccountInvitation;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepositoryInterface;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -93,57 +94,111 @@ class PegawaiService
         return $this->spreadsheets->template();
     }
 
-    public function import(UploadedFile $file): int
+    /** @return list<array{id: int, nik: ?string, nama: string, unit_kerja: ?string}> */
+    public function exportOptions(): array
     {
-        $items = $this->spreadsheets->read($file);
-        $existingNiks = $this->pegawais->existingNiks(array_values(array_filter(array_column($items, 'nik'))));
-        if ($existingNiks !== []) {
-            $rows = collect($items)
-                ->whereIn('nik', $existingNiks)
-                ->map(fn (array $item) => $item['source_row'])
-                ->implode(', ');
+        return Pegawai::query()
+            ->with('unitKerja:id,nama')
+            ->orderBy('nama')->orderBy('id')
+            ->get(['id', 'nik', 'nama', 'unit_kerja_id'])
+            ->map(fn (Pegawai $pegawai) => [
+                'id' => $pegawai->id,
+                'nik' => $pegawai->nik,
+                'nama' => $pegawai->nama,
+                'unit_kerja' => $pegawai->unitKerja?->nama,
+            ])->all();
+    }
 
-            throw ValidationException::withMessages([
-                'file' => "NIK pada baris {$rows} sudah terdaftar. Perbarui file lalu coba kembali.",
-            ]);
+    /** @param list<int> $pegawaiIds */
+    public function export(bool $all, array $pegawaiIds): Spreadsheet
+    {
+        $query = Pegawai::query()
+            ->with(['unitKerja:id,nama', 'jabatan:id,nama'])
+            ->when(! $all, fn ($query) => $query->whereIn('id', $pegawaiIds))
+            ->orderBy('nama')->orderBy('id');
+
+        if (! $query->exists()) {
+            throw ValidationException::withMessages(['pegawai_ids' => 'Tidak ada data pegawai yang dapat diekspor.']);
         }
 
-        $existing = $this->pegawais->existingPhoneNumbers(array_values(array_filter(array_column($items, 'nomor_telepon'))));
+        return $this->spreadsheets->export($query->lazy(500));
+    }
 
-        if ($existing !== []) {
-            $rows = collect($items)
-                ->whereIn('nomor_telepon', $existing)
-                ->map(fn (array $item) => $item['source_row'])
-                ->implode(', ');
+    /** @return array{total: int, created: int, updated: int} */
+    public function import(UploadedFile $file, bool $canUpdate): array
+    {
+        $items = $this->resolveOrganization($this->spreadsheets->read($file));
 
-            throw ValidationException::withMessages([
-                'file' => "Nomor telfon pada baris {$rows} sudah terdaftar. Perbarui file lalu coba kembali.",
-            ]);
-        }
+        return DB::transaction(function () use ($items, $canUpdate): array {
+            $existing = Pegawai::query()
+                ->where(function ($query) use ($items) {
+                    foreach (['nik', 'nomor_telepon', 'email'] as $field) {
+                        $values = array_values(array_filter(array_column($items, $field), fn ($value) => $value !== null));
+                        $query->orWhereIn($field, $values);
+                    }
+                })
+                ->lockForUpdate()
+                ->get();
+            $byNik = $existing->whereNotNull('nik')->keyBy(fn (Pegawai $pegawai) => mb_strtolower($pegawai->nik));
+            $byPhone = $existing->whereNotNull('nomor_telepon')->keyBy('nomor_telepon');
+            $byEmail = $existing->whereNotNull('email')->keyBy(fn (Pegawai $pegawai) => mb_strtolower($pegawai->email));
+            $matchedRows = [];
+            $result = ['total' => count($items), 'created' => 0, 'updated' => 0];
 
-        $existingEmails = $this->pegawais->existingEmails(array_values(array_filter(array_column($items, 'email'))));
-
-        if ($existingEmails !== []) {
-            $rows = collect($items)
-                ->whereIn('email', $existingEmails)
-                ->map(fn (array $item) => $item['source_row'])
-                ->implode(', ');
-
-            throw ValidationException::withMessages([
-                'file' => "Email pada baris {$rows} sudah terdaftar. Perbarui file lalu coba kembali.",
-            ]);
-        }
-
-        $items = $this->resolveOrganization($items);
-
-        DB::transaction(function () use ($items): void {
             foreach ($items as $item) {
-                unset($item['source_row']);
-                $this->pegawais->create($item);
-            }
-        });
+                $row = $item['source_row'];
+                $nik = $item['nik'] ?? null;
+                $matches = collect([
+                    $nik !== null ? $byNik->get(mb_strtolower($nik)) : null,
+                    $byPhone->get($item['nomor_telepon'] ?? ''),
+                    $byEmail->get(mb_strtolower($item['email'] ?? '')),
+                ])->filter()->unique('id');
 
-        return count($items);
+                if ($matches->count() > 1) {
+                    throw ValidationException::withMessages([
+                        'file' => "Baris {$row}: NIK, nomor telepon, atau email mengarah ke pegawai yang berbeda. Periksa kembali identitas pegawai.",
+                    ]);
+                }
+
+                $pegawai = $matches->first();
+                if ($pegawai !== null && $nik !== null && $pegawai->nik !== null
+                    && mb_strtolower($nik) !== mb_strtolower($pegawai->nik)) {
+                    throw ValidationException::withMessages([
+                        'file' => "Baris {$row}: nomor telepon atau email sudah digunakan pegawai dengan NIK berbeda.",
+                    ]);
+                }
+
+                unset($item['source_row']);
+                if ($pegawai === null) {
+                    $this->pegawais->create($item);
+                    $result['created']++;
+
+                    continue;
+                }
+
+                if (! $canUpdate) {
+                    throw new AuthorizationException('Anda tidak memiliki izin memperbarui data pegawai.');
+                }
+
+                if (isset($matchedRows[$pegawai->id])) {
+                    throw ValidationException::withMessages([
+                        'file' => "Baris {$row}: pegawai yang sama sudah tercantum pada baris {$matchedRows[$pegawai->id]}.",
+                    ]);
+                }
+
+                $matchedRows[$pegawai->id] = $row;
+                try {
+                    $this->update($pegawai, $item);
+                } catch (ValidationException $exception) {
+                    throw ValidationException::withMessages([
+                        'file' => "Baris {$row}: ".collect($exception->errors())->flatten()->first(),
+                    ]);
+                }
+                $result['updated']++;
+            }
+
+            return $result;
+        });
     }
 
     /** @param array<string, mixed> $data */

@@ -37,7 +37,7 @@ class ShiftAssignmentController extends Controller
             'filters' => $filters,
             'bulkOptions' => $request->user()->can(AccessPermission::SHIFT_UPDATE) ? [
                 'month' => now()->format('Y-m'),
-                'employees' => Pegawai::query()->whereHas('user')->orderBy('nama')
+                'employees' => Pegawai::query()->orderBy('nama')
                     ->get(['id', 'nik', 'nama', 'unit_kerja_id', 'jabatan_id']),
                 'units' => UnitKerja::query()->orderBy('nama')->get(['id', 'nama']),
                 'positions' => Jabatan::query()->orderBy('nama')->get(['id', 'nama', 'unit_kerja_id']),

@@ -71,12 +71,19 @@ interface UnitOption {
     jabatans: { id: number; nama: string }[];
 }
 
+interface ExportPegawaiOption {
+    id: number;
+    nik: string | null;
+    nama: string;
+    unit_kerja: string | null;
+}
+
 const props = defineProps<{
     pegawais: Paginated<PegawaiRow>;
     overview: PegawaiOverview;
     unitOptions: UnitOption[];
     filters: { search?: string; status?: string; unit_kerja?: number | string };
-    can: { create: boolean; update: boolean; delete: boolean; create_user: boolean };
+    can: { create: boolean; update: boolean; delete: boolean; create_user: boolean; export: boolean };
 }>();
 
 const baseUrl = '/absensi/admin-web/master-data/pegawai';
@@ -91,6 +98,15 @@ const status = ref(props.filters.status ?? 'all');
 const unitKerja = ref(Number(props.filters.unit_kerja) || 0);
 const createOpen = ref(false);
 const importOpen = ref(false);
+const excelMode = ref<'import' | 'export'>('import');
+const exportEmployees = ref<ExportPegawaiOption[]>([]);
+const selectedExportIds = ref<number[]>([]);
+const exportSearch = ref('');
+const exportLoading = ref(false);
+const exporting = ref(false);
+const exportError = ref('');
+const exportDownloaded = ref(false);
+let exportOptionsController: AbortController | undefined;
 const dragActive = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const fileInputKey = ref(0);
@@ -139,6 +155,17 @@ const allEligibleInvitationsSelected = computed(
     () => eligibleInvitationRows.value.length > 0 && selectedInvitationRows.value.length === eligibleInvitationRows.value.length,
 );
 const someEligibleInvitationsSelected = computed(() => selectedInvitationRows.value.length > 0 && !allEligibleInvitationsSelected.value);
+const selectedExportIdSet = computed(() => new Set(selectedExportIds.value));
+const allExportEmployeesSelected = computed(
+    () => exportEmployees.value.length > 0 && selectedExportIds.value.length === exportEmployees.value.length,
+);
+const someExportEmployeesSelected = computed(() => selectedExportIds.value.length > 0 && !allExportEmployeesSelected.value);
+const matchingExportEmployees = computed(() => {
+    const keyword = exportSearch.value.trim().toLocaleLowerCase('id-ID');
+    return exportEmployees.value.filter((pegawai) =>
+        [pegawai.nama, pegawai.nik, pegawai.unit_kerja].some((value) => value?.toLocaleLowerCase('id-ID').includes(keyword)),
+    );
+});
 
 const summaryCards = computed(() => [
     {
@@ -223,6 +250,7 @@ watch(search, (value, previousValue) => {
 
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer);
+    exportOptionsController?.abort();
 });
 
 watch(
@@ -276,13 +304,107 @@ const resetImport = () => {
 
 const openImport = () => {
     resetImport();
+    exportEmployees.value = [];
+    selectedExportIds.value = [];
+    exportSearch.value = '';
+    exportError.value = '';
+    exportDownloaded.value = false;
     importOpen.value = true;
+    setExcelMode(props.can.create ? 'import' : 'export');
 };
 
 const closeImport = () => {
-    if (importForm.processing) return;
+    if (importForm.processing || exporting.value) return;
+    exportOptionsController?.abort();
+    exportOptionsController = undefined;
+    exportLoading.value = false;
     importOpen.value = false;
     resetImport();
+};
+
+const loadExportEmployees = async () => {
+    exportOptionsController?.abort();
+    const controller = new AbortController();
+    exportOptionsController = controller;
+    exportLoading.value = true;
+    exportError.value = '';
+
+    try {
+        const response = await fetch(`${baseUrl}/export-options`, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+        });
+        if (!response.ok || !response.headers.get('Content-Type')?.includes('application/json')) {
+            throw new Error('Daftar pegawai gagal dimuat. Coba kembali atau muat ulang halaman.');
+        }
+        const data: { data: ExportPegawaiOption[] } = await response.json();
+        if (controller.signal.aborted) return;
+        exportEmployees.value = data.data;
+        const availableIds = new Set(data.data.map((pegawai) => pegawai.id));
+        selectedExportIds.value = selectedExportIds.value.filter((id) => availableIds.has(id));
+    } catch (error) {
+        if (!controller.signal.aborted) {
+            exportError.value = error instanceof Error ? error.message : 'Daftar pegawai gagal dimuat.';
+        }
+    } finally {
+        if (exportOptionsController === controller) exportLoading.value = false;
+    }
+};
+
+const setExcelMode = (mode: 'import' | 'export') => {
+    if (importForm.processing || exporting.value) return;
+    excelMode.value = mode;
+    if (mode === 'export' && !exportEmployees.value.length && !exportLoading.value) void loadExportEmployees();
+};
+
+const toggleAllExportEmployees = (event: Event) => {
+    selectedExportIds.value = (event.target as HTMLInputElement).checked ? exportEmployees.value.map((pegawai) => pegawai.id) : [];
+};
+
+watch(selectedExportIds, () => {
+    exportDownloaded.value = false;
+    exportError.value = '';
+});
+
+const submitExport = async () => {
+    if (exporting.value || exportLoading.value || !selectedExportIds.value.length) return;
+    exporting.value = true;
+    exportError.value = '';
+    exportDownloaded.value = false;
+
+    try {
+        const token = document.cookie
+            .split('; ')
+            .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+            ?.slice('XSRF-TOKEN='.length);
+        const response = await fetch(`${baseUrl}/export`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': decodeURIComponent(token ?? '') },
+            body: JSON.stringify({ all: allExportEmployeesSelected.value, pegawai_ids: selectedExportIds.value }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.errors ? Object.values(data.errors).flat().join(' ') : 'Ekspor gagal. Muat ulang halaman dan coba kembali.');
+        }
+        if (!response.headers.get('Content-Type')?.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
+            throw new Error('Sesi telah berakhir. Muat ulang halaman dan masuk kembali untuk mengekspor data.');
+        }
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'data-pegawai.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        exportDownloaded.value = true;
+    } catch (error) {
+        exportError.value = error instanceof Error ? error.message : 'Data pegawai gagal diekspor.';
+    } finally {
+        exporting.value = false;
+    }
 };
 
 const chooseFile = (file?: File) => {
@@ -539,8 +661,8 @@ const destroy = () => {
                             <span v-if="selectedInvitationRows.length">{{ selectedInvitationRows.length }}</span>
                         </button>
                         <button v-if="can.create" type="button" class="employee-create-button" @click="openCreate"><UserPlus /> Tambah manual</button>
-                        <button v-if="can.create" type="button" class="employee-import-button" @click="openImport">
-                            <UploadCloud /> Import Excel
+                        <button v-if="can.create || can.export" type="button" class="employee-import-button" @click="openImport">
+                            <FileSpreadsheet /> {{ can.create ? 'Import / Ekspor Excel' : 'Ekspor Excel' }}
                         </button>
                     </div>
                 </div>
@@ -879,64 +1001,173 @@ const destroy = () => {
 
         <CrudModal
             :open="importOpen"
-            title="Import data pegawai"
-            description="Gunakan template resmi agar setiap baris dapat diperiksa dan disimpan dengan tepat."
+            title="Excel data pegawai"
+            description="Impor data dari template atau pilih pegawai yang ingin diekspor ke Excel."
             @close="closeImport"
         >
-            <form class="employee-import-form" @submit.prevent="submitImport">
+            <form class="employee-import-form" @submit.prevent="excelMode === 'import' ? submitImport() : submitExport()">
                 <div class="admin-modal-body employee-modal-body">
-                    <a :href="`${baseUrl}/template`" class="employee-template-card">
-                        <span class="employee-template-icon"><FileSpreadsheet /></span>
-                        <span>
-                            <small>Langkah 1</small>
-                            <strong>Unduh template Excel</strong>
-                            <em>NIK · Nama · Unit · Jabatan · Status · Telepon · Email</em>
-                        </span>
-                        <Download />
-                    </a>
-
-                    <div class="employee-import-divider"><span>kemudian</span></div>
-
-                    <input
-                        :key="fileInputKey"
-                        ref="fileInput"
-                        type="file"
-                        class="visually-hidden"
-                        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                        @change="handleFileChange"
-                    />
-                    <button
-                        type="button"
-                        class="employee-dropzone"
-                        :class="{ active: dragActive, selected: importForm.file, invalid: importForm.errors.file }"
-                        @click="fileInput?.click()"
-                        @dragenter.prevent="dragActive = true"
-                        @dragover.prevent="dragActive = true"
-                        @dragleave.prevent="dragActive = false"
-                        @drop.prevent="handleDrop"
-                    >
-                        <span class="employee-drop-icon"><CheckCircle2 v-if="importForm.file" /><UploadCloud v-else /></span>
-                        <strong>{{ importForm.file ? importForm.file.name : 'Tarik file Excel ke area ini' }}</strong>
-                        <small v-if="importForm.file"
-                            >{{ (importForm.file.size / 1024).toLocaleString('id-ID', { maximumFractionDigits: 1 }) }} KB · Klik untuk
-                            mengganti</small
+                    <div v-if="can.create && can.export" class="employee-excel-tabs" role="group" aria-label="Pilih proses Excel">
+                        <button
+                            type="button"
+                            :aria-pressed="excelMode === 'import'"
+                            :disabled="importForm.processing || exporting"
+                            @click="setExcelMode('import')"
                         >
-                        <small v-else>atau klik untuk memilih file .xlsx / .xls (maks. 5 MB)</small>
-                    </button>
-                    <p v-if="importForm.errors.file" class="employee-field-error">{{ importForm.errors.file }}</p>
-
-                    <div class="employee-import-notes">
-                        <span><strong>1.000</strong><small>Maks. baris</small></span>
-                        <span><strong>11 kolom</strong><small>Profil lengkap</small></span>
-                        <span><strong>Transaksi aman</strong><small>Tanpa data separuh</small></span>
+                            <UploadCloud /> Import Excel
+                        </button>
+                        <button
+                            type="button"
+                            :aria-pressed="excelMode === 'export'"
+                            :disabled="importForm.processing || exporting"
+                            @click="setExcelMode('export')"
+                        >
+                            <Download /> Ekspor Excel
+                        </button>
                     </div>
+
+                    <template v-if="excelMode === 'import'">
+                        <p class="employee-export-hint">
+                            NIK yang sama akan memperbarui pegawai terdaftar; data pegawai baru akan ditambahkan. Untuk format lama tanpa NIK,
+                            pencocokan memakai nomor telepon atau email.
+                        </p>
+                        <a :href="`${baseUrl}/template`" class="employee-template-card">
+                            <span class="employee-template-icon"><FileSpreadsheet /></span>
+                            <span>
+                                <small>Langkah 1</small>
+                                <strong>Unduh template Excel</strong>
+                                <em>NIK · Nama · Unit · Jabatan · Status · Telepon · Email</em>
+                            </span>
+                            <Download />
+                        </a>
+
+                        <div class="employee-import-divider"><span>kemudian</span></div>
+
+                        <input
+                            :key="fileInputKey"
+                            ref="fileInput"
+                            type="file"
+                            class="visually-hidden"
+                            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                            @change="handleFileChange"
+                        />
+                        <button
+                            type="button"
+                            class="employee-dropzone"
+                            :class="{ active: dragActive, selected: importForm.file, invalid: importForm.errors.file }"
+                            @click="fileInput?.click()"
+                            @dragenter.prevent="dragActive = true"
+                            @dragover.prevent="dragActive = true"
+                            @dragleave.prevent="dragActive = false"
+                            @drop.prevent="handleDrop"
+                        >
+                            <span class="employee-drop-icon"><CheckCircle2 v-if="importForm.file" /><UploadCloud v-else /></span>
+                            <strong>{{ importForm.file ? importForm.file.name : 'Tarik file Excel ke area ini' }}</strong>
+                            <small v-if="importForm.file"
+                                >{{ (importForm.file.size / 1024).toLocaleString('id-ID', { maximumFractionDigits: 1 }) }} KB · Klik untuk
+                                mengganti</small
+                            >
+                            <small v-else>atau klik untuk memilih file .xlsx / .xls (maks. 5 MB)</small>
+                        </button>
+                        <p v-if="importForm.errors.file" class="employee-field-error">{{ importForm.errors.file }}</p>
+
+                        <div class="employee-import-notes">
+                            <span><strong>1.000</strong><small>Maks. baris</small></span>
+                            <span><strong>11 kolom</strong><small>Profil lengkap</small></span>
+                            <span><strong>Transaksi aman</strong><small>Tanpa data separuh</small></span>
+                        </div>
+                    </template>
+
+                    <template v-else>
+                        <div class="employee-export-heading">
+                            <strong>Pilih pegawai untuk diekspor</strong>
+                            <p>Semua 11 kolom profil pegawai akan disertakan. Pilihan mencakup seluruh direktori, termasuk halaman lainnya.</p>
+                        </div>
+                        <label class="employee-export-search">
+                            <Search aria-hidden="true" />
+                            <input
+                                v-model="exportSearch"
+                                type="search"
+                                placeholder="Cari nama, NIK, atau unit kerja..."
+                                aria-label="Cari pegawai untuk ekspor"
+                                :disabled="exportLoading || exporting"
+                            />
+                        </label>
+                        <label class="employee-export-select-all">
+                            <input
+                                type="checkbox"
+                                :checked="allExportEmployeesSelected"
+                                :indeterminate="someExportEmployeesSelected"
+                                :disabled="exportLoading || exporting || !exportEmployees.length"
+                                @change="toggleAllExportEmployees"
+                            />
+                            <span
+                                >Pilih semua pegawai <small>({{ exportEmployees.length }})</small></span
+                            >
+                            <strong aria-live="polite">{{ selectedExportIds.length }} dipilih</strong>
+                        </label>
+                        <div class="employee-export-list" :aria-busy="exportLoading" role="group" aria-label="Daftar pegawai untuk ekspor">
+                            <p v-if="exportLoading" class="employee-export-empty"><LoaderCircle class="employee-spin" /> Memuat daftar pegawai...</p>
+                            <template v-else>
+                                <label
+                                    v-for="pegawai in matchingExportEmployees"
+                                    :key="pegawai.id"
+                                    class="employee-export-row"
+                                    :class="{ selected: selectedExportIdSet.has(pegawai.id) }"
+                                >
+                                    <input v-model="selectedExportIds" type="checkbox" :value="pegawai.id" :disabled="exporting" />
+                                    <span>
+                                        <strong>{{ pegawai.nama }}</strong>
+                                        <small>{{ pegawai.nik || 'Tanpa NIK' }} · {{ pegawai.unit_kerja || 'Tanpa unit kerja' }}</small>
+                                    </span>
+                                </label>
+                                <p v-if="!matchingExportEmployees.length && !exportError" class="employee-export-empty">
+                                    {{
+                                        exportSearch.trim()
+                                            ? 'Tidak ada pegawai yang sesuai pencarian.'
+                                            : 'Belum ada data pegawai yang dapat diekspor.'
+                                    }}
+                                </p>
+                            </template>
+                        </div>
+                        <p v-if="exportSearch.trim() && !exportLoading" class="employee-export-hint">
+                            {{ matchingExportEmployees.length }} hasil pencarian. Pilihan di luar hasil pencarian tetap disertakan.
+                        </p>
+                        <div v-if="exportError" role="alert" class="employee-export-error">
+                            <p class="employee-field-error">{{ exportError }}</p>
+                            <button
+                                v-if="!exportEmployees.length"
+                                type="button"
+                                class="employee-button ghost"
+                                :disabled="exportLoading"
+                                @click="loadExportEmployees"
+                            >
+                                Coba muat kembali
+                            </button>
+                        </div>
+                        <p v-if="exportDownloaded" class="employee-export-success" role="status">
+                            <CheckCircle2 /> File Excel berhasil disiapkan dan diunduh.
+                        </p>
+                    </template>
                 </div>
                 <div class="admin-modal-footer employee-modal-footer">
-                    <button type="button" class="employee-button ghost" :disabled="importForm.processing" @click="closeImport">Batal</button>
-                    <button type="submit" class="employee-button primary" :disabled="importForm.processing || !importForm.file">
+                    <button type="button" class="employee-button ghost" :disabled="importForm.processing || exporting" @click="closeImport">
+                        Tutup
+                    </button>
+                    <button
+                        v-if="excelMode === 'import'"
+                        type="submit"
+                        class="employee-button primary"
+                        :disabled="importForm.processing || !importForm.file"
+                    >
                         <LoaderCircle v-if="importForm.processing" class="employee-spin" />
                         <UploadCloud v-else />
                         {{ importForm.processing ? 'Memeriksa & mengimpor...' : 'Import pegawai' }}
+                    </button>
+                    <button v-else type="submit" class="employee-button primary" :disabled="exporting || exportLoading || !selectedExportIds.length">
+                        <LoaderCircle v-if="exporting" class="employee-spin" />
+                        <Download v-else />
+                        {{ exporting ? 'Menyiapkan Excel...' : `Ekspor ${selectedExportIds.length} pegawai` }}
                     </button>
                 </div>
             </form>
@@ -1164,7 +1395,9 @@ const destroy = () => {
     --employee-teal: var(--rs-primary-hover);
     --employee-mint: #14b8a6;
     --employee-coral: #fb7185;
-    padding: 1.5rem;
+    container: employee-master / inline-size;
+    width: 100%;
+    min-width: 0;
     background:
         radial-gradient(circle at 6% 3%, rgba(20, 184, 166, 0.08), transparent 25rem),
         radial-gradient(circle at 95% 35%, rgba(251, 113, 133, 0.06), transparent 24rem), #f7faf9;
@@ -1628,6 +1861,7 @@ const destroy = () => {
 }
 
 .employee-toolbar {
+    flex-wrap: wrap;
     gap: 0.85rem;
     padding: 0 1.75rem 1.35rem;
     border-bottom: 1px solid var(--employee-line);
@@ -1752,6 +1986,7 @@ const destroy = () => {
 
 .employee-toolbar-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.55rem;
 }
 
@@ -1807,6 +2042,7 @@ const destroy = () => {
     width: 1rem;
 }
 .employee-table-wrap {
+    max-width: 100%;
     overflow-x: auto;
 }
 .employee-table {
@@ -2128,6 +2364,150 @@ const destroy = () => {
 }
 .employee-modal-footer {
     gap: 0.65rem;
+}
+.employee-excel-tabs {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.3rem;
+    border: 1px solid var(--rs-border);
+    border-radius: 0.85rem;
+    background: var(--rs-surface);
+}
+.employee-excel-tabs button {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.4rem;
+    border: 0;
+    border-radius: 0.6rem;
+    color: var(--rs-text-soft);
+    background: transparent;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.employee-excel-tabs button[aria-pressed='true'] {
+    color: var(--rs-primary-hover);
+    background: var(--rs-primary-soft);
+}
+.employee-excel-tabs svg,
+.employee-export-search svg,
+.employee-export-empty svg,
+.employee-export-success svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+.employee-export-heading strong {
+    color: var(--rs-text-soft);
+    font-size: 0.85rem;
+}
+.employee-export-heading p,
+.employee-export-hint {
+    margin: 0.35rem 0 0;
+    color: var(--rs-muted);
+    font-size: 0.72rem;
+    line-height: 1.6;
+}
+.employee-export-search {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.85rem;
+    border: 1px solid var(--rs-border);
+    border-radius: 0.75rem;
+    color: var(--rs-muted);
+    background: var(--rs-surface);
+}
+.employee-export-search:focus-within {
+    outline: 2px solid var(--rs-primary);
+    outline-offset: 2px;
+}
+.employee-export-search input {
+    width: 100%;
+    min-width: 0;
+    padding: 0.75rem 0;
+    border: 0;
+    outline: 0;
+    box-shadow: none;
+    color: var(--rs-text-soft);
+    background: transparent;
+    font-size: 0.75rem;
+}
+.employee-export-select-all,
+.employee-export-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0;
+    padding: 0.85rem;
+    color: var(--rs-text-soft);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.employee-export-select-all {
+    flex-wrap: wrap;
+    border: 1px solid var(--rs-primary-border);
+    border-radius: 0.75rem;
+    background: var(--rs-primary-soft);
+}
+.employee-export-select-all > strong {
+    margin-left: auto;
+    color: var(--rs-primary-hover);
+    font-size: 0.7rem;
+}
+.employee-export-select-all input,
+.employee-export-row input {
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 auto;
+    accent-color: var(--rs-primary);
+}
+.employee-export-list {
+    max-height: 17rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--rs-border);
+    border-radius: 0.85rem;
+    background: var(--rs-surface);
+}
+.employee-export-row + .employee-export-row {
+    border-top: 1px solid var(--rs-border);
+}
+.employee-export-row.selected {
+    background: var(--rs-primary-soft);
+}
+.employee-export-row span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.employee-export-row strong,
+.employee-export-row small {
+    display: block;
+}
+.employee-export-row small {
+    margin-top: 0.2rem;
+    color: var(--rs-muted);
+    font-size: 0.67rem;
+}
+.employee-export-empty,
+.employee-export-success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 1rem;
+    color: var(--rs-muted);
+    font-size: 0.75rem;
+    text-align: center;
+}
+.employee-export-success {
+    color: var(--rs-primary-hover);
+}
+.employee-export-error .employee-field-error {
+    margin: 0 0 0.5rem;
 }
 .employee-template-card {
     gap: 0.85rem;
@@ -2607,16 +2987,13 @@ const destroy = () => {
     background: #15332e;
 }
 
-@media (max-width: 1120px) {
+@container employee-master (max-width: 1120px) {
     .employee-hero {
         grid-template-columns: minmax(0, 1fr) 20rem;
         padding: 2.5rem;
     }
     .employee-overview-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .employee-toolbar {
-        flex-wrap: wrap;
     }
     .employee-search {
         flex-basis: 100%;
@@ -2626,10 +3003,7 @@ const destroy = () => {
     }
 }
 
-@media (max-width: 820px) {
-    .employee-master-page {
-        padding: 1rem;
-    }
+@container employee-master (max-width: 820px) {
     .employee-hero {
         grid-template-columns: 1fr;
         gap: 1.5rem;
@@ -2659,8 +3033,21 @@ const destroy = () => {
         background: #fff;
     }
     .employee-mobile-card header {
+        flex-wrap: wrap;
         justify-content: space-between;
         gap: 0.75rem;
+    }
+    .employee-mobile-card .employee-identity {
+        min-width: 0;
+        flex: 1 1 10rem;
+    }
+    .employee-mobile-card .employee-identity > span:last-child {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+    .employee-mobile-card .employee-row-actions {
+        flex: 0 0 auto;
+        margin-left: auto;
     }
     .employee-mobile-details {
         display: grid;
@@ -2673,14 +3060,17 @@ const destroy = () => {
     .employee-mobile-details span,
     .employee-mobile-details a {
         display: flex;
+        min-width: 0;
         align-items: center;
         gap: 0.4rem;
         color: var(--employee-muted);
         font-size: 0.68rem;
         text-decoration: none;
+        overflow-wrap: anywhere;
     }
     .employee-mobile-details svg {
         width: 0.9rem;
+        flex-shrink: 0;
         color: var(--employee-mint);
     }
     .employee-mobile-account {
@@ -2696,10 +3086,7 @@ const destroy = () => {
     }
 }
 
-@media (max-width: 600px) {
-    .employee-master-page {
-        padding: 0.75rem;
-    }
+@container employee-master (max-width: 600px) {
     .employee-hero {
         padding: 1.5rem;
         border-radius: 1.35rem;
@@ -2744,6 +3131,12 @@ const destroy = () => {
     .employee-import-button {
         flex: 1;
     }
+    .employee-mobile-details {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
     .employee-form-grid {
         grid-template-columns: 1fr;
     }
@@ -2762,9 +3155,6 @@ const destroy = () => {
     }
     .employee-button {
         width: 100%;
-    }
-    .employee-mobile-details {
-        grid-template-columns: 1fr;
     }
 }
 

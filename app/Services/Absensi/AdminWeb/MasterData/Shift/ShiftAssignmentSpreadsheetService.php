@@ -29,10 +29,10 @@ class ShiftAssignmentSpreadsheetService
 
     public function employees(array $data): Builder
     {
-        return Pegawai::query()->whereHas('user')
+        return Pegawai::query()
             ->when($data['selection'] === 'filtered', fn ($query) => $query
-                ->when($data['unit_kerja_id'] ?? null, fn ($query, $id) => $query->where('unit_kerja_id', $id))
-                ->when($data['jabatan_id'] ?? null, fn ($query, $id) => $query->where('jabatan_id', $id)))
+                ->when($data['unit_kerja_ids'] ?? [], fn ($query, $ids) => $query->whereIn('unit_kerja_id', $ids))
+                ->when($data['jabatan_ids'] ?? [], fn ($query, $ids) => $query->whereIn('jabatan_id', $ids)))
             ->when($data['selection'] === 'custom', fn ($query) => $query->whereKey($data['pegawai_ids']));
     }
 
@@ -59,8 +59,9 @@ class ShiftAssignmentSpreadsheetService
             $sheet->getColumnDimension($column)->setWidth($width);
         }
         foreach ($dates as $index => $date) {
-            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index + 6))->setWidth(15);
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index + 6))->setWidth(22);
         }
+        $sheet->getStyle('F2:'.$lastColumn.($employees->count() + 1))->getAlignment()->setWrapText(true);
         foreach ($employees as $index => $employee) {
             $row = $index + 2;
             foreach ([$employee->nik, $employee->nama, $employee->unitKerja?->nama, $employee->jabatan?->nama, $employee->id] as $column => $value) {
@@ -68,28 +69,28 @@ class ShiftAssignmentSpreadsheetService
             }
         }
         $reference = $book->createSheet()->setTitle('Referensi Shift');
-        $reference->fromArray([['Kode Shift', 'Nama Shift', 'Jam Masuk', 'Jam Keluar', 'Jenis']]);
+        $reference->fromArray([['Nama Shift', 'Jam Masuk', 'Jam Keluar', 'Jenis']]);
         foreach ($shifts as $index => $shift) {
-            foreach (['S'.$shift->id, $shift->nama, substr($shift->jam_masuk, 0, 5), substr($shift->jam_keluar, 0, 5), $shift->is_day_off ? 'OFF / Libur' : 'Hari kerja'] as $column => $value) {
+            foreach ([$shift->nama, substr($shift->jam_masuk, 0, 5), substr($shift->jam_keluar, 0, 5), $shift->is_day_off ? 'OFF / Libur' : 'Hari kerja'] as $column => $value) {
                 $reference->setCellValueExplicit([$column + 1, $index + 2], $value, DataType::TYPE_STRING);
             }
         }
-        foreach (['A', 'B', 'C', 'D', 'E'] as $column) {
+        foreach (['A', 'B', 'C', 'D'] as $column) {
             $reference->getColumnDimension($column)->setAutoSize(true);
         }
-        $book->addNamedRange(new NamedRange('KodeShift', $reference, '$A$2:$A$'.($shifts->count() + 1)));
+        $book->addNamedRange(new NamedRange('NamaShift', $reference, '$A$2:$A$'.($shifts->count() + 1)));
         $validation = $sheet->getCell('F2')->getDataValidation();
         $validation->setType(DataValidation::TYPE_LIST)->setAllowBlank(true)->setShowDropDown(true)
             ->setShowErrorMessage(true)->setErrorStyle(DataValidation::STYLE_STOP)
-            ->setErrorTitle('Kode shift tidak valid')->setError('Pilih kode dari Referensi Shift.')
-            ->setFormula1('KodeShift')->setSqref('F2:'.$lastColumn.($employees->count() + 1));
+            ->setErrorTitle('Nama shift tidak valid')->setError('Pilih nama shift dari Referensi Shift.')
+            ->setFormula1('NamaShift')->setSqref('F2:'.$lastColumn.($employees->count() + 1));
         $guide = $book->createSheet()->setTitle('Petunjuk');
         $guide->fromArray([
             ['PETUNJUK ASSIGN SHIFT MASSAL'],
             ['Periode: '.$data['date_from'].' sampai '.$data['date_to']],
-            ['Isi kode shift (contoh S1) pada kolom tanggal. Pilih kode dari dropdown atau sheet Referensi Shift.'],
+            ['Isi nama shift (contoh Pagi, Malam, atau Office) pada kolom tanggal. Pilih nama dari dropdown atau sheet Referensi Shift.'],
             ['Satu baris untuk satu pegawai. Jangan mengubah NIK atau kolom ID Pegawai tersembunyi; pertahankan nol di awal NIK.'],
-            ['Sel kosong dilewati dan tidak mengubah jadwal. Gunakan kode shift OFF untuk hari libur.'],
+            ['Sel kosong dilewati dan tidak mengubah jadwal. Untuk hari libur, pilih nama shift berjenis OFF / Libur pada Referensi Shift.'],
             ['Jangan mengubah header tanggal, NIK, atau memakai formula. Nama/unit/jabatan hanya referensi.'],
             ['Saat impor, gunakan periode dan pilihan pegawai yang sesuai dengan template. Maksimal 5.000 pegawai per file.'],
             ['Jadwal tersimpan per tanggal dan dapat dilihat di menu Presensi. Shift aktif/default pegawai tetap berlaku di tanggal lain.'],
@@ -173,7 +174,7 @@ class ShiftAssignmentSpreadsheetService
                 }
             }
             $employees = $this->selectedEmployees($data)->keyBy('id');
-            $codes = Shift::query()->pluck('id')->mapWithKeys(fn ($id) => ['S'.$id => (int) $id]);
+            $shiftsByName = Shift::query()->get(['id', 'nama'])->groupBy(fn ($shift) => mb_strtolower(trim($shift->nama), 'UTF-8'));
             $items = [];
             $seen = [];
             $errors = [];
@@ -193,7 +194,7 @@ class ShiftAssignmentSpreadsheetService
                 }
                 $employee = $employees->get($values[4]);
                 if (! $employee || trim((string) $employee->nik) !== $values[0]) {
-                    $errors[] = "Baris {$row}: identitas pegawai tidak sesuai atau tidak termasuk pilihan pegawai berakun. Jangan mengubah NIK atau ID Pegawai.";
+                    $errors[] = "Baris {$row}: identitas pegawai tidak sesuai atau tidak termasuk pilihan pegawai. Jangan mengubah NIK atau ID Pegawai.";
 
                     continue;
                 }
@@ -203,24 +204,30 @@ class ShiftAssignmentSpreadsheetService
                     continue;
                 }
                 $seen[$employee->id] = true;
-                foreach (array_slice($values, 5) as $index => $code) {
-                    if ($code === '') {
+                foreach (array_slice($values, 5) as $index => $name) {
+                    if ($name === '') {
                         continue;
                     }
                     $date = $headers[$index + 5];
-                    if (! $codes->has($code)) {
-                        $errors[] = "Baris {$row}, tanggal {$date}: kode shift {$code} tidak tersedia. Gunakan kode pada Referensi Shift.";
+                    $matches = $shiftsByName->get(mb_strtolower($name, 'UTF-8'), collect());
+                    if ($matches->isEmpty()) {
+                        $errors[] = "Baris {$row}, tanggal {$date}: nama shift {$name} tidak tersedia. Gunakan nama pada Referensi Shift.";
 
                         continue;
                     }
-                    $items[] = ['pegawai_id' => $employee->id, 'shift_id' => $codes->get($code), 'date' => $date, 'row' => $row];
+                    if ($matches->count() > 1) {
+                        $errors[] = "Baris {$row}, tanggal {$date}: nama shift {$name} cocok dengan lebih dari satu shift. Bedakan nama pada master shift terlebih dahulu.";
+
+                        continue;
+                    }
+                    $items[] = ['pegawai_id' => $employee->id, 'shift_id' => $matches->first()->id, 'date' => $date, 'row' => $row];
                 }
             }
             if ($errors !== []) {
                 $this->fail(implode(' ', array_slice($errors, 0, 10)));
             }
             if ($items === []) {
-                $this->fail('Isi kode shift untuk minimal satu pegawai dan satu tanggal.');
+                $this->fail('Isi nama shift untuk minimal satu pegawai dan satu tanggal.');
             }
 
             return $items;
@@ -238,7 +245,7 @@ class ShiftAssignmentSpreadsheetService
     {
         $employees = $this->employees($data)->with(['unitKerja:id,nama', 'jabatan:id,nama'])->orderBy('nama')->limit(self::MAX_EMPLOYEES + 1)->get();
         if ($employees->isEmpty() || $employees->count() > self::MAX_EMPLOYEES) {
-            $this->fail('Pilih 1 sampai 5.000 pegawai berakun. Gunakan filter unit/jabatan untuk memperkecil pilihan.');
+            $this->fail('Pilih 1 sampai 5.000 pegawai. Gunakan filter unit/jabatan untuk memperkecil pilihan.');
         }
 
         return $employees;

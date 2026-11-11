@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\ExportPegawaiRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\ImportPegawaiRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\SendBatchPegawaiInvitationsRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\StorePegawaiRequest;
@@ -10,6 +11,7 @@ use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\UpdatePegawaiRequest;
 use App\Models\Pegawai;
 use App\Services\Absensi\AdminWeb\MasterData\Pegawai\PegawaiService;
 use App\Support\AccessPermission;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -33,6 +35,7 @@ class PegawaiController extends Controller
                 'update' => $request->user()->can(AccessPermission::PEGAWAI_UPDATE),
                 'delete' => $request->user()->can(AccessPermission::PEGAWAI_DELETE),
                 'create_user' => $request->user()->can(AccessPermission::USERS_CREATE),
+                'export' => $request->user()->can(AccessPermission::PEGAWAI_VIEW),
             ],
         ]);
     }
@@ -60,12 +63,37 @@ class PegawaiController extends Controller
         return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', 'Data pegawai berhasil ditambahkan.');
     }
 
+    public function exportOptions(): JsonResponse
+    {
+        return response()->json(['data' => $this->service->exportOptions()]);
+    }
+
+    public function export(ExportPegawaiRequest $request): StreamedResponse
+    {
+        $spreadsheet = $this->service->export($request->boolean('all'), $request->validated('pegawai_ids', []));
+
+        return response()->streamDownload(function () use ($spreadsheet): void {
+            try {
+                (new Xlsx($spreadsheet))->save('php://output');
+            } finally {
+                $spreadsheet->disconnectWorksheets();
+            }
+        }, 'data-pegawai.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ]);
+    }
+
     public function import(ImportPegawaiRequest $request): RedirectResponse
     {
-        $count = $this->service->import($request->file('file'));
+        $result = $this->service->import($request->file('file'), $request->user()->can(AccessPermission::PEGAWAI_UPDATE));
+        $message = "{$result['total']} data pegawai berhasil diimpor";
+        if ($result['updated'] > 0) {
+            $message .= " ({$result['created']} ditambahkan, {$result['updated']} diperbarui)";
+        }
 
         return to_route('absensi.admin-web.master-data.pegawai.index')
-            ->with('success', "{$count} data pegawai berhasil diimpor.");
+            ->with('success', $message.'.');
     }
 
     public function update(UpdatePegawaiRequest $request, Pegawai $pegawai): RedirectResponse

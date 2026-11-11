@@ -14,7 +14,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -26,6 +29,11 @@ class PegawaiManagementTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
+    private const PROFILE_HEADERS = [
+        'NIK', 'Nama Pegawai', 'Profesi', 'Unit Kerja', 'Jabatan', 'Jenis Kelamin', 'Status Pegawai',
+        'Tanggal Mulai Bekerja', 'Tanggal Lahir', 'Nomor Telepon', 'Email',
+    ];
 
     /** @var list<string> */
     private array $temporaryFiles = [];
@@ -80,6 +88,124 @@ class PegawaiManagementTest extends TestCase
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             ->assertDownload('template-import-pegawai.xlsx');
+    }
+
+    public function test_export_options_include_employees_beyond_the_directory_page_and_filters(): void
+    {
+        for ($index = 1; $index <= 12; $index++) {
+            Pegawai::query()->create(['nik' => "OPT.{$index}", 'nama' => sprintf('Pegawai %02d', $index)]);
+        }
+
+        $this->actingAs($this->admin)
+            ->getJson('/absensi/admin-web/master-data/pegawai/export-options?search=tidak-ada&page=2&status=Tetap')
+            ->assertOk()
+            ->assertJsonCount(12, 'data')
+            ->assertJsonPath('data.0.nama', 'Pegawai 01')
+            ->assertJsonPath('data.11.nama', 'Pegawai 12')
+            ->assertJsonStructure(['data' => [['id', 'nik', 'nama', 'unit_kerja']]]);
+    }
+
+    public function test_export_contains_only_selected_employees_with_safe_text_and_complete_profiles(): void
+    {
+        $organization = $this->organization();
+        Pegawai::query()->create(['nama' => 'Ari Tidak Dipilih']);
+        $budi = Pegawai::query()->create([
+            ...$organization,
+            'nik' => '000123',
+            'nama' => 'Budi',
+            'profesi' => '=1+1',
+            'jenis_kelamin' => 'Laki-laki',
+            'status_pegawai' => 'Tetap',
+            'tanggal_mulai_bekerja' => '2026-01-02',
+            'tanggal_lahir' => '1990-03-04',
+            'nomor_telepon' => '081234567890',
+            'email' => 'budi@rsarsy.co.id',
+        ]);
+        $citra = Pegawai::query()->create(['nama' => 'Citra']);
+
+        $response = $this->actingAs($this->admin)
+            ->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => false, 'pegawai_ids' => [$citra->id, $budi->id]])
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->assertDownload('data-pegawai.xlsx');
+
+        $spreadsheet = $this->readExport($response);
+        try {
+            $sheet = $spreadsheet->getActiveSheet();
+            $this->assertSame(1, $spreadsheet->getSheetCount());
+            $this->assertSame('Email', $sheet->getCell('K1')->getValue());
+            $this->assertSame([
+                '000123', 'Budi', '=1+1', 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap',
+            ], $sheet->rangeToArray('A2:G2')[0]);
+            $this->assertSame('02/01/2026', $sheet->getCell('H2')->getFormattedValue());
+            $this->assertSame('04/03/1990', $sheet->getCell('I2')->getFormattedValue());
+            $this->assertSame('081234567890', $sheet->getCell('J2')->getValue());
+            $this->assertSame('budi@rsarsy.co.id', $sheet->getCell('K2')->getValue());
+            $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('C2')->getDataType());
+            $this->assertSame('Citra', $sheet->getCell('B3')->getValue());
+            $this->assertNull($sheet->getCell('H3')->getValue());
+            $this->assertNull($sheet->getCell('B4')->getValue());
+            $this->assertSame('A1:K3', $sheet->getAutoFilter()->getRange());
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+        }
+    }
+
+    public function test_select_all_exports_the_entire_directory_across_pages(): void
+    {
+        for ($index = 1; $index <= 12; $index++) {
+            Pegawai::query()->create(['nama' => sprintf('Pegawai %02d', $index)]);
+        }
+
+        $response = $this->actingAs($this->admin)
+            ->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => true])
+            ->assertOk();
+
+        $spreadsheet = $this->readExport($response);
+        try {
+            $sheet = $spreadsheet->getActiveSheet();
+            $this->assertSame('Pegawai 01', $sheet->getCell('B2')->getValue());
+            $this->assertSame('Pegawai 12', $sheet->getCell('B13')->getValue());
+            $this->assertNull($sheet->getCell('B14')->getValue());
+            $this->assertSame('A1:K13', $sheet->getAutoFilter()->getRange());
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+        }
+    }
+
+    public function test_export_rejects_empty_duplicate_or_missing_employee_selections(): void
+    {
+        $this->actingAs($this->admin)
+            ->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => true])
+            ->assertUnprocessable()->assertJsonValidationErrors('pegawai_ids');
+
+        $pegawai = Pegawai::query()->create(['nama' => 'Pegawai Validasi']);
+
+        $this->postJson('/absensi/admin-web/master-data/pegawai/export', ['pegawai_ids' => []])
+            ->assertUnprocessable()->assertJsonValidationErrors('pegawai_ids');
+        $this->postJson('/absensi/admin-web/master-data/pegawai/export', ['pegawai_ids' => [$pegawai->id, $pegawai->id]])
+            ->assertUnprocessable()->assertJsonValidationErrors('pegawai_ids.1');
+        $this->postJson('/absensi/admin-web/master-data/pegawai/export', ['pegawai_ids' => [$pegawai->id + 1]])
+            ->assertUnprocessable()->assertJsonValidationErrors('pegawai_ids.0');
+    }
+
+    public function test_export_requires_employee_view_permission(): void
+    {
+        $this->getJson('/absensi/admin-web/master-data/pegawai/export-options')->assertUnauthorized();
+        $this->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => true])->assertUnauthorized();
+
+        $user = User::factory()->create();
+        $user->givePermissionTo(AccessPermission::ADMIN_ACCESS);
+        $pegawai = Pegawai::query()->create(['nama' => 'Pegawai Akses']);
+
+        $this->actingAs($user)->getJson('/absensi/admin-web/master-data/pegawai/export-options')->assertForbidden();
+        $this->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => true])->assertForbidden();
+
+        $user->givePermissionTo(AccessPermission::PEGAWAI_VIEW);
+        $this->get('/absensi/admin-web/master-data/pegawai')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('can.create', false)->where('can.export', true));
+        $this->getJson('/absensi/admin-web/master-data/pegawai/export-options')->assertOk()->assertJsonPath('data.0.id', $pegawai->id);
+        $this->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => true])->assertOk()->assertDownload('data-pegawai.xlsx');
     }
 
     public function test_excel_template_contains_the_required_columns_and_safe_contact_formats(): void
@@ -158,6 +284,156 @@ class PegawaiManagementTest extends TestCase
         $this->assertNull($pegawai->user_id);
     }
 
+    public function test_import_updates_matching_niks_and_adds_new_employees_without_duplicates_on_reimport(): void
+    {
+        $account = User::factory()->create(['name' => 'Nama Awal', 'email' => 'akun.impor@rsarsy.co.id']);
+        $existing = Pegawai::query()->create([
+            'nik' => 'IMP.001', 'nama' => 'Nama Awal', 'email' => $account->email, 'nomor_telepon' => '081211111111',
+        ]);
+        $existing->forceFill(['user_id' => $account->id])->save();
+        $file = $this->excelUpload([
+            ['IMP.001', 'Nama Diperbarui', 'Ners', 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Perempuan', 'Tetap', '01/01/2026', '02/03/1994', '081222222222', $account->email],
+            ['IMP.002', 'Nama Diperbarui', 'Ners', 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Perempuan', 'Tidak Tetap', '01/02/2026', null, '081233333333', 'baru.impor@rsarsy.co.id'],
+        ], self::PROFILE_HEADERS);
+
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '2 data pegawai berhasil diimpor (1 ditambahkan, 1 diperbarui).');
+
+        $existing->refresh();
+        $this->assertDatabaseCount('pegawais', 2);
+        $this->assertSame('Nama Diperbarui', $existing->nama);
+        $this->assertSame('Ners', $existing->profesi);
+        $this->assertSame('Unit Rawat Jalan', $existing->unitKerja->nama);
+        $this->assertSame('Staff Unit Rawat Jalan', $existing->jabatan->nama);
+        $this->assertSame('Tetap', $existing->status_pegawai);
+        $this->assertSame('Perempuan', $existing->jenis_kelamin);
+        $this->assertSame('2026-01-01', $existing->tanggal_mulai_bekerja->format('Y-m-d'));
+        $this->assertSame('1994-03-02', $existing->tanggal_lahir->format('Y-m-d'));
+        $this->assertSame('081222222222', $existing->nomor_telepon);
+        $this->assertSame($account->id, $existing->user_id);
+        $this->assertSame('Nama Diperbarui', $account->refresh()->name);
+
+        $ids = Pegawai::query()->orderBy('id')->pluck('id')->all();
+        $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '2 data pegawai berhasil diimpor (0 ditambahkan, 2 diperbarui).');
+        $this->assertSame($ids, Pegawai::query()->orderBy('id')->pluck('id')->all());
+    }
+
+    public function test_exported_profiles_can_be_imported_back_to_update_the_same_records(): void
+    {
+        $pegawai = Pegawai::query()->create([
+            ...$this->organization(),
+            'nik' => 'ROUND.001', 'nama' => 'Pegawai Ekspor', 'jenis_kelamin' => 'Laki-laki',
+            'status_pegawai' => 'Tetap', 'tanggal_mulai_bekerja' => '2026-01-01', 'nomor_telepon' => '081234567890',
+        ]);
+        $response = $this->actingAs($this->admin)->postJson('/absensi/admin-web/master-data/pegawai/export', ['all' => true])->assertOk();
+        $spreadsheet = $this->readExport($response);
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('B2', 'Nama Dari Excel');
+        $sheet->setCellValue('C2', 'Ners');
+        $file = $this->excelUpload([$sheet->rangeToArray('A2:K2')[0]], self::PROFILE_HEADERS);
+        $spreadsheet->disconnectWorksheets();
+
+        $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '1 data pegawai berhasil diimpor (0 ditambahkan, 1 diperbarui).');
+        $this->assertDatabaseCount('pegawais', 1);
+        $this->assertSame('Nama Dari Excel', $pegawai->refresh()->nama);
+        $this->assertSame('Ners', $pegawai->profesi);
+        $this->assertSame('081234567890', $pegawai->nomor_telepon);
+    }
+
+    public function test_import_rolls_back_new_and_updated_rows_when_employee_identifiers_conflict(): void
+    {
+        $first = Pegawai::query()->create(['nik' => 'CONFLICT.001', 'nama' => 'Pegawai Pertama', 'nomor_telepon' => '081211111111']);
+        $second = Pegawai::query()->create(['nik' => 'CONFLICT.002', 'nama' => 'Pegawai Kedua', 'email' => 'kedua@rsarsy.co.id']);
+        $file = $this->excelUpload([
+            ['CONFLICT.003', 'Pegawai Baru', null, 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap', '01/01/2026', null, null, null],
+            ['CONFLICT.001', 'Nama Berubah', null, 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap', '01/01/2026', null, null, null],
+            ['CONFLICT.002', 'Identitas Bentrok', null, 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap', '01/01/2026', null, '081211111111', 'kedua@rsarsy.co.id'],
+        ], self::PROFILE_HEADERS);
+
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasErrors('file', 'Baris 4: NIK, nomor telepon, atau email mengarah ke pegawai yang berbeda. Periksa kembali identitas pegawai.');
+        $this->assertDatabaseCount('pegawais', 2);
+        $this->assertSame('Pegawai Pertama', $first->refresh()->nama);
+        $this->assertSame('081211111111', $first->nomor_telepon);
+        $this->assertSame('Pegawai Kedua', $second->refresh()->nama);
+    }
+
+    public function test_import_does_not_replace_an_existing_nik_based_on_another_employees_contact(): void
+    {
+        $existing = Pegawai::query()->create(['nik' => 'KEEP.001', 'nama' => 'Pegawai Asli', 'email' => 'asli@rsarsy.co.id']);
+        $file = $this->excelUpload([
+            ['OTHER.001', 'Pegawai Lain', null, 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap', '01/01/2026', null, null, 'asli@rsarsy.co.id'],
+        ], self::PROFILE_HEADERS);
+
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasErrors('file', 'Baris 2: nomor telepon atau email sudah digunakan pegawai dengan NIK berbeda.');
+        $this->assertDatabaseCount('pegawais', 1);
+        $this->assertSame('KEEP.001', $existing->refresh()->nik);
+        $this->assertSame('Pegawai Asli', $existing->nama);
+    }
+
+    public function test_import_rejects_two_rows_that_match_the_same_employee_using_different_contacts(): void
+    {
+        $existing = Pegawai::query()->create(['nama' => 'Pegawai Asli', 'nomor_telepon' => '081211111111', 'email' => 'asli@rsarsy.co.id']);
+        $file = $this->excelUpload([
+            ['Nama Satu', '01/01/1990', '081211111111', null],
+            ['Nama Dua', '02/02/1992', '081222222222', 'asli@rsarsy.co.id'],
+        ], ['Nama Pegawai', 'Tanggal Lahir', 'Nomor Telepon', 'Email']);
+
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasErrors('file', 'Baris 3: pegawai yang sama sudah tercantum pada baris 2.');
+        $this->assertDatabaseCount('pegawais', 1);
+        $this->assertSame('Pegawai Asli', $existing->refresh()->nama);
+        $this->assertSame('asli@rsarsy.co.id', $existing->email);
+    }
+
+    public function test_import_preserves_account_email_and_rolls_back_the_entire_file_if_it_is_changed(): void
+    {
+        $account = User::factory()->create(['name' => 'Akun Asli', 'email' => 'akun.asli@rsarsy.co.id']);
+        $existing = Pegawai::query()->create(['nik' => 'ACCOUNT.001', 'nama' => 'Akun Asli', 'email' => $account->email]);
+        $existing->forceFill(['user_id' => $account->id])->save();
+        $file = $this->excelUpload([
+            ['ACCOUNT.002', 'Pegawai Baru', null, 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap', '01/01/2026', null, null, null],
+            ['ACCOUNT.001', 'Nama Berubah', null, 'Unit Rawat Jalan', 'Staff Unit Rawat Jalan', 'Laki-laki', 'Tetap', '01/01/2026', null, null, 'akun.berubah@rsarsy.co.id'],
+        ], self::PROFILE_HEADERS);
+
+        $this->actingAs($this->admin)->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasErrors('file', 'Baris 3: Email tidak dapat diubah selama akun terkait masih ada. Hapus akun terkait terlebih dahulu jika email harus diganti.');
+        $this->assertDatabaseCount('pegawais', 1);
+        $this->assertSame('Akun Asli', $existing->refresh()->nama);
+        $this->assertSame($account->email, $existing->email);
+        $this->assertSame($account->id, $existing->user_id);
+        $this->assertSame('Akun Asli', $account->refresh()->name);
+    }
+
+    public function test_import_requires_update_permission_only_when_existing_employees_are_matched(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::PEGAWAI_VIEW, AccessPermission::PEGAWAI_CREATE]);
+        $this->actingAs($user)->post('/absensi/admin-web/master-data/pegawai/import', [
+            'file' => $this->excelUpload([['Pegawai Asli', '01/01/1990', '081211111111']]),
+        ])->assertSessionHasNoErrors()->assertRedirect('/absensi/admin-web/master-data/pegawai');
+
+        $file = $this->excelUpload([
+            ['Pegawai Baru', '02/02/1992', '081222222222'],
+            ['Nama Berubah', '01/01/1990', '081211111111'],
+        ]);
+        $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])->assertForbidden();
+        $this->assertDatabaseCount('pegawais', 1);
+        $this->assertDatabaseHas('pegawais', ['nama' => 'Pegawai Asli']);
+
+        $user->givePermissionTo(AccessPermission::PEGAWAI_UPDATE);
+        $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $file])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '2 data pegawai berhasil diimpor (1 ditambahkan, 1 diperbarui).');
+        $this->assertDatabaseCount('pegawais', 2);
+    }
+
     public function test_super_admin_can_create_pegawai_manually(): void
     {
         $organization = $this->organization();
@@ -231,12 +507,18 @@ class PegawaiManagementTest extends TestCase
         $this->assertDatabaseCount('pegawais', 0);
     }
 
-    public function test_import_rejects_duplicate_phone_numbers_in_file_and_database(): void
+    public function test_import_rejects_duplicate_phones_in_file_and_updates_existing_employees_by_phone(): void
     {
-        Pegawai::query()->create([
+        $existing = Pegawai::query()->create([
+            ...$this->organization(),
+            'nik' => 'LEGACY.001',
             'nama' => 'Pegawai Lama',
+            'profesi' => 'Ners',
+            'status_pegawai' => 'Tetap',
+            'tanggal_mulai_bekerja' => '2026-01-01',
             'tanggal_lahir' => '1990-01-01',
             'nomor_telepon' => '081200000000',
+            'email' => 'legacy@rsarsy.co.id',
         ]);
 
         $duplicateInFile = $this->excelUpload([
@@ -251,14 +533,24 @@ class PegawaiManagementTest extends TestCase
             ['Pegawai Baru', '03/03/1993', '0812-0000-0000'],
         ]);
         $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $duplicateInDatabase])
-            ->assertSessionHasErrors('file', 'Nomor telfon pada baris 2 sudah terdaftar. Perbarui file lalu coba kembali.');
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '1 data pegawai berhasil diimpor (0 ditambahkan, 1 diperbarui).');
 
         $this->assertDatabaseCount('pegawais', 1);
+        $this->assertSame('Pegawai Baru', $existing->refresh()->nama);
+        $this->assertSame('1993-03-03', $existing->tanggal_lahir->format('Y-m-d'));
+        $this->assertSame('LEGACY.001', $existing->nik);
+        $this->assertSame('legacy@rsarsy.co.id', $existing->email);
+        $this->assertSame('Ners', $existing->profesi);
+        $this->assertSame('Tetap', $existing->status_pegawai);
+        $this->assertSame('2026-01-01', $existing->tanggal_mulai_bekerja->format('Y-m-d'));
+        $this->assertSame($this->organization()['unit_kerja_id'], $existing->unit_kerja_id);
+        $this->assertSame($this->organization()['jabatan_id'], $existing->jabatan_id);
     }
 
-    public function test_import_rejects_duplicate_emails_in_file_and_database(): void
+    public function test_import_rejects_duplicate_emails_in_file_and_updates_existing_employees_by_email(): void
     {
-        Pegawai::query()->create([
+        $existing = Pegawai::query()->create([
             'nama' => 'Pegawai Lama',
             'tanggal_lahir' => '1990-01-01',
             'nomor_telepon' => '081200000000',
@@ -277,9 +569,13 @@ class PegawaiManagementTest extends TestCase
             ['Pegawai Baru', '03/03/1993', '081233333333', 'PEGAWAI.LAMA@RSARSY.CO.ID'],
         ], ['Nama Pegawai', 'Tanggal Lahir', 'Nomor Telepon', 'Email']);
         $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $duplicateInDatabase])
-            ->assertSessionHasErrors('file', 'Email pada baris 2 sudah terdaftar. Perbarui file lalu coba kembali.');
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', '1 data pegawai berhasil diimpor (0 ditambahkan, 1 diperbarui).');
 
         $this->assertDatabaseCount('pegawais', 1);
+        $this->assertSame('Pegawai Baru', $existing->refresh()->nama);
+        $this->assertSame('081233333333', $existing->nomor_telepon);
+        $this->assertSame('pegawai.lama@rsarsy.co.id', $existing->email);
     }
 
     public function test_import_requires_the_official_headers_and_excel_format(): void
@@ -638,6 +934,15 @@ class PegawaiManagementTest extends TestCase
         $this->post("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")->assertForbidden();
         $this->put("/absensi/admin-web/master-data/pegawai/{$pegawai->id}", [])->assertForbidden();
         $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}")->assertForbidden();
+    }
+
+    private function readExport(TestResponse $response): Spreadsheet
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pegawai-export-');
+        file_put_contents($path, $response->streamedContent());
+        $this->temporaryFiles[] = $path;
+
+        return IOFactory::load($path);
     }
 
     /**

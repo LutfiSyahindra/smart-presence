@@ -2,6 +2,7 @@
 
 namespace App\Services\Absensi\AdminWeb\MasterData\Pegawai;
 
+use App\Models\Pegawai;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Illuminate\Http\UploadedFile;
@@ -78,7 +79,7 @@ class PegawaiSpreadsheetService
         $sheet->getStyle('J2:J'.(self::MAX_ROWS + 1))->getNumberFormat()->setFormatCode('@');
 
         foreach ([
-            'A1' => 'NIK wajib unik. Pertahankan tanda titik atau spasi jika memang bagian dari NIK.',
+            'A1' => 'NIK yang sudah terdaftar akan memperbarui data pegawai tersebut. Pertahankan tanda titik atau spasi jika memang bagian dari NIK.',
             'D1' => 'Isi sesuai nama unit kerja pada master Unit dan Jabatan.',
             'E1' => 'Jabatan harus berada di dalam unit kerja yang dipilih.',
             'F1' => 'Pilihan: Laki-laki atau Perempuan.',
@@ -100,6 +101,7 @@ class PegawaiSpreadsheetService
         $guide->setCellValue('A6', '4. Status pegawai hanya boleh Tetap atau Tidak Tetap.');
         $guide->setCellValue('A7', '5. Tanggal mulai bekerja wajib diisi menggunakan format DD/MM/YYYY.');
         $guide->setCellValue('A8', '6. Tanggal lahir, nomor telepon, dan email boleh dikosongkan.');
+        $guide->setCellValue('A9', '7. NIK yang sama memperbarui pegawai terdaftar; NIK baru menambahkan pegawai. Kolom opsional yang kosong akan mengosongkan data tersebut.');
         $guide->setCellValue('A10', 'Contoh: 001.101.026 | Siti Aminah | Ners | Unit Rawat Jalan | Staff Unit Rawat Jalan | Perempuan | Tetap | 01/09/2026 | 17/08/1995 | 081234567890 | siti@rsarsy.co.id');
         $guide->getColumnDimension('A')->setWidth(120);
         $guide->getStyle('A1')->applyFromArray([
@@ -108,6 +110,42 @@ class PegawaiSpreadsheetService
         $guide->getStyle('A3:A10')->getAlignment()->setWrapText(true);
 
         $spreadsheet->setActiveSheetIndex(0);
+
+        return $spreadsheet;
+    }
+
+    /** @param iterable<Pegawai> $pegawais */
+    public function export(iterable $pegawais): Spreadsheet
+    {
+        $spreadsheet = $this->template();
+        $spreadsheet->getProperties()->setTitle('Data Pegawai');
+        $spreadsheet->removeSheetByIndex(1);
+        $sheet = $spreadsheet->getActiveSheet();
+        $row = 2;
+
+        foreach ($pegawais as $pegawai) {
+            $values = [
+                $pegawai->nik, $pegawai->nama, $pegawai->profesi,
+                $pegawai->unitKerja?->nama, $pegawai->jabatan?->nama,
+                $pegawai->jenis_kelamin, $pegawai->status_pegawai,
+                $pegawai->tanggal_mulai_bekerja, $pegawai->tanggal_lahir,
+                $pegawai->nomor_telepon, $pegawai->email,
+            ];
+
+            foreach ($values as $index => $value) {
+                $cell = $sheet->getCell([$index + 1, $row]);
+                if ($value instanceof DateTimeInterface) {
+                    $cell->setValueExplicit(ExcelDate::PHPToExcel($value), DataType::TYPE_NUMERIC);
+                    $cell->getStyle()->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+                } elseif ($value !== null) {
+                    $cell->setValueExplicit((string) $value, DataType::TYPE_STRING);
+                }
+            }
+
+            $row++;
+        }
+
+        $sheet->setAutoFilter('A1:K'.($row - 1));
 
         return $spreadsheet;
     }
@@ -269,7 +307,7 @@ class PegawaiSpreadsheetService
                     $emailRows[$item['email']] = $row;
                 }
 
-                $items[] = $item;
+                $items[] = array_intersect_key($item, $headers + ['source_row' => true]);
             }
 
             if ($errors !== []) {

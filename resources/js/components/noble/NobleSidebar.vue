@@ -122,11 +122,7 @@ const navigation = computed<NavigationGroup[]>(() => {
 
     return [
         {
-            category: 'Utama',
-            items: mainItems,
-        },
-        {
-            category: 'Settings',
+            category: 'Setting',
             items: [
                 can('configuration.view') ? { title: 'Konfigurasi', href: '/absensi/admin-web/setting/konfigurasi', icon: SlidersHorizontal } : null,
                 can('users.view') ? { title: 'Pengguna', href: '/absensi/admin-web/setting/users', icon: UsersRound } : null,
@@ -136,7 +132,7 @@ const navigation = computed<NavigationGroup[]>(() => {
             ].filter((item): item is NonNullable<typeof item> => item !== null),
         },
         {
-            category: 'Master data',
+            category: 'Master Data',
             items: [
                 can('jabatan.view') ? { title: 'Unit dan Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
                 can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
@@ -144,6 +140,10 @@ const navigation = computed<NavigationGroup[]>(() => {
                 shiftChildren.length ? { title: 'Shift', icon: Timer, children: shiftChildren } : null,
                 can('geolocation.view') ? { title: 'Geolokasi', href: '/absensi/admin-web/master-data/geolocation', icon: MapPinned } : null,
             ].filter((item): item is NonNullable<typeof item> => item !== null),
+        },
+        {
+            category: 'Menu Utama',
+            items: mainItems,
         },
         // {
         //     category: 'Pengaturan',

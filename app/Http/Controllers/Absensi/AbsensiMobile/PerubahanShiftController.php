@@ -54,6 +54,8 @@ class PerubahanShiftController extends Controller
             'employee' => $context['pegawai'] ? ['name' => $context['pegawai']->nama,
                 'position' => $context['jabatan']?->nama, 'unit' => $context['jabatan']?->unitKerja?->nama] : null,
             'currentShift' => $context['pegawai']?->shift ? $service::shiftSnapshot($context['pegawai']->shift) : null,
+            'scheduledShiftIds' => $context['pegawai']?->presensis()->whereDate('tanggal_presensi', '>=', now()->toDateString())
+                ->whereNotNull('shift_id')->pluck('shift_id', 'tanggal_presensi') ?? (object) [],
             'shifts' => Shift::query()->orderBy('nama')->get()->map(fn ($shift) => $service::shiftSnapshot($shift)),
             'approvalPreview' => $context['line']?->steps->map(fn ($step) => ['level' => $step->level, 'name' => $step->user?->name ?? 'Pengguna tidak tersedia']) ?? [],
             'unavailableReason' => $context['unavailable_reason'],

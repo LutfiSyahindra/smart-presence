@@ -21,6 +21,7 @@ function runtime(overrides = {}) {
         initialRequest: null,
         requests: { data: [] },
         currentShift: { id: 7 },
+        scheduledShiftIds: {},
         shifts: [],
         ...overrides,
     });
@@ -73,5 +74,36 @@ test('ordinary shift entry and request details never open a new submission', () 
         } finally {
             app.close();
         }
+    }
+});
+
+test('the form uses the dated shift and updates it when the chosen date changes', async () => {
+    const app = runtime({
+        shifts: [{ id: 7 }, { id: 8 }, { id: 9 }],
+        scheduledShiftIds: { '2026-11-02': 8, '2026-11-03': 9 },
+    });
+    try {
+        assert.equal(app.state.originalShift.value.id, 8);
+        assert.equal(app.state.form.original_shift_id, 8);
+        assert.deepEqual(
+            Array.from(app.state.targetShifts.value, (shift) => shift.id),
+            [7, 9],
+        );
+        app.state.form.requested_shift_id = '9';
+        app.state.form.alasan = 'Menyesuaikan jadwal';
+        app.state.form.tanggal_perubahan = '2026-11-03';
+        await vue.nextTick();
+        assert.equal(app.state.originalShift.value.id, 9);
+        assert.equal(app.state.form.original_shift_id, 9);
+        assert.equal(app.state.form.requested_shift_id, '');
+        assert.equal(app.state.form.alasan, 'Menyesuaikan jadwal');
+        app.state.form.tanggal_perubahan = '2026-11-04';
+        await vue.nextTick();
+        assert.equal(app.state.form.original_shift_id, 7);
+        app.props.scheduledShiftIds = { '2026-11-04': 8 };
+        await vue.nextTick();
+        assert.equal(app.state.form.original_shift_id, 8);
+    } finally {
+        app.close();
     }
 });

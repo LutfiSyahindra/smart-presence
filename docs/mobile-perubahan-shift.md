@@ -17,9 +17,16 @@ shift tujuan sejak pengajuan harus diajukan ulang. Hari libur rutin pada shift
 kerja tetap mengikuti pemeriksaan kalender yang berlaku.
 
 Server menentukan identitas pegawai, shift asal, status, dan approver; nilai
-identitas/status yang dikirim klien diabaikan. Perubahan ditolak jika salah satu
-shift telah dimulai, tanggal sudah memiliki catatan presensi/cuti disetujui,
-atau sudah ada pengajuan menunggu/disetujui untuk pegawai pada tanggal yang sama.
+identitas/status yang dikirim klien diabaikan. Shift asal mengikuti jadwal pada
+tanggal pilihan, lalu memakai shift default pegawai jika jadwal bertanggal belum
+ada. Formulir memperbarui shift asal dan pilihan tujuan saat tanggal diganti.
+Baris `presensis` dengan clock-in/out kosong merupakan jadwal dan dapat diubah
+sebelum kedua shift dimulai. Jika konfigurasi **Izinkan pengajuan perubahan shift
+setelah clock-in** aktif, pengajuan dan persetujuan tetap diperbolehkan setelah
+clock-in, termasuk saat shift sudah dimulai; waktu dan bukti presensi dipertahankan.
+Tanpa izin tersebut, presensi yang sudah dimulai atau jam shift yang sudah lewat
+menolak perubahan. Cuti disetujui dan pengajuan perubahan shift menunggu/disetujui
+untuk pegawai pada tanggal yang sama tetap menolak pengajuan baru.
 Kunci transaksi pada pegawai mencegah pengajuan ganda bersamaan.
 
 Penyimpanan menggunakan `perubahan_shift_requests` dan
@@ -61,13 +68,19 @@ dan memberi kabar kepada pemohon. Persetujuan awal meneruskan giliran dan notifi
 kepada approver berikutnya. Status menjadi Disetujui setelah seluruh tahap selesai.
 
 Persetujuan akhir membuat jadwal bertanggal pada `presensis` dengan shift tujuan
-dan clock-in/out kosong. Beranda, presensi, dan log membaca shift tanggal tersebut;
+dan clock-in/out kosong jika jadwal belum ada, atau memperbarui shift pada baris
+yang sudah ada. Beranda, presensi, dan log membaca shift tanggal tersebut;
 shift default pegawai tidak diubah. Server memeriksa ulang ketersediaan pegawai/shift,
 jam shift, tanggal yang belum dimulai, hari libur target, presensi yang sudah ada,
 cuti disetujui, dan lembur aktif sebelum menerapkan jadwal. Konflik ditampilkan
 sebagai kesalahan keputusan tanpa menyimpan persetujuan akhir. Penerapan jadwal,
 status, langkah approver, dan inbox bersifat atomik, termasuk persetujuan massal.
-Penyimpanan awal dan pembatalan tidak membuat/mengubah rekaman presensi.
+Penyimpanan awal dan pembatalan pengajuan yang masih menunggu tidak mengubah
+rekaman presensi.
+Jika konfigurasi pembatalan perubahan shift yang sudah disetujui aktif, pembatalan
+mengembalikan jadwal bertanggal yang sudah ada ke shift asal dan mempertahankan
+clock-in/out. Baris jadwal yang baru dibuat oleh persetujuan dapat dihapus hanya
+jika clock-in/out masih kosong dan tidak memiliki catatan lain.
 
 Migrasi:
 

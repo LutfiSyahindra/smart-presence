@@ -66,6 +66,7 @@ const props = defineProps<{
     };
     employee: { name: string; position: string | null; unit: string | null } | null;
     currentShift: Shift | null;
+    scheduledShiftIds: Record<string, number>;
     shifts: Shift[];
     approvalPreview: Pick<Approval, 'level' | 'name'>[];
     unavailableReason: string | null;
@@ -87,9 +88,16 @@ const error = ref('');
 const targetPickerOpen = ref(false);
 const targetSearch = ref('');
 const targetSearchInput = ref<HTMLInputElement | null>(null);
-const form = useForm({ tanggal_perubahan: props.today, original_shift_id: props.currentShift?.id ?? null, requested_shift_id: '', alasan: '' });
+const shiftForDate = (date: string) => props.shifts.find((shift) => shift.id === props.scheduledShiftIds[date]) ?? props.currentShift;
+const form = useForm({
+    tanggal_perubahan: props.today,
+    original_shift_id: shiftForDate(props.today)?.id ?? null,
+    requested_shift_id: '',
+    alasan: '',
+});
+const originalShift = computed(() => shiftForDate(form.tanggal_perubahan));
 watch(
-    () => props.currentShift?.id,
+    () => originalShift.value?.id,
     (id) => {
         form.original_shift_id = id ?? null;
         if (Number(form.requested_shift_id) === id) form.requested_shift_id = '';
@@ -113,10 +121,10 @@ const monthLabel = computed(() =>
         : new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(`${props.month}-01T12:00:00`)),
 );
 const isCurrentMonth = computed(() => !props.allPeriods && props.month === props.today.slice(0, 7));
-const targetShifts = computed(() => props.shifts.filter((shift) => shift.id !== props.currentShift?.id));
+const targetShifts = computed(() => props.shifts.filter((shift) => shift.id !== originalShift.value?.id));
 const targetShift = computed(() => targetShifts.value.find((shift) => shift.id === Number(form.requested_shift_id)));
 const ready = computed(
-    () => !props.unavailableReason && props.currentShift && targetShift.value && form.tanggal_perubahan && form.alasan.trim() && !form.processing,
+    () => !props.unavailableReason && originalShift.value && targetShift.value && form.tanggal_perubahan && form.alasan.trim() && !form.processing,
 );
 const statusLabel = (status: Status) => statuses.find((item) => item.value === status)?.label ?? status;
 const dateLabel = (date: string) =>
@@ -208,7 +216,7 @@ function openFilter() {
     sheet.value = 'filter';
 }
 function openForm() {
-    form.defaults({ tanggal_perubahan: props.today, original_shift_id: props.currentShift?.id ?? null, requested_shift_id: '', alasan: '' });
+    form.defaults({ tanggal_perubahan: props.today, original_shift_id: shiftForDate(props.today)?.id ?? null, requested_shift_id: '', alasan: '' });
     form.reset();
     form.clearErrors();
     sheet.value = 'create';
@@ -606,9 +614,9 @@ watch(
                 /><small id="shift-date-help">Tanggal mengacu pada hari dimulainya shift.</small>
                 <p v-if="form.errors.tanggal_perubahan" id="shift-date-error" class="field-error" role="alert">{{ form.errors.tanggal_perubahan }}</p>
             </div>
-            <div v-if="currentShift" class="current-shift">
-                <small>SHIFT SAAT INI</small><strong>{{ currentShift.name }}</strong
-                ><span><Clock3 />{{ timeLabel(currentShift) }}</span>
+            <div v-if="originalShift" class="current-shift">
+                <small>SHIFT SAAT INI</small><strong>{{ originalShift.name }}</strong
+                ><span><Clock3 />{{ timeLabel(originalShift) }}</span>
             </div>
             <p v-if="form.errors.original_shift_id" class="field-error" role="alert">{{ form.errors.original_shift_id }}</p>
             <span class="change-direction" aria-hidden="true"><ArrowDown /></span>

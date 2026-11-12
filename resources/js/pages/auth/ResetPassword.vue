@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/components/InputError.vue';
+import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +12,7 @@ interface Props {
     token: string;
     email: string;
     invitation?: boolean;
+    invitationError?: string | null;
 }
 
 const props = defineProps<Props>();
@@ -33,16 +35,25 @@ const submit = () => {
 
 <template>
     <AuthLayout
-        :title="invitation ? 'Aktifkan akun pegawai' : 'Atur ulang kata sandi'"
+        :title="invitationError ? 'Tautan aktivasi tidak berlaku' : invitation ? 'Aktifkan akun pegawai' : 'Atur ulang kata sandi'"
         :description="
-            invitation
-                ? 'Buat password untuk mengaktifkan akun dan memverifikasi email. Setelah itu, lanjutkan ke halaman instalasi aplikasi.'
-                : 'Buat kata sandi baru yang kuat untuk melindungi akun Anda.'
+            invitationError
+                ? 'Periksa email aktivasi terbaru atau minta bantuan administrator.'
+                : invitation
+                  ? 'Buat password untuk mengaktifkan akun dan memverifikasi email. Setelah itu, lanjutkan ke halaman instalasi aplikasi.'
+                  : 'Buat kata sandi baru yang kuat untuk melindungi akun Anda.'
         "
     >
         <Head :title="invitation ? 'Aktivasi Akun Pegawai' : 'Atur ulang kata sandi'" />
 
-        <form @submit.prevent="submit">
+        <div v-if="invitationError" class="space-y-6">
+            <p role="alert" class="text-center text-sm text-muted-foreground">{{ invitationError }}</p>
+            <div class="text-center text-sm">
+                <TextLink :href="route('login')">Kembali ke halaman masuk</TextLink>
+            </div>
+        </div>
+
+        <form v-else @submit.prevent="submit">
             <div class="grid gap-6">
                 <div class="grid gap-2">
                     <Label for="email">Email</Label>

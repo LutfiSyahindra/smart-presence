@@ -40,6 +40,12 @@ Perubahan tampilan/backend cukup dideploy di server; perubahan native atau
 domain memerlukan APK baru. Signing/build sukses tidak menggantikan pengujian
 login, kamera, GPS, serta push terhadap server production yang sudah aktif.
 
+Jika APK menampilkan kegagalan koneksi meskipun internet aktif, lihat
+[panduan penelusuran koneksi Android](../../docs/android-connection-troubleshooting.md).
+Wrapper membedakan error DNS, waktu tunggu, HTTPS, dan sertifikat; kegagalan
+sertifikat resource tambahan tidak mengganti seluruh halaman aplikasi.
+Perbaikan ini tersedia mulai build 7 (1.2.4).
+
 Perintah Android lainnya di bawah ini tetap memakai build development.
 
 Android development membuka **frontend Laravel/Inertia/Vue yang sama dengan browser**.

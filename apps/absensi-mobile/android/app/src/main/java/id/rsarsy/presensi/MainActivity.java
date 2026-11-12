@@ -5,10 +5,13 @@ import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import android.net.Uri;
 import android.app.AlertDialog;
+import android.graphics.Bitmap;
 import android.net.http.SslError;
+import android.util.Log;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -100,6 +103,18 @@ public class MainActivity extends BridgeActivity {
         });
 
         bridge.setWebViewClient(new BridgeWebViewClient(bridge) {
+            private String mainDocumentUrl = presensiUrl;
+            private boolean showingConnectionError;
+
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                if (sameOrigin(url, origin) && !Uri.parse(url).getPath().startsWith("/native/")) {
+                    mainDocumentUrl = url;
+                    showingConnectionError = false;
+                }
+            }
+
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 // Capacitor's hostname restricts the document-start script and
@@ -125,7 +140,34 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                 handler.cancel();
-                if (bridge.getErrorUrl() != null) view.loadUrl(bridge.getErrorUrl());
+                // This callback also covers fonts, map tiles and other resources.
+                // A rejected resource must not replace a healthy application page.
+                if (PresensiConnectionFailure.isMainDocument(error.getUrl(), mainDocumentUrl, origin)) {
+                    showConnectionError(view, PresensiConnectionFailure.sslReason(error.getPrimaryError()), "SSL", error.getPrimaryError());
+                }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                // Handle the main document ourselves instead of Capacitor's generic
+                // fallback, and never recurse when a bundled fallback asset fails.
+                if (request.isForMainFrame()
+                    && PresensiConnectionFailure.isMainDocument(request.getUrl().toString(), mainDocumentUrl, origin)) {
+                    showConnectionError(view, PresensiConnectionFailure.webReason(error.getErrorCode()), "WEB", error.getErrorCode());
+                }
+            }
+
+            private void showConnectionError(WebView view, String reason, String source, int code) {
+                if (showingConnectionError || bridge.getErrorUrl() == null) return;
+                showingConnectionError = true;
+                // Avoid logging paths or query strings, which can contain account tokens.
+                Log.w("PresensiConnection", "Connection failed: " + source + " " + code + " " + reason
+                    + " host=" + Uri.parse(origin).getHost() + " app=" + BuildConfig.VERSION_NAME);
+                String errorUrl = Uri.parse(bridge.getErrorUrl()).buildUpon()
+                    .appendQueryParameter("reason", reason)
+                    .appendQueryParameter("code", source + " " + code)
+                    .build().toString();
+                view.loadUrl(errorUrl);
             }
 
             @Override

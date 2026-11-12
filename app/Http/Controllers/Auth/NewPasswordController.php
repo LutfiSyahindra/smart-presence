@@ -26,15 +26,22 @@ class NewPasswordController extends Controller
         $user = Password::broker()->getUser([
             'email' => $request->string('email')->toString(),
         ]);
-        $invitation = $user !== null
+        $pendingEmployee = $user !== null
             && $user->pegawai()->exists()
-            && ! $user->hasVerifiedEmail()
-            && Password::broker()->tokenExists($user, (string) $request->route('token'));
+            && ! $user->hasVerifiedEmail();
+
+        // An expired or replaced token must not turn an activation email into a password reset page.
+        $invitation = $request->boolean('invitation') || $pendingEmployee;
+        $invitationError = $invitation
+            && (! $pendingEmployee || ! Password::broker()->tokenExists($user, (string) $request->route('token')))
+                ? 'Tautan aktivasi sudah tidak berlaku atau tidak valid. Gunakan tautan dari email aktivasi terbaru. Jika masih bermasalah, hubungi administrator untuk meminta undangan baru.'
+                : null;
 
         return Inertia::render('auth/ResetPassword', [
             'email' => $request->email,
             'token' => $request->route('token'),
             'invitation' => $invitation,
+            'invitationError' => $invitationError,
         ]);
     }
 

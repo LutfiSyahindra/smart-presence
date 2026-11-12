@@ -37,6 +37,7 @@ class EmployeeAccountInvitation extends Notification
             ->action('Aktifkan akun & buat password', $url)
             ->line('Setelah akun aktif, Anda akan diarahkan ke halaman instalasi aplikasi. Unduh APK untuk Android atau ikuti panduan pemasangan PWA untuk iPhone, lalu masuk dengan akun Anda.')
             ->line("Tautan aktivasi ini berlaku selama {$expires} menit dan hanya dapat digunakan satu kali.")
+            ->line('Jika menerima beberapa email aktivasi, gunakan tautan dari email terbaru. Hubungi administrator untuk meminta undangan baru jika tautan sudah tidak berlaku.')
             ->line('Jika Anda tidak merasa menerima undangan ini, abaikan email ini atau hubungi administrator.');
     }
 }

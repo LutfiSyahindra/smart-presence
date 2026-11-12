@@ -2,10 +2,7 @@
 
 namespace App\Services\Absensi\AdminWeb\MasterData\Shift;
 
-use App\Models\CutiRequest;
-use App\Models\LemburRequest;
 use App\Models\Pegawai;
-use App\Models\PerubahanShiftRequest;
 use App\Models\Presensi;
 use App\Models\Shift;
 use Carbon\CarbonPeriod;
@@ -94,7 +91,7 @@ class ShiftAssignmentSpreadsheetService
             ['Jangan mengubah header tanggal, NIK, atau memakai formula. Nama/unit/jabatan hanya referensi.'],
             ['Saat impor, gunakan periode dan pilihan pegawai yang sesuai dengan template. Maksimal 5.000 pegawai per file.'],
             ['Jadwal tersimpan per tanggal dan dapat dilihat di menu Presensi. Shift aktif/default pegawai tetap berlaku di tanggal lain.'],
-            ['Jadwal yang sudah memiliki clock in/out, cuti disetujui, lembur atau perubahan shift aktif tidak dapat ditimpa.'],
+            ['Jadwal tetap dapat diimpor meskipun sudah ada presensi, cuti, lembur, atau perubahan shift. Bukti presensi dan status pengajuan tetap tersimpan; cuti disetujui tetap berlaku.'],
             ['Seluruh file divalidasi sebelum disimpan; jika ada kesalahan, tidak ada perubahan yang disimpan.'],
         ]);
         $guide->getColumnDimension('A')->setWidth(110);
@@ -115,26 +112,13 @@ class ShiftAssignmentSpreadsheetService
             $ids = array_values(array_unique(array_column($items, 'pegawai_id')));
             $employees = $this->employees($data)->whereKey($ids)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $shifts = Shift::query()->whereKey(array_unique(array_column($items, 'shift_id')))->lockForUpdate()->get()->keyBy('id');
-            $records = Presensi::query()->whereIn('pegawai_id', $ids)->whereBetween('tanggal_presensi', [$data['date_from'], $data['date_to']])
-                ->lockForUpdate()->get()->keyBy(fn ($record) => $record->pegawai_id.'|'.$record->tanggal_presensi->toDateString());
-            $lembur = LemburRequest::query()->whereIn('pegawai_id', $ids)->whereBetween('tanggal_lembur', [$data['date_from'], $data['date_to']])
-                ->whereIn('status', ['pending', 'approved'])->get()->keyBy(fn ($item) => $item->pegawai_id.'|'.$item->tanggal_lembur->toDateString());
-            $changes = PerubahanShiftRequest::query()->whereIn('pegawai_id', $ids)->whereBetween('tanggal_perubahan', [$data['date_from'], $data['date_to']])
-                ->whereIn('status', ['pending', 'approved'])->get()->keyBy(fn ($item) => $item->pegawai_id.'|'.$item->tanggal_perubahan->toDateString());
-            $leaves = CutiRequest::query()->whereIn('pegawai_id', $ids)->where('status', 'approved')
-                ->whereDate('tanggal_mulai', '<=', $data['date_to'])->whereDate('tanggal_selesai', '>=', $data['date_from'])->get()->groupBy('pegawai_id');
             foreach ($items as $item) {
-                $key = $item['pegawai_id'].'|'.$item['date'];
-                $record = $records->get($key);
                 if (! $employees->has($item['pegawai_id']) || ! $shifts->has($item['shift_id'])) {
                     $this->fail('Data pegawai atau shift telah berubah. Unduh ulang template.');
                 }
-                $hasLeave = $leaves->get($item['pegawai_id'], collect())->contains(fn ($leave) => $item['date'] >= $leave->tanggal_mulai->toDateString() && $item['date'] <= $leave->tanggal_selesai->toDateString());
-                if ($record?->clock_in_at || $record?->clock_out_at || $hasLeave || $lembur->has($key) || $changes->has($key)) {
-                    $this->fail("Baris {$item['row']}, tanggal {$item['date']}: sudah ada presensi, cuti, lembur, atau perubahan shift aktif. Selesaikan konflik jadwal terlebih dahulu.");
-                }
             }
             $timestamp = now();
+            // Update schedule fields only; preserve attendance evidence and all existing requests.
             foreach (array_chunk($items, 100) as $chunk) {
                 Presensi::query()->upsert(array_map(fn ($item) => [
                     'pegawai_id' => $item['pegawai_id'],

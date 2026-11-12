@@ -13,6 +13,7 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentSpreadsheetService;
 use App\Services\Absensi\AttendanceScheduleService;
+use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
@@ -357,18 +358,44 @@ class BulkShiftAssignmentTest extends TestCase
         }
     }
 
-    public function test_started_attendance_rejects_the_entire_import_and_preserves_evidence(): void
+    public function test_started_and_completed_attendance_can_be_rescheduled_without_losing_evidence(): void
     {
         $first = $this->employee('001');
-        $second = $this->employee('002');
-        $record = Presensi::query()->create(['pegawai_id' => $second->id, 'shift_id' => $this->shift->id, 'tanggal_presensi' => '2026-11-01', 'clock_in_at' => '2026-11-01 07:01:00', 'notes' => 'Bukti']);
-        $this->post(self::URL.'/import', $this->data(['file' => $this->excel([
-            [$first->nik, '', '', '', $this->shift->nama],
-            [$second->nik, '', '', '', $this->shift->nama],
-        ])]))->assertSessionHasErrors('file');
-        $this->assertDatabaseCount('presensis', 1);
-        $this->assertSame('Bukti', $record->refresh()->notes);
-        $this->assertNotNull($record->clock_in_at);
+        $night = Shift::query()->create(['nama' => 'Malam', 'jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
+        $rows = [[$first->nik, '', '', '', $night->nama]];
+        $records = [];
+        foreach ([
+            ['clock_in_at' => '2026-11-01 07:01:00', 'clock_in_approval_status' => 'pending'],
+            ['clock_in_at' => '2026-11-01 07:02:00', 'clock_out_at' => '2026-11-01 15:02:00', 'clock_in_approval_status' => 'approved', 'clock_out_approval_status' => 'rejected'],
+            ['clock_out_at' => '2026-11-01 15:03:00', 'clock_out_approval_status' => 'pending'],
+        ] as $index => $attendance) {
+            $employee = $this->employee('00'.($index + 2), ['shift_id' => $this->shift->id]);
+            $record = Presensi::query()->create([
+                'pegawai_id' => $employee->id, 'shift_id' => $this->shift->id, 'tanggal_presensi' => '2026-11-01',
+                'notes' => 'Bukti', 'overtime_minutes' => 60, 'clock_in_photo_path' => 'presensi-photos/masuk.jpg',
+                'clock_out_photo_path' => 'presensi-photos/pulang.jpg', 'clock_in_latitude' => -6.2,
+                'clock_in_longitude' => 106.8, 'face_verified_at' => '2026-11-01 07:01:00', 'face_similarity' => 98.5,
+                ...$attendance,
+            ]);
+            $records[] = [$record, $record->fresh()->getRawOriginal()];
+            $rows[] = [$employee->nik, '', '', '', $night->nama];
+        }
+
+        $this->post(self::URL.'/import', $this->data(['file' => $this->excel($rows)]))
+            ->assertSessionHasNoErrors()->assertSessionHas('success', '4 jadwal shift untuk 4 pegawai berhasil diimpor.');
+        $this->assertDatabaseCount('presensis', 4);
+        $this->assertDatabaseHas('presensis', ['pegawai_id' => $first->id, 'tanggal_presensi' => '2026-11-01', 'shift_id' => $night->id]);
+        foreach ($records as [$record, $before]) {
+            $after = $record->refresh()->getRawOriginal();
+            $this->assertSame($night->id, $record->shift_id);
+            $this->assertSame($this->admin->id, $record->updated_by);
+            $this->assertFalse($record->is_day_off);
+            foreach (['shift_id', 'is_day_off', 'updated_by', 'updated_at'] as $field) {
+                unset($before[$field], $after[$field]);
+            }
+            $this->assertSame($before, $after);
+            $this->assertSame($this->shift->id, $record->pegawai->shift_id);
+        }
     }
 
     public function test_period_header_selection_and_file_validation(): void
@@ -417,23 +444,64 @@ class BulkShiftAssignmentTest extends TestCase
         $this->assertDatabaseHas('presensis', ['pegawai_id' => $second->id, 'tanggal_presensi' => '2026-11-02']);
     }
 
-    public function test_active_leave_overtime_and_shift_changes_cannot_be_overwritten(): void
+    public function test_active_leave_overtime_and_shift_changes_allow_import_without_modifying_requests(): void
     {
         $first = $this->employee('001');
         $second = $this->employee('002');
+        $night = Shift::query()->create(['nama' => 'Malam', 'jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
         $identity = ['pegawai_id' => $second->id, 'user_id' => $second->user_id, 'nama_pegawai' => $second->nama, 'nama_jabatan' => 'Perawat', 'nama_unit' => 'IGD', 'alasan' => 'Pengajuan'];
-        $conflicts = [
-            CutiRequest::query()->create([...$identity, 'tanggal_mulai' => '2026-10-31', 'tanggal_selesai' => '2026-11-01', 'status' => 'approved']),
-            LemburRequest::query()->create([...$identity, 'shift_id' => $this->shift->id, 'nama_shift' => $this->shift->nama, 'tanggal_lembur' => '2026-11-01', 'shift_start_at' => '2026-11-01 07:00:00', 'shift_end_at' => '2026-11-01 15:00:00', 'duration_minutes' => 60, 'compensation' => 'money', 'status' => 'pending']),
-            PerubahanShiftRequest::query()->create([...$identity, 'original_shift_id' => $this->shift->id, 'requested_shift_id' => $this->shift->id, 'tanggal_perubahan' => '2026-11-01', 'original_shift' => [], 'requested_shift' => [], 'status' => 'pending']),
-        ];
-        // Resolve one conflict at a time; the next active request must still reject the file.
-        foreach ($conflicts as $conflict) {
+        foreach (['pending', 'approved'] as $status) {
+            $requests = [
+                CutiRequest::query()->create([...$identity, 'tanggal_mulai' => '2026-10-31', 'tanggal_selesai' => '2026-11-02', 'status' => $status]),
+                LemburRequest::query()->create([...$identity, 'shift_id' => $this->shift->id, 'nama_shift' => $this->shift->nama, 'tanggal_lembur' => '2026-11-01', 'shift_start_at' => '2026-11-01 07:00:00', 'shift_end_at' => '2026-11-01 15:00:00', 'duration_minutes' => 60, 'compensation' => 'money', 'status' => $status]),
+                PerubahanShiftRequest::query()->create([...$identity, 'original_shift_id' => $this->shift->id, 'requested_shift_id' => $this->shift->id, 'tanggal_perubahan' => '2026-11-01', 'original_shift' => [], 'requested_shift' => [], 'status' => $status]),
+            ];
+            $before = array_map(fn ($request) => $request->fresh()->getRawOriginal(), $requests);
+            $shift = $status === 'pending' ? $this->shift : $night;
             $this->post(self::URL.'/import', $this->data(['file' => $this->excel([
-                [$first->nik, '', '', '', $this->shift->nama], [$second->nik, '', '', '', $this->shift->nama],
-            ])]))->assertSessionHasErrors('file');
-            $this->assertDatabaseCount('presensis', 0);
-            $conflict->delete();
+                [$first->nik, '', '', '', $shift->nama, $shift->nama],
+                [$second->nik, '', '', '', $shift->nama, $shift->nama],
+            ])]))->assertSessionHasNoErrors()->assertSessionHas('success', '4 jadwal shift untuk 2 pegawai berhasil diimpor.');
+            $this->assertDatabaseCount('presensis', 4);
+            foreach ([$first, $second] as $employee) {
+                foreach (['2026-11-01', '2026-11-02'] as $date) {
+                    $this->assertDatabaseHas('presensis', ['pegawai_id' => $employee->id, 'tanggal_presensi' => $date, 'shift_id' => $shift->id]);
+                }
+            }
+            foreach ($requests as $index => $request) {
+                $this->assertSame($before[$index], $request->refresh()->getRawOriginal());
+                $request->delete();
+            }
+        }
+    }
+
+    public function test_approved_leave_remains_cuti_after_importing_working_and_off_shifts(): void
+    {
+        $employee = $this->employee('001', ['shift_id' => $this->shift->id]);
+        $employee->user->assignRole('pegawai');
+        $off = Shift::query()->create(['nama' => 'OFF', 'is_day_off' => true, 'jam_masuk' => '00:00', 'jam_keluar' => '00:00']);
+        $leave = CutiRequest::query()->create([
+            'pegawai_id' => $employee->id, 'user_id' => $employee->user_id, 'nama_pegawai' => $employee->nama,
+            'nama_jabatan' => 'Perawat', 'nama_unit' => 'IGD', 'alasan' => 'Cuti tahunan',
+            'tanggal_mulai' => '2026-11-01', 'tanggal_selesai' => '2026-11-02', 'status' => 'approved',
+        ]);
+        $this->post(self::URL.'/import', $this->data(['file' => $this->excel([
+            [$employee->nik, '', '', '', $this->shift->nama, $off->nama],
+        ])]))->assertSessionHasNoErrors()->assertSessionHas('success', '2 jadwal shift untuk 1 pegawai berhasil diimpor.');
+        $this->assertSame('approved', $leave->refresh()->status);
+        $this->assertSame($this->shift->id, $employee->refresh()->shift_id);
+        foreach (['2026-11-01' => $this->shift, '2026-11-02' => $off] as $date => $shift) {
+            $this->assertDatabaseHas('presensis', ['pegawai_id' => $employee->id, 'tanggal_presensi' => $date, 'shift_id' => $shift->id, 'is_day_off' => (bool) $shift->is_day_off]);
+            $this->travelTo($date.' 08:00:00');
+            $this->actingAs($employee->user)->get('/absensi/mobile')->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('todaySchedule.shift_name', 'CUTI')->where('todayAttendance.is_on_leave', true));
+            Sanctum::actingAs($employee->user, ['mobile']);
+            $this->getJson('/api/mobile/v1/home')->assertOk()->assertJsonPath('data.schedule.shift_name', 'CUTI')
+                ->assertJsonPath('data.attendance.is_on_leave', true)->assertJsonPath('data.attendance.status', 'on_leave');
+            $this->getJson('/api/mobile/v1/attendance')->assertOk()->assertJsonPath('data.shift.name', 'CUTI')
+                ->assertJsonPath('data.status', 'on_leave');
+            $this->getJson('/api/mobile/v1/attendance/clock-in')->assertUnprocessable()
+                ->assertJsonPath('errors.attendance.0', CutiScheduleService::BLOCKED_MESSAGE);
         }
     }
 

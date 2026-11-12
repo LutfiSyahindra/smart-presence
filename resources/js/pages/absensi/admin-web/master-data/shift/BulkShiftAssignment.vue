@@ -604,7 +604,9 @@ const importFile = () => {
                                                     <strong>Periksa pilihan sebelum import</strong>
                                                     <p>
                                                         Gunakan template dengan periode dan pegawai yang sesuai. Seluruh file diperiksa sebelum jadwal
-                                                        disimpan.
+                                                        disimpan. Jadwal tetap bisa diimpor meskipun sudah presensi, cuti, lembur, atau ada pengajuan
+                                                        perubahan shift. Bukti presensi dan status pengajuan tetap tersimpan; cuti disetujui tetap
+                                                        berlaku.
                                                     </p>
                                                 </div>
                                             </div>

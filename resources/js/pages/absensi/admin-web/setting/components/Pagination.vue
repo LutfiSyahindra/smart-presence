@@ -7,6 +7,7 @@ defineProps<{
     from: number | null;
     to: number | null;
     total: number;
+    preserveState?: boolean;
 }>();
 </script>
 
@@ -16,7 +17,9 @@ defineProps<{
         <nav aria-label="Navigasi halaman">
             <ul class="pagination mb-0">
                 <li v-for="(link, index) in links" :key="index" class="page-item" :class="{ active: link.active, disabled: !link.url }">
-                    <Link v-if="link.url" class="page-link" :href="link.url" preserve-scroll v-html="link.label" />
+                    <Link v-if="link.url" class="page-link" :href="link.url" :preserve-state="preserveState" preserve-scroll>
+                        <span v-html="link.label"></span>
+                    </Link>
                     <span v-else class="page-link" v-html="link.label"></span>
                 </li>
             </ul>

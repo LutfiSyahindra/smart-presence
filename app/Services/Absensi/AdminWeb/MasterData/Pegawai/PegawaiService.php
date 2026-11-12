@@ -313,6 +313,34 @@ class PegawaiService
         });
     }
 
+    /** @param list<int> $pegawaiIds */
+    public function cancelManyUserInvitations(array $pegawaiIds, User $actor): int
+    {
+        return DB::transaction(function () use ($pegawaiIds, $actor): int {
+            $pegawais = Pegawai::query()->whereKey($pegawaiIds)->orderBy('id')->lockForUpdate()->get();
+
+            if ($pegawais->count() !== count($pegawaiIds)) {
+                throw ValidationException::withMessages([
+                    'pegawai_ids' => 'Salah satu pegawai yang dipilih tidak ditemukan. Muat ulang halaman lalu coba kembali.',
+                ]);
+            }
+
+            foreach ($pegawais as $pegawai) {
+                try {
+                    $this->cancelUserInvitation($pegawai, $actor);
+                } catch (ValidationException $exception) {
+                    $reason = collect($exception->errors())->flatten()->first();
+
+                    throw ValidationException::withMessages([
+                        'pegawai_ids' => "Aktivasi {$pegawai->nama} tidak dapat dibatalkan: {$reason}",
+                    ]);
+                }
+            }
+
+            return $pegawais->count();
+        });
+    }
+
     /**
      * Membuat akun dan mengirim email aktivasi untuk beberapa pegawai sekaligus.
      *

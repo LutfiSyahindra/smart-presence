@@ -149,6 +149,7 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
             Route::post('pegawai/export', [PegawaiController::class, 'export'])->middleware('can:'.AccessPermission::PEGAWAI_VIEW)->name('pegawai.export');
             Route::post('pegawai/import', [PegawaiController::class, 'import'])->middleware('can:'.AccessPermission::PEGAWAI_CREATE)->name('pegawai.import');
             Route::post('pegawai/user-invitations/batch', [PegawaiController::class, 'inviteManyToUsers'])->middleware('can:'.AccessPermission::USERS_CREATE)->name('pegawai.user-invitations.batch');
+            Route::delete('pegawai/user-invitations/batch', [PegawaiController::class, 'cancelManyUserInvitations'])->middleware('can:'.AccessPermission::USERS_DELETE)->name('pegawai.user-invitations.batch.destroy');
             Route::post('pegawai/{pegawai}/user-invitation', [PegawaiController::class, 'inviteToUser'])->middleware('can:'.AccessPermission::USERS_CREATE)->name('pegawai.user-invitation.store');
             Route::delete('pegawai/{pegawai}/user-invitation', [PegawaiController::class, 'cancelUserInvitation'])->middleware('can:'.AccessPermission::USERS_DELETE)->name('pegawai.user-invitation.destroy');
             Route::put('pegawai/{pegawai}', [PegawaiController::class, 'update'])->middleware('can:'.AccessPermission::PEGAWAI_UPDATE)->name('pegawai.update');

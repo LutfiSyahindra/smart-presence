@@ -832,6 +832,8 @@ class PegawaiManagementTest extends TestCase
         $this->actingAs($actor)
             ->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
             ->assertForbidden();
+        $this->delete('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => [$pegawai->id]])
+            ->assertForbidden();
         $this->assertDatabaseHas('users', ['id' => $pendingUser->id]);
         $this->assertTrue(Password::broker()->tokenExists($pendingUser, $token));
 
@@ -862,6 +864,77 @@ class PegawaiManagementTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $pendingUser->id]);
         $this->assertTrue(Password::broker()->tokenExists($pendingUser, $token));
         $this->assertDatabaseHas('approval_line_steps', ['approval_line_id' => $line->id, 'user_id' => $pendingUser->id]);
+    }
+
+    public function test_super_admin_can_cancel_multiple_pending_activations_and_revoke_every_token(): void
+    {
+        $users = User::factory()->unverified()->count(2)->create();
+        $pegawais = $users->map(fn (User $user) => $user->pegawai()->create(['nama' => $user->name, 'email' => $user->email]));
+        foreach ($users as $user) {
+            Password::createToken($user);
+        }
+        $untouched = User::factory()->unverified()->create();
+        $untouchedPegawai = $untouched->pegawai()->create(['nama' => $untouched->name, 'email' => $untouched->email]);
+        $untouchedToken = Password::createToken($untouched);
+
+        $this->actingAs($this->admin)
+            ->delete('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => $pegawais->pluck('id')->all()])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/absensi/admin-web/master-data/pegawai')
+            ->assertSessionHas('success', 'Aktivasi 2 akun pegawai berhasil dibatalkan. Data pegawai tetap tersimpan.');
+
+        foreach ($users as $user) {
+            $this->assertDatabaseMissing('users', ['id' => $user->id]);
+            $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+        }
+        foreach ($pegawais as $pegawai) {
+            $this->assertDatabaseHas('pegawais', ['id' => $pegawai->id, 'nama' => $pegawai->nama, 'email' => $pegawai->email, 'user_id' => null]);
+        }
+        $this->assertSame($untouched->id, $untouchedPegawai->refresh()->user_id);
+        $this->assertTrue(Password::broker()->tokenExists($untouched, $untouchedToken));
+    }
+
+    public function test_batch_cancellation_rolls_back_every_account_and_token_if_any_selection_is_invalid(): void
+    {
+        $validUser = User::factory()->unverified()->create();
+        $valid = $validUser->pegawai()->create(['nama' => $validUser->name, 'email' => $validUser->email]);
+        $validToken = Password::createToken($validUser);
+        $activeUser = User::factory()->create();
+        $active = $activeUser->pegawai()->create(['nama' => $activeUser->name, 'email' => $activeUser->email]);
+        $withoutAccount = Pegawai::query()->create(['nama' => 'Tanpa Akun']);
+        $approverUser = User::factory()->unverified()->create();
+        $approver = $approverUser->pegawai()->create(['nama' => $approverUser->name, 'email' => $approverUser->email]);
+        $approverToken = Password::createToken($approverUser);
+        $line = ApprovalLine::query()->create(['type' => ApprovalLine::TYPE_CUTI]);
+        $line->steps()->create(['user_id' => $approverUser->id, 'level' => 1]);
+
+        foreach ([$active, $withoutAccount, $approver] as $invalid) {
+            $this->actingAs($this->admin)
+                ->delete('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => [$valid->id, $invalid->id]])
+                ->assertSessionHasErrors('pegawai_ids');
+            $this->assertDatabaseHas('users', ['id' => $validUser->id]);
+            $this->assertSame($validUser->id, $valid->refresh()->user_id);
+            $this->assertTrue(Password::broker()->tokenExists($validUser, $validToken));
+        }
+        $this->assertDatabaseHas('users', ['id' => $activeUser->id]);
+        $this->assertDatabaseHas('pegawais', ['id' => $withoutAccount->id, 'user_id' => null]);
+        $this->assertSame($approverUser->id, $approver->refresh()->user_id);
+        $this->assertTrue(Password::broker()->tokenExists($approverUser, $approverToken));
+    }
+
+    public function test_batch_cancellation_validates_the_selection_before_deleting_accounts(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $pegawai = $user->pegawai()->create(['nama' => $user->name, 'email' => $user->email]);
+        $token = Password::createToken($user);
+        foreach ([[], [$pegawai->id, $pegawai->id], [$pegawai->id, 999999], array_fill(0, 101, $pegawai->id), 'invalid'] as $ids) {
+            $this->actingAs($this->admin)
+                ->delete('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => $ids])
+                ->assertSessionHasErrors();
+            $this->assertDatabaseHas('users', ['id' => $user->id]);
+            $this->assertSame($user->id, $pegawai->refresh()->user_id);
+            $this->assertTrue(Password::broker()->tokenExists($user, $token));
+        }
     }
 
     public function test_super_admin_can_send_activation_invitations_to_selected_employees_in_batch(): void
@@ -1047,6 +1120,7 @@ class PegawaiManagementTest extends TestCase
         $this->post('/absensi/admin-web/master-data/pegawai', [])->assertForbidden();
         $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $this->excelUpload([])])->assertForbidden();
         $this->post('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => [$pegawai->id]])->assertForbidden();
+        $this->delete('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => [$pegawai->id]])->assertForbidden();
         $this->post("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")->assertForbidden();
         $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")->assertForbidden();
         $this->put("/absensi/admin-web/master-data/pegawai/{$pegawai->id}", [])->assertForbidden();

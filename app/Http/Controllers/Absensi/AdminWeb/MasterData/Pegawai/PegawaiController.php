@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\CancelBatchPegawaiInvitationsRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\ExportPegawaiRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\ImportPegawaiRequest;
 use App\Http\Requests\Absensi\AdminWeb\MasterData\Pegawai\SendBatchPegawaiInvitationsRequest;
@@ -120,6 +121,14 @@ class PegawaiController extends Controller
 
         return to_route('absensi.admin-web.master-data.pegawai.index')
             ->with('success', 'Aktivasi akun pegawai berhasil dibatalkan. Data pegawai tetap tersimpan.');
+    }
+
+    public function cancelManyUserInvitations(CancelBatchPegawaiInvitationsRequest $request): RedirectResponse
+    {
+        $total = $this->service->cancelManyUserInvitations($request->validated('pegawai_ids'), $request->user());
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')
+            ->with('success', "Aktivasi {$total} akun pegawai berhasil dibatalkan. Data pegawai tetap tersimpan.");
     }
 
     public function inviteManyToUsers(SendBatchPegawaiInvitationsRequest $request): RedirectResponse

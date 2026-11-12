@@ -115,8 +115,9 @@ const editing = ref<PegawaiRow | null>(null);
 const selected = ref<PegawaiRow | null>(null);
 const inviting = ref<PegawaiRow | null>(null);
 const cancellingInvitation = ref<PegawaiRow | null>(null);
-const selectedInvitationIds = ref<number[]>([]);
+const selectedEmployees = ref<PegawaiRow[]>([]);
 const batchInvitationOpen = ref(false);
+const batchCancellationOpen = ref(false);
 const deleting = ref(false);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -139,6 +140,7 @@ const editForm = useForm(emptyForm());
 const inviteForm = useForm({});
 const cancelInviteForm = useForm({});
 const batchInviteForm = useForm<{ pegawai_ids: number[] }>({ pegawai_ids: [] });
+const batchCancelForm = useForm<{ pegawai_ids: number[] }>({ pegawai_ids: [] });
 
 const hasActiveFilters = computed(() => Boolean(search.value.trim()) || status.value !== 'all' || unitKerja.value !== 0);
 const resultSummary = computed(() => {
@@ -152,12 +154,23 @@ const maxDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
 const positionsFor = (unitId: number) => props.unitOptions.find((unit) => unit.id === Number(unitId))?.jabatans ?? [];
 const createPositions = computed(() => positionsFor(createForm.unit_kerja_id));
 const editPositions = computed(() => positionsFor(editForm.unit_kerja_id));
-const eligibleInvitationRows = computed(() => props.pegawais.data.filter((pegawai) => Boolean(pegawai.email) && pegawai.account_status !== 'active'));
-const selectedInvitationRows = computed(() => eligibleInvitationRows.value.filter((pegawai) => selectedInvitationIds.value.includes(pegawai.id)));
-const allEligibleInvitationsSelected = computed(
-    () => eligibleInvitationRows.value.length > 0 && selectedInvitationRows.value.length === eligibleInvitationRows.value.length,
+const canSelectEmployees = computed(() => props.can.create_user || props.can.cancel_user_invitation);
+const canSelectEmployee = (pegawai: PegawaiRow) =>
+    (props.can.create_user && Boolean(pegawai.email) && pegawai.account_status !== 'active') ||
+    (props.can.cancel_user_invitation && pegawai.account_status === 'pending');
+const selectedEmployeeIds = computed(() => new Set(selectedEmployees.value.map((pegawai) => pegawai.id)));
+const eligibleSelectionRows = computed(() => props.pegawais.data.filter(canSelectEmployee));
+const selectedInvitationRows = computed(() =>
+    selectedEmployees.value.filter((pegawai) => Boolean(pegawai.email) && pegawai.account_status !== 'active'),
 );
-const someEligibleInvitationsSelected = computed(() => selectedInvitationRows.value.length > 0 && !allEligibleInvitationsSelected.value);
+const selectedCancellationRows = computed(() => selectedEmployees.value.filter((pegawai) => pegawai.account_status === 'pending'));
+const selectedOnPageCount = computed(() => eligibleSelectionRows.value.filter((pegawai) => selectedEmployeeIds.value.has(pegawai.id)).length);
+const allEligibleInvitationsSelected = computed(
+    () => eligibleSelectionRows.value.length > 0 && selectedOnPageCount.value === eligibleSelectionRows.value.length,
+);
+const someEligibleInvitationsSelected = computed(() => selectedOnPageCount.value > 0 && !allEligibleInvitationsSelected.value);
+const batchInviteError = computed(() => Object.values(batchInviteForm.errors)[0]);
+const batchCancelError = computed(() => Object.values(batchCancelForm.errors)[0]);
 const selectedExportIdSet = computed(() => new Set(selectedExportIds.value));
 const allExportEmployeesSelected = computed(
     () => exportEmployees.value.length > 0 && selectedExportIds.value.length === exportEmployees.value.length,
@@ -271,10 +284,10 @@ watch(
 );
 
 watch(
-    () => props.pegawais.data.map((pegawai) => `${pegawai.id}:${pegawai.account_status}:${pegawai.email ?? ''}`).join('|'),
-    () => {
-        const eligibleIds = new Set(eligibleInvitationRows.value.map((pegawai) => pegawai.id));
-        selectedInvitationIds.value = selectedInvitationIds.value.filter((id) => eligibleIds.has(id));
+    () => props.pegawais.data,
+    (rows) => {
+        const visibleEmployees = new Map(rows.map((pegawai) => [pegawai.id, pegawai]));
+        selectedEmployees.value = selectedEmployees.value.map((pegawai) => visibleEmployees.get(pegawai.id) ?? pegawai).filter(canSelectEmployee);
     },
 );
 
@@ -521,13 +534,34 @@ const submitCancelInvitation = () => {
         preserveScroll: true,
         onSuccess: () => {
             cancellingInvitation.value = null;
-            selectedInvitationIds.value = selectedInvitationIds.value.filter((id) => id !== pegawaiId);
+            removeSelectedEmployees([pegawaiId]);
         },
     });
 };
 
+const removeSelectedEmployees = (ids: number[]) => {
+    const removedIds = new Set(ids);
+    selectedEmployees.value = selectedEmployees.value.filter((pegawai) => !removedIds.has(pegawai.id));
+};
+
+const selectionDisabled = (pegawai: PegawaiRow) =>
+    !canSelectEmployee(pegawai) || (selectedEmployees.value.length >= 100 && !selectedEmployeeIds.value.has(pegawai.id));
+
+const toggleEmployeeSelection = (pegawai: PegawaiRow, event: Event) => {
+    if ((event.target as HTMLInputElement).checked) {
+        if (!selectionDisabled(pegawai) && !selectedEmployeeIds.value.has(pegawai.id)) selectedEmployees.value.push(pegawai);
+    } else {
+        removeSelectedEmployees([pegawai.id]);
+    }
+};
+
 const toggleAllInvitations = (event: Event) => {
-    selectedInvitationIds.value = (event.target as HTMLInputElement).checked ? eligibleInvitationRows.value.map((pegawai) => pegawai.id) : [];
+    if ((event.target as HTMLInputElement).checked) {
+        const additions = eligibleSelectionRows.value.filter((pegawai) => !selectedEmployeeIds.value.has(pegawai.id));
+        selectedEmployees.value = [...selectedEmployees.value, ...additions].slice(0, 100);
+    } else {
+        removeSelectedEmployees(eligibleSelectionRows.value.map((pegawai) => pegawai.id));
+    }
 };
 
 const openBatchInvitation = () => {
@@ -544,15 +578,44 @@ const closeBatchInvitation = () => {
 };
 
 const submitBatchInvitation = () => {
+    if (batchInviteForm.processing) return;
     batchInviteForm.pegawai_ids = selectedInvitationRows.value.map((pegawai) => pegawai.id);
     if (!batchInviteForm.pegawai_ids.length) return;
+    const submittedIds = [...batchInviteForm.pegawai_ids];
 
     batchInviteForm.post(`${baseUrl}/user-invitations/batch`, {
         preserveScroll: true,
         onSuccess: () => {
             batchInvitationOpen.value = false;
-            selectedInvitationIds.value = [];
+            removeSelectedEmployees(submittedIds);
             batchInviteForm.reset();
+        },
+    });
+};
+
+const openBatchCancellation = () => {
+    if (!selectedCancellationRows.value.length) return;
+    batchCancelForm.clearErrors();
+    batchCancellationOpen.value = true;
+};
+
+const closeBatchCancellation = () => {
+    if (batchCancelForm.processing) return;
+    batchCancellationOpen.value = false;
+    batchCancelForm.clearErrors();
+};
+
+const submitBatchCancellation = () => {
+    if (batchCancelForm.processing) return;
+    batchCancelForm.pegawai_ids = selectedCancellationRows.value.map((pegawai) => pegawai.id);
+    if (!batchCancelForm.pegawai_ids.length) return;
+    const submittedIds = [...batchCancelForm.pegawai_ids];
+    batchCancelForm.delete(`${baseUrl}/user-invitations/batch`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            batchCancellationOpen.value = false;
+            removeSelectedEmployees(submittedIds);
+            batchCancelForm.reset();
         },
     });
 };
@@ -675,7 +738,7 @@ const destroy = () => {
                             <option v-for="unit in unitOptions" :key="unit.id" :value="unit.id">{{ unit.nama }}</option>
                         </select>
                     </label>
-                    <div v-if="can.create || can.create_user" class="employee-toolbar-actions">
+                    <div v-if="can.create || can.export || canSelectEmployees" class="employee-toolbar-actions">
                         <button
                             v-if="can.create_user"
                             type="button"
@@ -686,9 +749,41 @@ const destroy = () => {
                             <Mail /> Kirim aktivasi
                             <span v-if="selectedInvitationRows.length">{{ selectedInvitationRows.length }}</span>
                         </button>
+                        <button
+                            v-if="can.cancel_user_invitation"
+                            type="button"
+                            class="employee-batch-button"
+                            :disabled="!selectedCancellationRows.length"
+                            @click="openBatchCancellation"
+                        >
+                            <MailX /> Batal aktivasi
+                            <span v-if="selectedCancellationRows.length">{{ selectedCancellationRows.length }}</span>
+                        </button>
                         <button v-if="can.create" type="button" class="employee-create-button" @click="openCreate"><UserPlus /> Tambah manual</button>
                         <button v-if="can.create || can.export" type="button" class="employee-import-button" @click="openImport">
                             <FileSpreadsheet /> {{ can.create ? 'Import / Ekspor Excel' : 'Ekspor Excel' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="selectedEmployees.length" class="employee-selection-summary" aria-label="Pegawai terpilih">
+                    <div class="employee-selection-summary-header">
+                        <div>
+                            <strong aria-live="polite">{{ selectedEmployees.length }} pegawai dipilih</strong>
+                            <p>Pilihan tetap tersimpan saat mencari atau berpindah halaman. Maksimal 100 pegawai.</p>
+                        </div>
+                        <button type="button" @click="selectedEmployees = []">Hapus semua pilihan</button>
+                    </div>
+                    <div class="employee-selection-chips">
+                        <button
+                            v-for="pegawai in selectedEmployees"
+                            :key="pegawai.id"
+                            type="button"
+                            :aria-label="`Batalkan pilihan ${pegawai.nama}`"
+                            @click="removeSelectedEmployees([pegawai.id])"
+                        >
+                            <span>{{ pegawai.nama }}</span
+                            ><X />
                         </button>
                     </div>
                 </div>
@@ -698,13 +793,13 @@ const destroy = () => {
                         <table class="employee-table">
                             <thead>
                                 <tr>
-                                    <th v-if="can.create_user" class="employee-selection-cell">
+                                    <th v-if="canSelectEmployees" class="employee-selection-cell">
                                         <input
                                             type="checkbox"
                                             :checked="allEligibleInvitationsSelected"
                                             :indeterminate.prop="someEligibleInvitationsSelected"
-                                            :disabled="!eligibleInvitationRows.length"
-                                            aria-label="Pilih semua pegawai yang dapat dikirimi aktivasi pada halaman ini"
+                                            :disabled="!eligibleSelectionRows.length"
+                                            aria-label="Pilih semua pegawai yang dapat diproses pada halaman ini"
                                             @change="toggleAllInvitations"
                                         />
                                     </th>
@@ -724,20 +819,21 @@ const destroy = () => {
                             </thead>
                             <tbody>
                                 <tr v-for="pegawai in pegawais.data" :key="pegawai.id">
-                                    <td v-if="can.create_user" class="employee-selection-cell">
+                                    <td v-if="canSelectEmployees" class="employee-selection-cell">
                                         <input
-                                            v-model="selectedInvitationIds"
                                             type="checkbox"
                                             :value="pegawai.id"
-                                            :disabled="!pegawai.email || pegawai.account_status === 'active'"
-                                            :aria-label="`Pilih ${pegawai.nama} untuk pengiriman aktivasi`"
+                                            :checked="selectedEmployeeIds.has(pegawai.id)"
+                                            :disabled="selectionDisabled(pegawai)"
+                                            :aria-label="`Pilih ${pegawai.nama} untuk pengelolaan aktivasi`"
                                             :title="
-                                                !pegawai.email
-                                                    ? 'Email pegawai belum diisi'
-                                                    : pegawai.account_status === 'active'
-                                                      ? 'Akun pegawai sudah aktif'
+                                                pegawai.account_status === 'active'
+                                                    ? 'Akun pegawai sudah aktif'
+                                                    : selectionDisabled(pegawai)
+                                                      ? 'Pegawai tidak dapat dipilih atau batas 100 pilihan tercapai'
                                                       : 'Pilih pegawai'
                                             "
+                                            @change="toggleEmployeeSelection(pegawai, $event)"
                                         />
                                     </td>
                                     <td>
@@ -850,13 +946,14 @@ const destroy = () => {
                         <article v-for="pegawai in pegawais.data" :key="pegawai.id" class="employee-mobile-card">
                             <header>
                                 <input
-                                    v-if="can.create_user"
-                                    v-model="selectedInvitationIds"
+                                    v-if="canSelectEmployees"
                                     class="employee-mobile-selection"
                                     type="checkbox"
                                     :value="pegawai.id"
-                                    :disabled="!pegawai.email || pegawai.account_status === 'active'"
-                                    :aria-label="`Pilih ${pegawai.nama} untuk pengiriman aktivasi`"
+                                    :checked="selectedEmployeeIds.has(pegawai.id)"
+                                    :disabled="selectionDisabled(pegawai)"
+                                    :aria-label="`Pilih ${pegawai.nama} untuk pengelolaan aktivasi`"
+                                    @change="toggleEmployeeSelection(pegawai, $event)"
                                 />
                                 <div class="employee-identity">
                                     <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
@@ -939,7 +1036,7 @@ const destroy = () => {
                     <button v-else-if="can.create" type="button" @click="openCreate"><UserPlus /> Tambah pegawai pertama</button>
                 </div>
 
-                <Pagination :links="pegawais.links" :from="pegawais.from" :to="pegawais.to" :total="pegawais.total" />
+                <Pagination :links="pegawais.links" :from="pegawais.from" :to="pegawais.to" :total="pegawais.total" preserve-state />
             </section>
         </div>
 
@@ -1437,8 +1534,8 @@ const destroy = () => {
                             </em>
                         </div>
                     </div>
-                    <small v-if="batchInviteForm.errors.pegawai_ids" class="employee-field-error">
-                        {{ batchInviteForm.errors.pegawai_ids }}
+                    <small v-if="batchInviteError" class="employee-field-error">
+                        {{ batchInviteError }}
                     </small>
                 </div>
                 <div class="admin-modal-footer employee-modal-footer">
@@ -1449,6 +1546,46 @@ const destroy = () => {
                         <LoaderCircle v-if="batchInviteForm.processing" class="employee-spin" />
                         <Mail v-else />
                         {{ batchInviteForm.processing ? 'Mengirim...' : `Kirim ke ${selectedInvitationRows.length} pegawai` }}
+                    </button>
+                </div>
+            </form>
+        </CrudModal>
+
+        <CrudModal
+            :open="batchCancellationOpen"
+            :title="`Batalkan aktivasi ${selectedCancellationRows.length} akun pegawai?`"
+            description="Akun yang belum aktif akan dihapus dan tautan aktivasi lama tidak dapat digunakan lagi. Data pegawai tetap tersimpan."
+            @close="closeBatchCancellation"
+        >
+            <form class="employee-invite-form" @submit.prevent="submitBatchCancellation">
+                <div class="admin-modal-body employee-modal-body">
+                    <div class="employee-batch-summary">
+                        <span><MailX /></span>
+                        <div>
+                            <strong>{{ selectedCancellationRows.length }} akun menunggu aktivasi</strong>
+                            <p>Hanya pilihan yang sedang menunggu aktivasi akan dibatalkan. Pegawai tanpa akun tetap berada dalam daftar pilihan.</p>
+                        </div>
+                    </div>
+                    <div class="employee-batch-recipients" aria-label="Daftar pembatalan aktivasi">
+                        <div v-for="pegawai in selectedCancellationRows" :key="pegawai.id">
+                            <span class="employee-identity-avatar" :class="avatarTone(pegawai.id)">{{ initials(pegawai.nama) }}</span>
+                            <span>
+                                <strong>{{ pegawai.nama }}</strong>
+                                <small>{{ pegawai.email }}</small>
+                            </span>
+                            <em class="pending">Menunggu aktivasi</em>
+                        </div>
+                    </div>
+                    <small v-if="batchCancelError" class="employee-field-error">{{ batchCancelError }}</small>
+                </div>
+                <div class="admin-modal-footer employee-modal-footer">
+                    <button type="button" class="employee-button ghost" :disabled="batchCancelForm.processing" @click="closeBatchCancellation">
+                        Kembali
+                    </button>
+                    <button type="submit" class="employee-button danger" :disabled="batchCancelForm.processing || !selectedCancellationRows.length">
+                        <LoaderCircle v-if="batchCancelForm.processing" class="employee-spin" />
+                        <MailX v-else />
+                        {{ batchCancelForm.processing ? 'Membatalkan...' : `Batalkan ${selectedCancellationRows.length} aktivasi` }}
                     </button>
                 </div>
             </form>
@@ -2071,6 +2208,67 @@ const destroy = () => {
     display: flex;
     flex-wrap: wrap;
     gap: 0.55rem;
+}
+
+.employee-selection-summary {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0 1rem 1rem;
+    padding: 1rem;
+    border: 1px solid var(--employee-line);
+    border-radius: 1rem;
+    color: var(--employee-ink);
+    background: var(--rs-canvas);
+}
+.employee-selection-summary-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.employee-selection-summary strong {
+    font-size: 0.8rem;
+}
+.employee-selection-summary p {
+    margin: 0.25rem 0 0;
+    color: var(--employee-muted);
+    font-size: 0.7rem;
+}
+.employee-selection-summary-header > button {
+    padding: 0;
+    border: 0;
+    color: var(--employee-teal);
+    background: transparent;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+.employee-selection-chips {
+    display: flex;
+    max-height: 10rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    overflow-y: auto;
+}
+.employee-selection-chips button {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--employee-line);
+    border-radius: 0.65rem;
+    color: var(--employee-ink);
+    background: var(--rs-surface, #fff);
+    font-size: 0.7rem;
+}
+.employee-selection-chips span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.employee-selection-chips svg {
+    width: 0.85rem;
+    flex-shrink: 0;
 }
 
 .employee-create-button,

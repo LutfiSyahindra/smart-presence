@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Absensi\ConfigurationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -47,7 +48,8 @@ class LemburRequest extends Model
 
     public function scopeAwaitingApprovalBy(Builder $query, User $user): Builder
     {
-        return $query->where('status', 'pending')->where('user_id', '!=', $user->id)
+        return $query->where('status', 'pending')
+            ->when(! app(ConfigurationService::class)->current()->allow_self_approval, fn (Builder $query) => $query->where('user_id', '!=', $user->id))
             ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id)->where('status', 'pending')
                 ->whereColumn('lembur_approvals.level', 'lembur_requests.current_level'));
     }
@@ -61,12 +63,13 @@ class LemburRequest extends Model
     public function canBeCancelledBy(User $user): bool
     {
         return (int) $this->user_id === (int) $user->id && ($this->status === 'pending'
-            || ($this->status === 'approved' && app(\App\Services\Absensi\ConfigurationService::class)->current()->cancel_approved_lembur));
+            || ($this->status === 'approved' && app(ConfigurationService::class)->current()->cancel_approved_lembur));
     }
 
     public function canBeDecidedBy(User $user): bool
     {
-        return $this->status === 'pending' && (int) $this->user_id !== (int) $user->id
+        return $this->status === 'pending'
+            && ((int) $this->user_id !== (int) $user->id || app(ConfigurationService::class)->current()->allow_self_approval)
             && $this->approvals->contains(fn ($step) => (int) $step->user_id === (int) $user->id
                 && $step->level === $this->current_level && $step->status === 'pending');
     }

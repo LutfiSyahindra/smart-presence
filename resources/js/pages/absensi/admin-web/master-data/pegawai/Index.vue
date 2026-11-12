@@ -15,6 +15,7 @@ import {
     FileSpreadsheet,
     LoaderCircle,
     Mail,
+    MailX,
     Pencil,
     Phone,
     RefreshCw,
@@ -83,7 +84,7 @@ const props = defineProps<{
     overview: PegawaiOverview;
     unitOptions: UnitOption[];
     filters: { search?: string; status?: string; unit_kerja?: number | string };
-    can: { create: boolean; update: boolean; delete: boolean; create_user: boolean; export: boolean };
+    can: { create: boolean; update: boolean; delete: boolean; create_user: boolean; cancel_user_invitation: boolean; export: boolean };
 }>();
 
 const baseUrl = '/absensi/admin-web/master-data/pegawai';
@@ -113,6 +114,7 @@ const fileInputKey = ref(0);
 const editing = ref<PegawaiRow | null>(null);
 const selected = ref<PegawaiRow | null>(null);
 const inviting = ref<PegawaiRow | null>(null);
+const cancellingInvitation = ref<PegawaiRow | null>(null);
 const selectedInvitationIds = ref<number[]>([]);
 const batchInvitationOpen = ref(false);
 const deleting = ref(false);
@@ -135,6 +137,7 @@ const emptyForm = () => ({
 const createForm = useForm(emptyForm());
 const editForm = useForm(emptyForm());
 const inviteForm = useForm({});
+const cancelInviteForm = useForm({});
 const batchInviteForm = useForm<{ pegawai_ids: number[] }>({ pegawai_ids: [] });
 
 const hasActiveFilters = computed(() => Boolean(search.value.trim()) || status.value !== 'all' || unitKerja.value !== 0);
@@ -500,6 +503,29 @@ const submitInvitation = () => {
     });
 };
 
+const openCancelInvitation = (pegawai: PegawaiRow) => {
+    cancelInviteForm.clearErrors();
+    cancellingInvitation.value = pegawai;
+};
+
+const closeCancelInvitation = () => {
+    if (cancelInviteForm.processing) return;
+    cancellingInvitation.value = null;
+    cancelInviteForm.clearErrors();
+};
+
+const submitCancelInvitation = () => {
+    if (!cancellingInvitation.value || cancelInviteForm.processing) return;
+    const pegawaiId = cancellingInvitation.value.id;
+    cancelInviteForm.delete(`${baseUrl}/${pegawaiId}/user-invitation`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            cancellingInvitation.value = null;
+            selectedInvitationIds.value = selectedInvitationIds.value.filter((id) => id !== pegawaiId);
+        },
+    });
+};
+
 const toggleAllInvitations = (event: Event) => {
     selectedInvitationIds.value = (event.target as HTMLInputElement).checked ? eligibleInvitationRows.value.map((pegawai) => pegawai.id) : [];
 };
@@ -688,7 +714,12 @@ const destroy = () => {
                                     <th>Status</th>
                                     <th>Mulai bekerja</th>
                                     <th>Kontak</th>
-                                    <th v-if="can.create_user || can.update || can.delete" class="employee-actions-heading">Aksi</th>
+                                    <th
+                                        v-if="can.create_user || can.cancel_user_invitation || can.update || can.delete"
+                                        class="employee-actions-heading"
+                                    >
+                                        Aksi
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -758,7 +789,7 @@ const destroy = () => {
                                             <small v-if="!pegawai.nomor_telepon && !pegawai.email" class="employee-updated">Belum diisi</small>
                                         </span>
                                     </td>
-                                    <td v-if="can.create_user || can.update || can.delete">
+                                    <td v-if="can.create_user || can.cancel_user_invitation || can.update || can.delete">
                                         <div class="employee-row-actions">
                                             <button
                                                 v-if="can.create_user && pegawai.account_status !== 'active'"
@@ -777,6 +808,16 @@ const destroy = () => {
                                             >
                                                 <RefreshCw v-if="pegawai.account_status === 'pending'" />
                                                 <UserPlus v-else />
+                                            </button>
+                                            <button
+                                                v-if="can.cancel_user_invitation && pegawai.account_status === 'pending'"
+                                                type="button"
+                                                class="danger"
+                                                aria-label="Batal Aktivasi"
+                                                title="Batal Aktivasi"
+                                                @click="openCancelInvitation(pegawai)"
+                                            >
+                                                <MailX />
                                             </button>
                                             <button
                                                 v-if="can.update"
@@ -824,7 +865,7 @@ const destroy = () => {
                                         ><small>NIK {{ pegawai.nik ?? '-' }} · {{ pegawai.status_pegawai ?? '-' }}</small></span
                                     >
                                 </div>
-                                <div v-if="can.create_user || can.update || can.delete" class="employee-row-actions">
+                                <div v-if="can.create_user || can.cancel_user_invitation || can.update || can.delete" class="employee-row-actions">
                                     <button
                                         v-if="can.create_user && pegawai.account_status !== 'active'"
                                         type="button"
@@ -835,6 +876,16 @@ const destroy = () => {
                                     >
                                         <RefreshCw v-if="pegawai.account_status === 'pending'" />
                                         <UserPlus v-else />
+                                    </button>
+                                    <button
+                                        v-if="can.cancel_user_invitation && pegawai.account_status === 'pending'"
+                                        type="button"
+                                        class="danger"
+                                        aria-label="Batal Aktivasi"
+                                        title="Batal Aktivasi"
+                                        @click="openCancelInvitation(pegawai)"
+                                    >
+                                        <MailX />
                                     </button>
                                     <button v-if="can.update" type="button" aria-label="Edit pegawai" @click="openEdit(pegawai)"><Pencil /></button>
                                     <button
@@ -1322,6 +1373,38 @@ const destroy = () => {
                         <RefreshCw v-else-if="inviting?.account_status === 'pending'" />
                         <Mail v-else />
                         {{ inviteForm.processing ? 'Mengirim...' : inviting?.account_status === 'pending' ? 'Kirim ulang' : 'Buat akun & kirim' }}
+                    </button>
+                </div>
+            </form>
+        </CrudModal>
+
+        <CrudModal
+            :open="Boolean(cancellingInvitation)"
+            title="Batalkan aktivasi akun pegawai?"
+            description="Akun yang belum aktif akan dihapus dan tautan aktivasi sebelumnya tidak dapat digunakan lagi. Data pegawai tetap tersimpan."
+            @close="closeCancelInvitation"
+        >
+            <form class="employee-invite-form" @submit.prevent="submitCancelInvitation">
+                <div class="admin-modal-body employee-modal-body">
+                    <div class="employee-profile-preview">
+                        <span>{{ initials(cancellingInvitation?.nama || 'Pegawai') }}</span>
+                        <div>
+                            <small>Pembatalan aktivasi</small>
+                            <strong>{{ cancellingInvitation?.nama }}</strong>
+                            <em>{{ cancellingInvitation?.email }}</em>
+                        </div>
+                    </div>
+                    <p class="employee-form-hint">Status akan kembali menjadi Belum punya akun. Anda dapat mengirim undangan aktivasi baru nanti.</p>
+                    <small v-if="cancelInviteForm.errors.pegawai" class="employee-field-error">{{ cancelInviteForm.errors.pegawai }}</small>
+                </div>
+                <div class="admin-modal-footer employee-modal-footer">
+                    <button type="button" class="employee-button ghost" :disabled="cancelInviteForm.processing" @click="closeCancelInvitation">
+                        Kembali
+                    </button>
+                    <button type="submit" class="employee-button danger" :disabled="cancelInviteForm.processing">
+                        <LoaderCircle v-if="cancelInviteForm.processing" class="employee-spin" />
+                        <MailX v-else />
+                        {{ cancelInviteForm.processing ? 'Membatalkan...' : 'Batal Aktivasi' }}
                     </button>
                 </div>
             </form>
@@ -2705,6 +2788,15 @@ const destroy = () => {
     color: #fff;
     background: linear-gradient(135deg, #14b8a6, var(--rs-primary-hover));
     box-shadow: 0 10px 20px -14px var(--rs-primary-hover);
+}
+.employee-button.danger {
+    color: #fff;
+    background: #e11d48;
+}
+.employee-form-hint {
+    margin: 1rem 0 0;
+    color: var(--rs-muted);
+    font-size: 0.8rem;
 }
 .employee-button:disabled {
     cursor: not-allowed;

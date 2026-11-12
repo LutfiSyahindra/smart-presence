@@ -42,7 +42,7 @@ class PerubahanShiftService
             ! $line || $line->steps->isEmpty() => 'Approval line perubahan shift untuk jabatan Anda belum diatur. Hubungi administrator.',
             $line->steps->count() > 3 || $line->steps->pluck('level')->all() !== range(1, $line->steps->count())
                 || $line->steps->pluck('user_id')->unique()->count() !== $line->steps->count() => 'Urutan approval line perubahan shift tidak valid. Hubungi administrator.',
-            $line->steps->contains('user_id', $user->id) => 'Anda tidak dapat menjadi approver pengajuan sendiri. Hubungi administrator.',
+            ! app(ConfigurationService::class)->current()->allow_self_approval && $line->steps->contains('user_id', $user->id) => 'Anda tidak dapat menjadi approver pengajuan sendiri. Hubungi administrator.',
             $line->steps->contains(fn ($step) => ! $step->user || ! $step->user->hasVerifiedEmail()
                 || (! $step->user->can(AccessPermission::MOBILE_ACCESS)
                     && ! (PengajuanAccess::allows($step->user) && $step->user->can(AccessPermission::CUTI_VIEW)

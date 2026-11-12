@@ -9,6 +9,7 @@ use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use App\Services\Absensi\AdminWeb\MasterData\Cuti\MasterCutiService;
+use App\Services\Absensi\ConfigurationService;
 use App\Support\AccessPermission;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -33,7 +34,7 @@ class CutiController extends Controller
         ]);
         $scope = $filters['scope'] ?? ($canSubmit ? 'mine' : 'inbox');
         $search = trim($filters['search'] ?? '');
-        $inbox = fn (Builder $query) => $query->where('status', 'pending')->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id)->where('status', 'pending'));
+        $inbox = fn (Builder $query) => $query->awaitingApprovalBy($user);
 
         $query = CutiRequest::query()->with('approvals');
         match ($scope) {
@@ -51,7 +52,7 @@ class CutiController extends Controller
             ! $pegawai?->jabatan_id => 'Akun Anda belum terhubung ke pegawai dengan jabatan. Hubungi administrator.',
             ! $pegawai->jabatan?->aktif || ! $pegawai->jabatan?->unitKerja?->aktif => 'Unit atau jabatan Anda tidak aktif.',
             ! $line || $line->steps->isEmpty() => 'Approval line cuti untuk jabatan Anda belum diatur.',
-            $line->steps->contains('user_id', $user->id) => 'Approval line memuat akun Anda sendiri. Hubungi administrator.',
+            ! app(ConfigurationService::class)->current()->allow_self_approval && $line->steps->contains('user_id', $user->id) => 'Approval line memuat akun Anda sendiri. Hubungi administrator.',
             $line->steps->contains(fn ($step) => $step->user === null) => 'Ada pengguna approver yang tidak tersedia. Hubungi administrator.',
             $leaveOptions === [] => 'Belum ada jenis cuti yang diberikan kepada Anda. Hubungi administrator.',
             default => null,
@@ -68,8 +69,7 @@ class CutiController extends Controller
                     'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
                     'nama_cuti' => $cuti->nama_cuti, 'jumlah_hari' => $cuti->jumlah_hari,
                     'created_at' => $cuti->created_at->format('d M Y, H:i'),
-                    'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $cuti->status === 'pending' && (int) $cuti->user_id !== (int) $user->id
-                        && $cuti->approvals->contains(fn ($step) => $step->level === $cuti->current_level && $step->status === 'pending' && (int) $step->user_id === (int) $user->id),
+                    'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $cuti->canBeDecidedBy($user),
                     'approvals' => $cuti->approvals->map(fn ($step) => [
                         'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,
                         'note' => $step->note, 'decided_at' => $step->decided_at?->format('d M Y, H:i'),

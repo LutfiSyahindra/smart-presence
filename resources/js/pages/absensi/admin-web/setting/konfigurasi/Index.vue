@@ -14,6 +14,7 @@ interface Configuration {
     perubahan_shift_after_clock_in: boolean;
     clock_in_tolerance_minutes: number;
     approve_past_requests: boolean;
+    allow_self_approval: boolean;
 }
 
 const props = defineProps<{ configuration: Configuration; can: { update: boolean } }>();
@@ -66,6 +67,12 @@ const groups = [
         title: 'Approval',
         icon: ShieldCheck,
         fields: [
+            {
+                key: 'allow_self_approval',
+                label: 'Izinkan approval diri sendiri',
+                description:
+                    'Pemohon yang tercantum sebagai approver dapat menyetujui atau menolak pengajuannya sendiri sesuai urutan approval. Berlaku untuk cuti, lembur, penggunaan lembur, perubahan shift, dan presensi di web maupun mobile.',
+            },
             {
                 key: 'approve_past_requests',
                 label: 'Izinkan persetujuan dan penolakan pengajuan yang sudah lewat',

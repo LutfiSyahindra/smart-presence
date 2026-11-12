@@ -11,10 +11,22 @@ Jalankan `php artisan migrate` untuk membuat tabel dan permission baru.
 | Pengajuan perubahan shift setelah clock-in | Tidak diizinkan |
 | Toleransi clock-in | 0 menit |
 | Approval pengajuan tanggal lampau | Diizinkan |
+| Approval diri sendiri | Tidak diizinkan |
 
 Permission `configuration.view` memberikan akses melihat; `configuration.update`
 memberikan akses menyimpan bersama permission melihat dan `admin.access`.
 Super-admin mendapatkan keduanya melalui migration dan seeder.
+
+Pengaturan **Izinkan approval diri sendiri** berlaku untuk cuti, lembur,
+penggunaan lembur, perubahan shift, dan presensi di web maupun mobile. Jika
+diaktifkan, pemohon boleh tercantum pada approval line dan menyetujui atau
+menolak pengajuannya sendiri hanya saat gilirannya sebagai approver. Hak akses,
+urutan approval, dan aturan pengajuan lainnya tetap berlaku. Persetujuan tetap
+dilakukan secara manual, termasuk pada approval massal. Jika dinonaktifkan,
+pengajuan baru dengan approval line yang memuat pemohon diblokir dan pemohon
+tidak dapat memproses approval dirinya pada pengajuan yang masih menunggu.
+Jalankan `php artisan migrate` untuk menambahkan kolom `allow_self_approval`
+pada instalasi yang sudah ada; nilai awalnya `false`.
 
 Aturan berlaku di server untuk web dan API mobile. Pembatalan tetap hanya dapat
 dilakukan oleh pemohon. Saldo cuti dihitung ulang setelah pembatalan. Lembur yang

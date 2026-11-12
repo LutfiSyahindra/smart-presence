@@ -132,7 +132,7 @@ class LemburService
             ! $pegawai || ! $jabatan => 'Akun Anda belum terhubung ke pegawai dengan jabatan. Hubungi administrator.',
             ! $jabatan->aktif || ! $jabatan->unitKerja?->aktif => 'Unit atau jabatan Anda tidak aktif. Hubungi administrator.',
             ! $line || $line->steps->isEmpty() => 'Approval line lembur untuk jabatan Anda belum diatur. Hubungi administrator.',
-            $line->steps->contains('user_id', $user->id) => 'Anda tidak dapat menyetujui pengajuan sendiri. Hubungi administrator untuk memperbaiki approval line lembur.',
+            ! app(ConfigurationService::class)->current()->allow_self_approval && $line->steps->contains('user_id', $user->id) => 'Anda tidak dapat menyetujui pengajuan sendiri. Hubungi administrator untuk memperbaiki approval line lembur.',
             $line->steps->contains(fn ($step) => ! $step->user || ! $step->user->hasVerifiedEmail()
                 || (! $step->user->can(AccessPermission::MOBILE_ACCESS)
                     && ! (PengajuanAccess::allows($step->user) && $step->user->can(AccessPermission::CUTI_VIEW) && $step->user->can(AccessPermission::CUTI_APPROVE)))) => 'Ada approver yang belum memiliki akun terverifikasi atau akses persetujuan web/mobile. Hubungi administrator.',

@@ -30,6 +30,7 @@ class ConfigurationController extends Controller
             'perubahan_shift_after_clock_in' => ['required', 'boolean'],
             'clock_in_tolerance_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
             'approve_past_requests' => ['required', 'boolean'],
+            'allow_self_approval' => ['required', 'boolean'],
         ], [
             'clock_in_tolerance_minutes.required' => 'Toleransi clock-in wajib diisi.',
             'clock_in_tolerance_minutes.integer' => 'Toleransi clock-in harus berupa menit bulat.',

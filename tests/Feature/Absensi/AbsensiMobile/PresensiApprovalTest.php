@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Repositories\Absensi\AdminWeb\Presensi\PresensiRepository;
 use App\Services\Absensi\AbsensiMobile\PresensiApprovalService;
 use App\Services\Absensi\AbsensiMobile\QueuedAttendanceService;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\Notifications\PresensiNotificationService;
 use App\Support\AccessPermission;
 use App\ValueObjects\FaceVerificationResult;
@@ -30,6 +31,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class PresensiApprovalTest extends TestCase
@@ -105,6 +107,29 @@ class PresensiApprovalTest extends TestCase
     private function web(PresensiRequest $item): string
     {
         return self::WEB.'/pengajuan/presensi/'.$item->id;
+    }
+
+    #[TestWith(['approved'])]
+    #[TestWith(['rejected'])]
+    public function test_self_approval_follows_configuration_for_attendance_and_approval_inbox(string $decision): void
+    {
+        $this->line->steps()->where('level', 2)->update(['user_id' => $this->owner->id]);
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->owner->id);
+        $item = $this->submit();
+        $url = self::MOBILE.'/'.$item->id.'/decision';
+        $data = ['decision' => $decision, 'note' => 'Keputusan pemohon sebagai approver.'];
+        $this->post($url, $data)->assertForbidden();
+        $this->actingAs($this->first)->post($this->web($item).'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        app(ConfigurationService::class)->update(['allow_self_approval' => false], $this->owner->id);
+        $this->actingAs($this->owner)->post($url, $data)->assertForbidden();
+        $this->get('/absensi/mobile/notifikasi/presensi')->assertInertia(fn (Assert $page) => $page->where('requests.total', 0));
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->owner->id);
+        $this->get('/absensi/mobile/notifikasi/presensi')->assertInertia(fn (Assert $page) => $page->where('requests.total', 1));
+        $this->get(self::MOBILE.'/'.$item->id)->assertInertia(fn (Assert $page) => $page->where('presensiRequest.can_decide', true));
+        $this->post($url, $data)->assertSessionHasNoErrors();
+        $this->assertSame($decision, $item->fresh()->status);
+        $this->assertSame(['approved', $decision], $item->fresh()->approvals->pluck('status')->all());
+        $this->assertSame($decision, Presensi::query()->sole()->clock_in_approval_status);
     }
 
     public function test_mobile_queue_filters_period_search_and_order_within_the_authorized_scope(): void

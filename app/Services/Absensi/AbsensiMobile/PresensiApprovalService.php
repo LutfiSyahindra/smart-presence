@@ -7,6 +7,7 @@ use App\Models\Jabatan;
 use App\Models\Presensi;
 use App\Models\PresensiRequest;
 use App\Models\User;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\Notifications\PresensiNotificationService;
 use App\Support\AccessPermission;
 use App\Support\PengajuanAccess;
@@ -30,7 +31,7 @@ class PresensiApprovalService
             $steps->isEmpty() => 'Approval line presensi untuk jabatan Anda belum diatur. Hubungi administrator.',
             $steps->count() > 3 || $steps->pluck('level')->all() !== range(1, $steps->count())
                 || $steps->pluck('user_id')->unique()->count() !== $steps->count() => 'Urutan approval line presensi tidak valid. Hubungi administrator.',
-            $steps->contains('user_id', $user->id) => 'Anda tidak dapat menyetujui presensi sendiri. Hubungi administrator.',
+            ! app(ConfigurationService::class)->current()->allow_self_approval && $steps->contains('user_id', $user->id) => 'Anda tidak dapat menyetujui presensi sendiri. Hubungi administrator.',
             $steps->contains(fn ($step) => ! $step->user?->hasVerifiedEmail()
                 || (! ($step->user->can(AccessPermission::MOBILE_ACCESS) && $step->user->can(AccessPermission::MOBILE_NOTIFICATIONS))
                     && ! (PengajuanAccess::allows($step->user) && $step->user->can(AccessPermission::CUTI_VIEW)

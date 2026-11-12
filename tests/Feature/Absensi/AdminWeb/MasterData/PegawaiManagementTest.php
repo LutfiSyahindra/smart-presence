@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Absensi\AdminWeb\MasterData;
 
+use App\Models\ApprovalLine;
 use App\Models\Pegawai;
 use App\Models\UnitKerja;
 use App\Models\User;
@@ -14,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -78,7 +80,8 @@ class PegawaiManagementTest extends TestCase
                 ->where('can.create', false)
                 ->where('can.update', false)
                 ->where('can.delete', false)
-                ->where('can.create_user', false));
+                ->where('can.create_user', false)
+                ->where('can.cancel_user_invitation', false));
     }
 
     public function test_super_admin_can_download_the_official_excel_template(): void
@@ -748,6 +751,119 @@ class PegawaiManagementTest extends TestCase
         Notification::assertSentTo($user, EmployeeAccountInvitation::class);
     }
 
+    public function test_super_admin_can_cancel_pending_activation_and_invite_the_employee_again(): void
+    {
+        Notification::fake();
+        $pegawai = Pegawai::query()->create([
+            'nama' => 'Batal Aktivasi',
+            'email' => 'batal.aktivasi@rsarsy.co.id',
+        ]);
+        $this->actingAs($this->admin)
+            ->post("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+            ->assertSessionHasNoErrors();
+        $user = $pegawai->refresh()->user;
+        $token = null;
+        Notification::assertSentTo($user, EmployeeAccountInvitation::class, function (EmployeeAccountInvitation $notification) use (&$token) {
+            $token = $notification->token;
+
+            return true;
+        });
+
+        $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/absensi/admin-web/master-data/pegawai')
+            ->assertSessionHas('success', 'Aktivasi akun pegawai berhasil dibatalkan. Data pegawai tetap tersimpan.');
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+        $this->assertDatabaseHas('pegawais', [
+            'id' => $pegawai->id, 'nama' => $pegawai->nama, 'email' => $pegawai->email, 'user_id' => null,
+        ]);
+        $this->get('/absensi/admin-web/master-data/pegawai')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('can.cancel_user_invitation', true)
+                ->where('pegawais.data.0.account_status', 'none'));
+
+        $this->post('/logout');
+        $this->get((new EmployeeAccountInvitation($token))->toMail($user)->actionUrl)
+            ->assertInertia(fn (Assert $page) => $page->where('invitationError', fn ($error) => filled($error)));
+        $this->post('/reset-password', [
+            'token' => $token, 'email' => $user->email,
+            'password' => 'PasswordBaru123!', 'password_confirmation' => 'PasswordBaru123!',
+        ])->assertSessionHasErrors('email');
+
+        $this->actingAs($this->admin)
+            ->post("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+            ->assertSessionHasNoErrors();
+        $newUser = $pegawai->refresh()->user;
+        $this->assertNotNull($newUser);
+        $this->assertNull($newUser->email_verified_at);
+        $this->assertFalse(Password::broker()->tokenExists($newUser, $token));
+        Notification::assertSentTo($newUser, EmployeeAccountInvitation::class);
+    }
+
+    public function test_activation_cancellation_rejects_active_accounts_and_employees_without_accounts(): void
+    {
+        $activeUser = User::factory()->create();
+        $active = $activeUser->pegawai()->create(['nama' => $activeUser->name, 'email' => $activeUser->email]);
+        $withoutAccount = Pegawai::query()->create(['nama' => 'Belum Punya Akun']);
+        $token = Password::createToken($activeUser);
+
+        foreach ([$active, $withoutAccount] as $pegawai) {
+            $this->actingAs($this->admin)
+                ->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+                ->assertSessionHasErrors('pegawai');
+        }
+
+        $this->assertDatabaseHas('users', ['id' => $activeUser->id]);
+        $this->assertSame($activeUser->id, $active->refresh()->user_id);
+        $this->assertTrue(Password::broker()->tokenExists($activeUser, $token));
+        $this->assertDatabaseHas('pegawais', ['id' => $withoutAccount->id, 'user_id' => null]);
+    }
+
+    public function test_activation_cancellation_requires_user_deletion_permission(): void
+    {
+        $actor = User::factory()->create();
+        $actor->givePermissionTo([AccessPermission::ADMIN_ACCESS, AccessPermission::PEGAWAI_VIEW, AccessPermission::USERS_CREATE]);
+        $pendingUser = User::factory()->unverified()->create();
+        $pegawai = $pendingUser->pegawai()->create(['nama' => $pendingUser->name, 'email' => $pendingUser->email]);
+        $token = Password::createToken($pendingUser);
+
+        $this->actingAs($actor)
+            ->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+            ->assertForbidden();
+        $this->assertDatabaseHas('users', ['id' => $pendingUser->id]);
+        $this->assertTrue(Password::broker()->tokenExists($pendingUser, $token));
+
+        $actor->revokePermissionTo(AccessPermission::USERS_CREATE);
+        $actor->givePermissionTo(AccessPermission::USERS_DELETE);
+        $this->get('/absensi/admin-web/master-data/pegawai')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('can.create_user', false)
+                ->where('can.cancel_user_invitation', true));
+        $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+            ->assertSessionHasNoErrors();
+        $this->assertNull($pegawai->refresh()->user_id);
+    }
+
+    public function test_activation_cancellation_preserves_accounts_that_are_still_approvers(): void
+    {
+        $pendingUser = User::factory()->unverified()->create();
+        $pegawai = $pendingUser->pegawai()->create(['nama' => $pendingUser->name, 'email' => $pendingUser->email]);
+        $line = ApprovalLine::query()->create(['type' => ApprovalLine::TYPE_CUTI]);
+        $line->steps()->create(['user_id' => $pendingUser->id, 'level' => 1]);
+        $token = Password::createToken($pendingUser);
+
+        $this->actingAs($this->admin)
+            ->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")
+            ->assertSessionHasErrors('pegawai');
+
+        $this->assertSame($pendingUser->id, $pegawai->refresh()->user_id);
+        $this->assertDatabaseHas('users', ['id' => $pendingUser->id]);
+        $this->assertTrue(Password::broker()->tokenExists($pendingUser, $token));
+        $this->assertDatabaseHas('approval_line_steps', ['approval_line_id' => $line->id, 'user_id' => $pendingUser->id]);
+    }
+
     public function test_super_admin_can_send_activation_invitations_to_selected_employees_in_batch(): void
     {
         Notification::fake();
@@ -932,6 +1048,7 @@ class PegawaiManagementTest extends TestCase
         $this->post('/absensi/admin-web/master-data/pegawai/import', ['file' => $this->excelUpload([])])->assertForbidden();
         $this->post('/absensi/admin-web/master-data/pegawai/user-invitations/batch', ['pegawai_ids' => [$pegawai->id]])->assertForbidden();
         $this->post("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")->assertForbidden();
+        $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}/user-invitation")->assertForbidden();
         $this->put("/absensi/admin-web/master-data/pegawai/{$pegawai->id}", [])->assertForbidden();
         $this->delete("/absensi/admin-web/master-data/pegawai/{$pegawai->id}")->assertForbidden();
     }

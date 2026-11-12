@@ -7,6 +7,7 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use App\Notifications\EmployeeAccountInvitation;
 use App\Repositories\Absensi\AdminWeb\MasterData\Pegawai\PegawaiRepositoryInterface;
+use App\Services\Absensi\AdminWeb\Setting\User\UserService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
@@ -23,6 +24,7 @@ class PegawaiService
     public function __construct(
         private readonly PegawaiRepositoryInterface $pegawais,
         private readonly PegawaiSpreadsheetService $spreadsheets,
+        private readonly UserService $users,
     ) {}
 
     /** @param array{search?: string|null, status?: string|null, unit_kerja?: int|string|null} $filters */
@@ -285,6 +287,30 @@ class PegawaiService
         }
 
         return ['user' => $user, 'resent' => $resent];
+    }
+
+    public function cancelUserInvitation(Pegawai $pegawai, User $actor): void
+    {
+        DB::transaction(function () use ($pegawai, $actor): void {
+            $pegawai = Pegawai::query()->lockForUpdate()->findOrFail($pegawai->id);
+            $user = $pegawai->user()->lockForUpdate()->first();
+
+            if ($user === null || $user->hasVerifiedEmail()) {
+                throw ValidationException::withMessages([
+                    'pegawai' => 'Hanya pegawai yang sedang menunggu aktivasi yang dapat dibatalkan aktivasinya.',
+                ]);
+            }
+
+            try {
+                $this->users->delete($user, $actor);
+            } catch (ValidationException $exception) {
+                throw ValidationException::withMessages([
+                    'pegawai' => collect($exception->errors())->flatten()->first(),
+                ]);
+            }
+
+            Password::broker()->deleteToken($user);
+        });
     }
 
     /**

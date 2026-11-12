@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Repositories\Absensi\AdminWeb\Presensi\PresensiRepository;
 use App\Services\Absensi\AbsensiMobile\LemburService;
 use App\Services\Absensi\AdminWeb\Presensi\PresensiService;
+use App\Services\Absensi\ConfigurationService;
 use App\ValueObjects\FaceVerificationResult;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,7 +74,7 @@ class LemburUsageTest extends TestCase
         $source = $this->earn();
         $usage = $this->submit();
         $service = app(LemburService::class);
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['cancel_approved_lembur' => true], $this->first->id);
+        app(ConfigurationService::class)->update(['cancel_approved_lembur' => true], $this->first->id);
         $this->actingAs($this->employee)->post(self::URL.'/'.$source->id.'/cancel')->assertSessionHasErrors('cancel');
         $this->assertSame('approved', $source->fresh()->status);
         $this->approve($usage);
@@ -90,11 +91,11 @@ class LemburUsageTest extends TestCase
             'before_break_minutes' => 0, 'after_minutes' => 60, 'after_break_minutes' => 0,
             'compensation' => 'time_off', 'alasan' => 'Pelayanan tambahan.',
         ]);
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => false], $this->first->id);
+        app(ConfigurationService::class)->update(['approve_past_requests' => false], $this->first->id);
         $this->actingAs($this->first)->post(self::URL.'/'.$request->id.'/decision', ['decision' => 'approved'])->assertSessionHasErrors('decision');
         $this->post(self::URL.'/'.$request->id.'/decision', ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasErrors('decision');
         $this->assertSame('pending', $request->fresh()->approvals->first()->status);
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => true], $this->first->id);
+        app(ConfigurationService::class)->update(['approve_past_requests' => true], $this->first->id);
         $this->approve($request);
         $this->assertSame('approved', $request->fresh()->status);
     }
@@ -104,7 +105,7 @@ class LemburUsageTest extends TestCase
         $this->earn();
         $usage = $this->submit();
         $this->approve($usage);
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['clock_in_tolerance_minutes' => 10], $this->first->id);
+        app(ConfigurationService::class)->update(['clock_in_tolerance_minutes' => 10], $this->first->id);
         $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
             'tanggal_presensi' => '2026-10-23', 'clock_in_at' => '2026-10-23 09:10:00', 'is_day_off' => false]);
         $this->assertSame(0, $record->lateMinutes());
@@ -145,6 +146,22 @@ class LemburUsageTest extends TestCase
             ->assertSessionHasNoErrors()->assertRedirect();
 
         return LemburRequest::query()->where('request_kind', 'usage')->latest('id')->firstOrFail();
+    }
+
+    public function test_self_approval_of_overtime_usage_keeps_balance_and_remaining_approvals(): void
+    {
+        $this->earn();
+        $this->line->steps()->where('level', 1)->update(['user_id' => $this->employee->id]);
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->employee->id);
+        $usage = $this->submit();
+        $this->assertSame(60, app(LemburService::class)->balance($this->employee)['reserved_minutes']);
+        $this->post(self::URL.'/'.$usage->id.'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame('pending', $usage->fresh()->status);
+        $this->assertSame(2, $usage->fresh()->current_level);
+        $this->actingAs($this->second)->post(self::URL.'/'.$usage->id.'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame('approved', $usage->fresh()->status);
+        $this->assertSame(['earned_minutes' => 180, 'reserved_minutes' => 0, 'used_minutes' => 60, 'available_minutes' => 120],
+            app(LemburService::class)->balance($this->employee));
     }
 
     public function test_one_hour_usage_reserves_balance_and_uses_the_overtime_approval_snapshot(): void

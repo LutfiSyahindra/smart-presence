@@ -95,9 +95,7 @@ class NotificationInboxController extends Controller
                 'alasan' => $cutiRequest->alasan, 'status' => $cutiRequest->status,
                 'current_level' => $cutiRequest->current_level, 'nama_cuti' => $cutiRequest->nama_cuti,
                 'jumlah_hari' => $cutiRequest->jumlah_hari, 'created_at' => $cutiRequest->created_at->format('d M Y, H:i'),
-                'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $cutiRequest->status === 'pending' && (int) $cutiRequest->user_id !== (int) $user->id
-                    && $cutiRequest->approvals->contains(fn ($step) => (int) $step->user_id === (int) $user->id
-                        && $step->level === $cutiRequest->current_level && $step->status === 'pending'),
+                'can_decide' => $user->can(AccessPermission::CUTI_APPROVE) && $cutiRequest->canBeDecidedBy($user),
                 'approvals' => $cutiRequest->approvals->map(fn ($step) => [
                     'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,
                     'note' => $step->note, 'decided_at' => $step->decided_at?->format('d M Y, H:i'),

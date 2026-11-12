@@ -12,6 +12,7 @@ use App\Models\Shift;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AbsensiMobile\LemburService;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\Notifications\LemburNotificationService;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,6 +20,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -85,6 +87,38 @@ class LemburRequestTest extends TestCase
             ->assertSessionHasNoErrors()->assertRedirect(self::URL.'?month='.substr($data['tanggal_lembur'], 0, 7));
 
         return LemburRequest::query()->latest('id')->firstOrFail();
+    }
+
+    #[TestWith(['approved'])]
+    #[TestWith(['rejected'])]
+    public function test_self_approval_respects_configuration_and_preserves_later_approvers(string $decision): void
+    {
+        $this->line->steps()->where('level', 1)->update(['user_id' => $this->employee->id]);
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->employee->id);
+        $lembur = $this->submit();
+        $url = self::URL.'/'.$lembur->id.'/decision';
+        $data = ['decision' => $decision, 'note' => 'Keputusan pemohon sebagai approver.'];
+        $this->actingAs($this->second)->post($url, $data)->assertForbidden();
+        $this->actingAs($this->stranger)->post($url, $data)->assertForbidden();
+
+        app(ConfigurationService::class)->update(['allow_self_approval' => false], $this->employee->id);
+        $this->actingAs($this->employee)->post($url, $data)->assertForbidden();
+        $this->get(self::URL.'?scope=delegation')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 0)->where('approvalCount', 0));
+        $this->assertFalse($lembur->fresh()->canBeDecidedBy($this->employee));
+
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->employee->id);
+        $this->get(self::URL.'?scope=delegation')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 1)->where('requests.data.0.can_decide', true)->where('approvalCount', 1));
+        $this->post($url, $data)->assertSessionHasNoErrors();
+        $this->assertSame($decision, $lembur->fresh()->approvals->first()->status);
+        if ($decision === 'approved') {
+            $this->assertSame('pending', $lembur->fresh()->status);
+            $this->assertSame(2, $lembur->fresh()->current_level);
+            $this->post($url, $data)->assertForbidden();
+            $this->actingAs($this->second)->post($url, ['decision' => 'approved'])->assertSessionHasNoErrors();
+        }
+        $this->assertSame($decision, $lembur->fresh()->status);
     }
 
     public function test_form_and_submission_use_the_lembur_line_and_server_calculated_duration(): void

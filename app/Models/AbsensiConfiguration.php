@@ -13,6 +13,7 @@ class AbsensiConfiguration extends Model
         'perubahan_shift_after_clock_in' => false,
         'clock_in_tolerance_minutes' => 0,
         'approve_past_requests' => true,
+        'allow_self_approval' => false,
     ];
 
     protected $guarded = ['id'];
@@ -26,6 +27,7 @@ class AbsensiConfiguration extends Model
             'perubahan_shift_after_clock_in' => 'boolean',
             'clock_in_tolerance_minutes' => 'integer',
             'approve_past_requests' => 'boolean',
+            'allow_self_approval' => 'boolean',
         ];
     }
 }

@@ -34,7 +34,7 @@ Kategori **Perubahan Shift** menyediakan pengaturan approval line. Pengajuan dan
 - Hanya approver pada tingkat aktif yang dapat memutuskan, termasuk ketika pengguna berperan super-admin.
 - Persetujuan mengaktifkan tingkat berikutnya. Status pengajuan tetap `pending` hingga tingkat terakhir menyetujui, lalu menjadi `approved`.
 - Penolakan wajib memiliki alasan. Pengajuan menjadi `rejected`, dan tingkat berikutnya menjadi `skipped`.
-- Pengguna tidak dapat menyetujui pengajuan sendiri. Pengajuan diblokir jika approval line memuat akun pemohon.
+- Approval diri sendiri mengikuti **Settings → Konfigurasi → Izinkan approval diri sendiri** (nilai awal tidak diizinkan). Jika diaktifkan, pemohon yang tercantum sebagai approver dapat memproses pengajuannya sesuai urutan approval; jika dinonaktifkan, pengajuan diblokir jika approval line memuat akun pemohon.
 - Tanggal tidak boleh sebelum hari ini, tanggal selesai harus sama atau setelah tanggal mulai, dan pengajuan tidak boleh bertumpang tindih dengan cuti lain yang masih menunggu atau sudah disetujui.
 - Perubahan atau penghapusan approval line hanya memengaruhi pengajuan baru. Pengajuan yang sedang berjalan tetap menggunakan salinan urutan awal.
 - Perubahan jabatan pada satu alur berlaku untuk seluruh jabatan yang terpilih. Jabatan yang dikeluarkan dapat dipasang ke alur lain. Pencarian daftar alur mencakup semua jabatan dan unit yang terhubung.

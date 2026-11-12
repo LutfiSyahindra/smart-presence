@@ -11,11 +11,13 @@ use App\Models\PegawaiCuti;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AdminWeb\Setting\User\UserService;
+use App\Services\Absensi\ConfigurationService;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -91,6 +93,46 @@ class ApprovalLineCutiTest extends TestCase
     private function decisionUrl(CutiRequest $cuti): string
     {
         return self::CUTI."/{$cuti->id}/decision";
+    }
+
+    #[TestWith(['approved'])]
+    #[TestWith(['rejected'])]
+    public function test_self_approval_follows_configuration_and_current_level_on_web_and_mobile(string $decision): void
+    {
+        $this->withoutVite();
+        $this->applicant->assignRole('pegawai');
+        $this->approvers[1] = $this->applicant;
+        $this->configure(2);
+        $this->actingAs($this->applicant)->post(self::CUTI, $this->payload())->assertSessionHasErrors('cuti');
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->admin->id);
+        $this->get(self::CUTI)->assertInertia(fn (Assert $page) => $page->where('unavailableReason', null));
+        $this->get('/absensi/mobile/cuti')->assertInertia(fn (Assert $page) => $page->where('unavailableReason', null));
+        $cuti = $this->submit();
+        $data = ['decision' => $decision, 'note' => 'Keputusan pemohon sebagai approver.'];
+        $this->post($this->decisionUrl($cuti), $data)->assertForbidden();
+        $this->assertFalse(CutiRequest::query()->awaitingApprovalBy($this->applicant)->exists());
+        $this->actingAs($this->approvers[0])->post($this->decisionUrl($cuti), ['decision' => 'approved'])->assertSessionHasNoErrors();
+
+        app(ConfigurationService::class)->update(['allow_self_approval' => false], $this->admin->id);
+        $this->actingAs($this->applicant)->post($this->decisionUrl($cuti), $data)->assertForbidden();
+        $this->post('/absensi/mobile/cuti/'.$cuti->id.'/decision', $data)->assertForbidden();
+        $this->post(self::NOTIFICATIONS.'/approve-many', ['request_ids' => [$cuti->id]])->assertForbidden();
+        $this->get(self::CUTI)->assertInertia(fn (Assert $page) => $page->where('requests.data.0.can_decide', false));
+        $this->assertFalse(CutiRequest::query()->awaitingApprovalBy($this->applicant)->exists());
+
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->admin->id);
+        $this->get(self::CUTI.'?scope=inbox')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 1)->where('requests.data.0.can_decide', true)->where('overview.inbox', 1));
+        $this->get(self::NOTIFICATIONS.'/pengajuan/cuti/'.$cuti->id)->assertInertia(fn (Assert $page) => $page->where('cuti.can_decide', true));
+        $this->get('/absensi/mobile/cuti?scope=delegation')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 1)->where('requests.data.0.can_decide', true)->where('delegationCount', 1));
+        if ($decision === 'approved') {
+            $this->post(self::NOTIFICATIONS.'/approve-many', ['request_ids' => [$cuti->id]])->assertSessionHasNoErrors();
+        } else {
+            $this->post('/absensi/mobile/cuti/'.$cuti->id.'/decision', $data)->assertSessionHasNoErrors();
+        }
+        $this->assertSame($decision, $cuti->fresh()->status);
+        $this->assertSame(['approved', $decision], $cuti->fresh()->approvals->pluck('status')->all());
     }
 
     public function test_configuration_and_cuti_pages_render_with_position_and_approver_options(): void

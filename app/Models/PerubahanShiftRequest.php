@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Services\Absensi\ConfigurationService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PerubahanShiftRequest extends Model
@@ -34,19 +35,21 @@ class PerubahanShiftRequest extends Model
     public function canBeCancelledBy(User $user): bool
     {
         return (int) $this->user_id === (int) $user->id && ($this->status === 'pending'
-            || ($this->status === 'approved' && app(\App\Services\Absensi\ConfigurationService::class)->current()->cancel_approved_perubahan_shift));
+            || ($this->status === 'approved' && app(ConfigurationService::class)->current()->cancel_approved_perubahan_shift));
     }
 
     public function canBeDecidedBy(User $user): bool
     {
-        return $this->status === 'pending' && (int) $this->user_id !== (int) $user->id
+        return $this->status === 'pending'
+            && ((int) $this->user_id !== (int) $user->id || app(ConfigurationService::class)->current()->allow_self_approval)
             && $this->approvals->contains(fn ($step) => (int) $step->user_id === (int) $user->id
                 && $step->level === $this->current_level && $step->status === 'pending');
     }
 
     public function scopeAwaitingApprovalBy(Builder $query, User $user): Builder
     {
-        return $query->where('status', 'pending')->where('user_id', '!=', $user->id)
+        return $query->where('status', 'pending')
+            ->when(! app(ConfigurationService::class)->current()->allow_self_approval, fn (Builder $query) => $query->where('user_id', '!=', $user->id))
             ->whereHas('approvals', fn ($steps) => $steps->where('user_id', $user->id)->where('status', 'pending')
                 ->whereColumn('perubahan_shift_approvals.level', 'perubahan_shift_requests.current_level'));
     }

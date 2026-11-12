@@ -66,6 +66,7 @@ class ConfigurationManagementTest extends TestCase
                 'cancel_approved_cuti' => true, 'clock_in_tolerance_minutes' => $minutes])->assertSessionHasErrors('clock_in_tolerance_minutes');
         }
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'cancel_approved_cuti' => 'yes'])->assertSessionHasErrors('cancel_approved_cuti');
+        $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'allow_self_approval' => 'yes'])->assertSessionHasErrors('allow_self_approval');
         $this->put(self::URL, [])->assertSessionHasErrors(array_keys(AbsensiConfiguration::DEFAULTS));
         $this->assertDatabaseHas('absensi_configurations', ['id' => 1, ...AbsensiConfiguration::DEFAULTS]);
     }

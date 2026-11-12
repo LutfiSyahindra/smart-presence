@@ -9,6 +9,7 @@ use App\Http\Requests\Absensi\AbsensiMobile\StoreLemburUsageRequest;
 use App\Models\LemburRequest;
 use App\Models\Shift;
 use App\Services\Absensi\AbsensiMobile\LemburService;
+use App\Services\Absensi\ConfigurationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -48,7 +49,8 @@ class LemburController extends Controller
         if ($scope === 'mine') {
             $query->where('user_id', $user->id);
         } else {
-            $query->where('user_id', '!=', $user->id)->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id));
+            $query->when(! app(ConfigurationService::class)->current()->allow_self_approval, fn (Builder $query) => $query->where('user_id', '!=', $user->id))
+                ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id));
         }
         if (! $allPeriods) {
             $period = CarbonImmutable::createFromFormat('!Y-m', $month);

@@ -9,6 +9,7 @@ use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use App\Services\Absensi\AdminWeb\MasterData\Cuti\MasterCutiService;
+use App\Services\Absensi\ConfigurationService;
 use App\Support\AccessPermission;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -41,8 +42,7 @@ class CutiController extends Controller
             'tanggal_mulai' => $cuti->tanggal_mulai->format('Y-m-d'), 'tanggal_selesai' => $cuti->tanggal_selesai->format('Y-m-d'),
             'alasan' => $cuti->alasan, 'status' => $cuti->status, 'current_level' => $cuti->current_level,
             'created_at' => $cuti->created_at->format('d M Y, H:i'), 'can_cancel' => $user->can(AccessPermission::MOBILE_CUTI_CANCEL) && $cuti->canBeCancelledBy($user),
-            'can_decide' => $user->can(AccessPermission::MOBILE_CUTI_APPROVE) && $cuti->status === 'pending' && (int) $cuti->user_id !== (int) $user->id
-                && $cuti->approvals->contains(fn ($step) => $step->level === $cuti->current_level && $step->status === 'pending' && (int) $step->user_id === (int) $user->id),
+            'can_decide' => $user->can(AccessPermission::MOBILE_CUTI_APPROVE) && $cuti->canBeDecidedBy($user),
             'approvals' => $cuti->approvals->map(fn ($step) => [
                 'level' => $step->level, 'name' => $step->approver_name, 'status' => $step->status,
                 'note' => $step->note, 'decided_at' => $step->decided_at?->format('d M Y, H:i'),
@@ -57,7 +57,7 @@ class CutiController extends Controller
             ! $pegawai?->jabatan_id => 'Akun Anda belum terhubung ke pegawai dengan jabatan. Hubungi administrator.',
             ! $pegawai->jabatan?->aktif || ! $pegawai->jabatan?->unitKerja?->aktif => 'Unit atau jabatan Anda tidak aktif. Hubungi administrator.',
             ! $line || $line->steps->isEmpty() => 'Alur persetujuan cuti untuk jabatan Anda belum diatur. Hubungi administrator.',
-            $line->steps->contains('user_id', $user->id) => 'Alur persetujuan memuat akun Anda sendiri. Hubungi administrator.',
+            ! app(ConfigurationService::class)->current()->allow_self_approval && $line->steps->contains('user_id', $user->id) => 'Alur persetujuan memuat akun Anda sendiri. Hubungi administrator.',
             $line->steps->contains(fn ($step) => $step->user === null) => 'Ada pemberi persetujuan yang tidak tersedia. Hubungi administrator.',
             $options === [] => 'Belum ada jenis cuti yang diberikan kepada Anda. Hubungi administrator.',
             default => null,
@@ -72,7 +72,7 @@ class CutiController extends Controller
         if ($scope === 'mine') {
             $query->where('user_id', $user->id);
         } else {
-            $query->where('user_id', '!=', $user->id)
+            $query->when(! app(ConfigurationService::class)->current()->allow_self_approval, fn (Builder $query) => $query->where('user_id', '!=', $user->id))
                 ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id));
         }
 
@@ -89,8 +89,7 @@ class CutiController extends Controller
                 'name' => $annual['nama'], 'year' => $month->year, 'total' => $annual['jumlah_hari'], 'available' => $annual['sisa'],
                 'used' => (int) $usage->get('approved', 0), 'pending' => (int) $usage->get('pending', 0),
             ] : null,
-            'delegationCount' => CutiRequest::query()->where('user_id', '!=', $user->id)->where('status', 'pending')
-                ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id)->where('status', 'pending'))->count(),
+            'delegationCount' => CutiRequest::query()->awaitingApprovalBy($user)->count(),
             'leaveOptions' => $options,
             'employee' => $pegawai ? ['nama' => $pegawai->nama, 'jabatan' => $pegawai->jabatan?->nama, 'unit' => $pegawai->jabatan?->unitKerja?->nama] : null,
             'approvalPreview' => $line?->steps->map(fn ($step) => ['level' => $step->level, 'name' => $step->user?->name ?? 'Pengguna tidak tersedia'])->values() ?? [],

@@ -14,12 +14,14 @@ use App\Models\Shift;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\Absensi\AbsensiMobile\PerubahanShiftService;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\Notifications\PerubahanShiftNotificationService;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -78,6 +80,30 @@ class PerubahanShiftTest extends TestCase
             ->assertSessionHasNoErrors()->assertRedirect(self::URL.'?month='.substr($data['tanggal_perubahan'], 0, 7));
 
         return PerubahanShiftRequest::query()->latest('id')->firstOrFail();
+    }
+
+    #[TestWith(['approved'])]
+    #[TestWith(['rejected'])]
+    public function test_self_approval_follows_configuration_and_applies_schedule_only_when_approved(string $decision): void
+    {
+        $this->line->steps()->update(['user_id' => $this->employee->id]);
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->employee->id);
+        $item = $this->submit();
+        $url = self::URL.'/'.$item->id.'/decision';
+        $data = ['decision' => $decision, 'note' => 'Keputusan pemohon sebagai approver.'];
+        $this->actingAs($this->approver)->post($url, $data)->assertForbidden();
+        app(ConfigurationService::class)->update(['allow_self_approval' => false], $this->employee->id);
+        $this->actingAs($this->employee)->post($url, $data)->assertForbidden();
+        $this->get(self::URL.'?scope=delegation')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 0)->where('approvalCount', 0));
+        app(ConfigurationService::class)->update(['allow_self_approval' => true], $this->employee->id);
+        $this->get(self::URL.'?scope=delegation')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 1)->where('requests.data.0.can_decide', true)->where('approvalCount', 1));
+        $this->post($url, $data)->assertSessionHasNoErrors();
+        $this->assertSame($decision, $item->fresh()->status);
+        $this->assertSame($decision, $item->fresh()->approvals->first()->status);
+        $record = Presensi::query()->where('pegawai_id', $this->pegawai->id)->whereDate('tanggal_presensi', '2026-10-26')->first();
+        $this->assertSame($decision === 'approved' ? $this->target->id : null, $record?->shift_id);
     }
 
     public function test_instant_shift_entry_opens_a_new_form_but_ordinary_and_detail_pages_do_not(): void
@@ -307,7 +333,7 @@ class PerubahanShiftTest extends TestCase
         $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
             'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00', 'notes' => 'Catatan kehadiran']);
         $this->actingAs($this->employee)->post(self::URL, $this->payload())->assertSessionHasErrors('tanggal_perubahan');
-        $configuration = app(\App\Services\Absensi\ConfigurationService::class);
+        $configuration = app(ConfigurationService::class);
         $configuration->update(['perubahan_shift_after_clock_in' => true], $this->approver->id);
         $item = $this->submit();
         $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
@@ -355,7 +381,7 @@ class PerubahanShiftTest extends TestCase
             'clock_in_address' => 'Lokasi presensi', 'notes' => 'Kehadiran pada jadwal khusus']);
         $data = $this->payload(['original_shift_id' => $scheduled->id]);
         $this->actingAs($this->employee)->post(self::URL, $data)->assertSessionHasErrors('tanggal_perubahan');
-        app(\App\Services\Absensi\ConfigurationService::class)->update([
+        app(ConfigurationService::class)->update([
             'perubahan_shift_after_clock_in' => true, 'cancel_approved_perubahan_shift' => true,
         ], $this->approver->id);
         $item = $this->submit(['original_shift_id' => $scheduled->id]);
@@ -380,7 +406,7 @@ class PerubahanShiftTest extends TestCase
         $item = $this->submit(['original_shift_id' => $scheduled->id]);
         $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
             ->assertSessionHasNoErrors();
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['cancel_approved_perubahan_shift' => true], $this->approver->id);
+        app(ConfigurationService::class)->update(['cancel_approved_perubahan_shift' => true], $this->approver->id);
         $this->actingAs($this->employee)->post(self::URL.'/'.$item->id.'/cancel')->assertSessionHasNoErrors();
         $this->assertSame($scheduled->id, $record->fresh()->shift_id);
         $this->assertNull($record->fresh()->clock_in_at);
@@ -405,7 +431,7 @@ class PerubahanShiftTest extends TestCase
 
     public function test_clock_out_without_clock_in_still_blocks_shift_changes_when_configuration_is_enabled(): void
     {
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['perubahan_shift_after_clock_in' => true], $this->approver->id);
+        app(ConfigurationService::class)->update(['perubahan_shift_after_clock_in' => true], $this->approver->id);
         Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
             'tanggal_presensi' => '2026-10-26', 'clock_out_at' => '2026-10-26 16:00:00']);
         $this->actingAs($this->employee)->post(self::URL, $this->payload())->assertSessionHasErrors('tanggal_perubahan');
@@ -414,7 +440,7 @@ class PerubahanShiftTest extends TestCase
 
     public function test_disabling_clocked_shift_changes_before_approval_prevents_schedule_changes(): void
     {
-        $configuration = app(\App\Services\Absensi\ConfigurationService::class);
+        $configuration = app(ConfigurationService::class);
         $configuration->update(['perubahan_shift_after_clock_in' => true], $this->approver->id);
         $item = $this->submit();
         $this->travelTo('2026-10-26 09:00');
@@ -430,7 +456,7 @@ class PerubahanShiftTest extends TestCase
     {
         $item = $this->submit();
         app(PerubahanShiftService::class)->decide($item, $this->approver, ['decision' => 'approved']);
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['cancel_approved_perubahan_shift' => true], $this->approver->id);
+        app(ConfigurationService::class)->update(['cancel_approved_perubahan_shift' => true], $this->approver->id);
         $this->actingAs($this->employee)->post(self::URL.'/'.$item->id.'/cancel')->assertSessionHasNoErrors();
         $this->assertDatabaseCount('presensis', 0);
         $this->submit();
@@ -441,7 +467,7 @@ class PerubahanShiftTest extends TestCase
     {
         $item = $this->submit();
         $this->travelTo('2026-10-27 09:00');
-        $configuration = app(\App\Services\Absensi\ConfigurationService::class);
+        $configuration = app(ConfigurationService::class);
         $configuration->update(['approve_past_requests' => false], $this->approver->id);
         $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])->assertSessionHasErrors('decision');
         $this->assertDatabaseCount('presensis', 0);

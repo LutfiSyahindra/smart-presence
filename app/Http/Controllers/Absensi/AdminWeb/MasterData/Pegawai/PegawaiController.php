@@ -35,6 +35,7 @@ class PegawaiController extends Controller
                 'update' => $request->user()->can(AccessPermission::PEGAWAI_UPDATE),
                 'delete' => $request->user()->can(AccessPermission::PEGAWAI_DELETE),
                 'create_user' => $request->user()->can(AccessPermission::USERS_CREATE),
+                'cancel_user_invitation' => $request->user()->can(AccessPermission::USERS_DELETE),
                 'export' => $request->user()->can(AccessPermission::PEGAWAI_VIEW),
             ],
         ]);
@@ -111,6 +112,14 @@ class PegawaiController extends Controller
             : "Akun pegawai berhasil dibuat dan undangan aktivasi dikirim ke {$result['user']->email}.";
 
         return to_route('absensi.admin-web.master-data.pegawai.index')->with('success', $message);
+    }
+
+    public function cancelUserInvitation(Request $request, Pegawai $pegawai): RedirectResponse
+    {
+        $this->service->cancelUserInvitation($pegawai, $request->user());
+
+        return to_route('absensi.admin-web.master-data.pegawai.index')
+            ->with('success', 'Aktivasi akun pegawai berhasil dibatalkan. Data pegawai tetap tersimpan.');
     }
 
     public function inviteManyToUsers(SendBatchPegawaiInvitationsRequest $request): RedirectResponse

@@ -9,6 +9,7 @@ use App\Models\MasterCuti;
 use App\Models\Pegawai;
 use App\Models\PegawaiCuti;
 use App\Models\User;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\Notifications\CutiNotificationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,7 @@ class CutiService
                 throw ValidationException::withMessages(['cuti' => 'Approval line cuti untuk jabatan Anda belum diatur. Hubungi administrator.']);
             }
 
-            if ($line->steps->contains('user_id', $user->id)) {
+            if (! app(ConfigurationService::class)->current()->allow_self_approval && $line->steps->contains('user_id', $user->id)) {
                 throw ValidationException::withMessages(['cuti' => 'Anda tidak dapat menjadi approver untuk pengajuan sendiri. Hubungi administrator untuk memperbaiki approval line.']);
             }
 
@@ -145,12 +146,13 @@ class CutiService
 
             $current = $cuti->approvals()->where('level', $cuti->current_level)->lockForUpdate()->firstOrFail();
             // Identity checks deliberately do not use Gate, including for super-admin.
-            abort_unless((int) $current->user_id === (int) $actor->id && (int) $cuti->user_id !== (int) $actor->id, 403);
+            abort_unless((int) $current->user_id === (int) $actor->id
+                && ((int) $cuti->user_id !== (int) $actor->id || app(ConfigurationService::class)->current()->allow_self_approval), 403);
             if ($current->status !== 'pending') {
                 throw ValidationException::withMessages(['decision' => 'Tingkat approval ini sudah diproses.']);
             }
 
-            app(\App\Services\Absensi\ConfigurationService::class)->assertCanDecide($cuti->tanggal_mulai);
+            app(ConfigurationService::class)->assertCanDecide($cuti->tanggal_mulai);
 
             $current->update(['status' => $data['decision'], 'note' => $data['note'] ?? null, 'decided_at' => now()]);
 

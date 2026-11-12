@@ -2,7 +2,20 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ArrowDown, ArrowRight, ArrowUp, GitPullRequestArrow, Layers3, Pencil, Plus, Search, Trash2, UsersRound, X } from 'lucide-vue-next';
+import {
+    ArrowDown,
+    ArrowRight,
+    ArrowUp,
+    ChevronRight,
+    GitPullRequestArrow,
+    Layers3,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
+    UsersRound,
+    X,
+} from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import '../approval-workflow.css';
 import ConfirmDelete from '../setting/components/ConfirmDelete.vue';
@@ -41,7 +54,35 @@ const search = ref(props.filters.search);
 const open = ref(false);
 const editing = ref<LineRow | null>(null);
 const deleting = ref<LineRow | null>(null);
+const viewingPositions = ref<LineRow | null>(null);
+const positionSearch = ref('');
 const deleteProcessing = ref(false);
+const unitLabel = (position: LineRow['jabatans'][number]) => position.unit?.trim() || 'Tanpa unit';
+const summarizedLines = computed(() =>
+    props.lines.data.map((line) => ({
+        ...line,
+        previewPositions: line.jabatans.slice(0, 2),
+        unitCount: new Set(line.jabatans.map(unitLabel)).size,
+        inactiveCount: line.jabatans.filter((position) => !position.aktif).length,
+    })),
+);
+const positionGroups = computed(() => {
+    const query = positionSearch.value.trim().toLocaleLowerCase('id-ID');
+    const groups = new Map<string, LineRow['jabatans']>();
+    for (const position of viewingPositions.value?.jabatans ?? []) {
+        const unit = unitLabel(position);
+        if (query && !`${position.nama} ${unit}`.toLocaleLowerCase('id-ID').includes(query)) continue;
+        const positions = groups.get(unit) ?? [];
+        positions.push(position);
+        groups.set(unit, positions);
+    }
+    return Array.from(groups, ([unit, positions]) => ({ unit, positions }));
+});
+const matchedPositionCount = computed(() => positionGroups.value.reduce((total, group) => total + group.positions.length, 0));
+const viewPositions = (line: LineRow) => {
+    positionSearch.value = '';
+    viewingPositions.value = line;
+};
 const typeLabel = (type: ApprovalType) => props.typeOptions.find((option) => option.value === type)?.label ?? '';
 const activeLabel = computed(() => typeLabel(props.filters.type));
 const form = useForm({ type: props.filters.type, jabatan_ids: [] as number[], approver_ids: [] as number[] });
@@ -154,6 +195,7 @@ const selectType = (type: ApprovalType) => {
     open.value = false;
     editing.value = null;
     deleting.value = null;
+    viewingPositions.value = null;
     router.get(baseUrl, { type, search: search.value.trim() || undefined }, { preserveState: true, preserveScroll: true });
 };
 watch(search, () => {
@@ -165,6 +207,10 @@ watch(
     (value) => {
         if (search.value !== value) search.value = value;
     },
+);
+watch(
+    () => props.lines,
+    () => (viewingPositions.value = null),
 );
 onBeforeUnmount(() => {
     if (timer) clearTimeout(timer);
@@ -237,23 +283,38 @@ onBeforeUnmount(() => {
                     </form>
                 </header>
                 <div v-if="lines.data.length" class="al-table-wrap">
-                    <table class="al-table">
+                    <table class="al-table al-lines-table">
                         <thead>
                             <tr>
                                 <th>Jabatan & unit kerja</th>
                                 <th>Urutan persetujuan</th>
-                                <th>Diperbarui</th>
-                                <th v-if="can.update || can.delete" class="text-end">Aksi</th>
+                                <th class="al-lines-updated">Diperbarui</th>
+                                <th v-if="can.update || can.delete" class="al-lines-actions text-end">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="line in lines.data" :key="line.id">
+                            <tr v-for="line in summarizedLines" :key="line.id">
                                 <td>
-                                    <div v-for="position in line.jabatans" :key="position.id" class="al-position">
-                                        <strong>{{ position.nama }}</strong>
-                                        <small>{{ position.unit ?? 'Tanpa unit' }}</small>
-                                        <span v-if="!position.aktif" class="al-status rejected">Jabatan / unit tidak aktif</span>
+                                    <div v-if="line.jabatans.length > 1" class="al-position-meta">
+                                        <span>{{ line.jabatans.length }} jabatan</span>
+                                        <span>{{ line.unitCount }} unit kerja</span>
                                     </div>
+                                    <div v-for="position in line.previewPositions" :key="position.id" class="al-position al-position-preview">
+                                        <strong :title="position.nama">{{ position.nama }}</strong>
+                                        <small :title="unitLabel(position)">{{ unitLabel(position) }}</small>
+                                    </div>
+                                    <span v-if="line.inactiveCount" class="al-status rejected"
+                                        >{{ line.inactiveCount }} jabatan / unit tidak aktif</span
+                                    >
+                                    <button
+                                        v-if="line.jabatans.length > 2"
+                                        type="button"
+                                        class="al-position-more"
+                                        :aria-label="`Lihat semua ${line.jabatans.length} jabatan pemohon untuk alur ${activeLabel.toLowerCase()}`"
+                                        @click="viewPositions(line)"
+                                    >
+                                        +{{ line.jabatans.length - 2 }} jabatan lainnya <span>Lihat semua</span><ChevronRight aria-hidden="true" />
+                                    </button>
                                     <small v-if="!line.jabatans.length">Jabatan tidak tersedia</small>
                                 </td>
                                 <td>
@@ -318,6 +379,48 @@ onBeforeUnmount(() => {
         </div>
 
         <CrudModal
+            :open="!!viewingPositions"
+            :title="`Jabatan pemohon ${typeLabel(viewingPositions?.type ?? filters.type).toLowerCase()}`"
+            :description="`${viewingPositions?.jabatans.length ?? 0} jabatan menggunakan alur persetujuan yang sama. Daftar dikelompokkan berdasarkan unit kerja.`"
+            @close="viewingPositions = null"
+        >
+            <div class="al-position-details">
+                <label class="al-search al-position-detail-search">
+                    <Search aria-hidden="true" />
+                    <input
+                        v-model="positionSearch"
+                        type="search"
+                        aria-label="Cari jabatan atau unit dalam alur ini"
+                        placeholder="Cari jabatan atau unit kerja..."
+                    />
+                </label>
+                <p class="al-position-result" role="status">
+                    Menampilkan {{ matchedPositionCount }} dari {{ viewingPositions?.jabatans.length ?? 0 }} jabatan
+                </p>
+                <div class="al-position-groups" tabindex="0" role="region" aria-label="Daftar jabatan per unit kerja">
+                    <section v-for="group in positionGroups" :key="group.unit" class="al-position-group">
+                        <header>
+                            <h3>{{ group.unit }}</h3>
+                            <span>{{ group.positions.length }} jabatan</span>
+                        </header>
+                        <ul>
+                            <li v-for="position in group.positions" :key="position.id">
+                                <strong>{{ position.nama }}</strong>
+                                <span v-if="!position.aktif" class="al-status rejected">Jabatan / unit tidak aktif</span>
+                            </li>
+                        </ul>
+                    </section>
+                    <p v-if="!positionGroups.length" class="al-position-no-results">
+                        Jabatan atau unit kerja tidak ditemukan. Coba kata pencarian lain.
+                    </p>
+                </div>
+            </div>
+            <footer class="al-form-footer">
+                <button type="button" class="btn btn-outline-secondary" @click="viewingPositions = null">Tutup</button>
+            </footer>
+        </CrudModal>
+
+        <CrudModal
             :open="open"
             :title="`${editing ? 'Ubah' : 'Tambah'} approval line ${formLabel.toLowerCase()}`"
             :description="`Pilih satu atau beberapa jabatan pemohon dan pengguna yang menyetujui ${formLabel.toLowerCase()}.`"
@@ -332,7 +435,13 @@ onBeforeUnmount(() => {
                     <small v-if="form.errors.type" class="al-error">{{ form.errors.type }}</small>
                     <div class="al-field">
                         <span>Jabatan pemohon <b>*</b></span>
-                        <div v-if="selectedPositions.length" class="al-position-chips" aria-label="Jabatan pemohon terpilih">
+                        <div
+                            v-if="selectedPositions.length"
+                            class="al-position-chips"
+                            tabindex="0"
+                            role="region"
+                            aria-label="Jabatan pemohon terpilih"
+                        >
                             <span v-for="position in selectedPositions" :key="position.id" class="al-position-chip">
                                 <span
                                     ><strong>{{ position.nama }}</strong
@@ -423,7 +532,7 @@ onBeforeUnmount(() => {
                     </div>
                     <p class="al-help">
                         Semua pengguna dapat dipilih sebagai approver, tanpa batasan jabatan, unit, atau role. Setiap tingkat harus diisi pengguna
-                        yang berbeda. Pemohon tidak boleh menyetujui pengajuannya sendiri.
+                        yang berbeda. Approval diri sendiri mengikuti pengaturan di Settings → Konfigurasi.
                     </p>
                     <p v-if="!userOptions.length" class="al-error">Belum ada pengguna yang dapat dipilih. Tambahkan pengguna terlebih dahulu.</p>
                 </div>

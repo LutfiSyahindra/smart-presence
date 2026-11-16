@@ -5,6 +5,7 @@ namespace App\Services\Absensi\AbsensiMobile;
 use App\Models\ApprovalLine;
 use App\Models\CutiRequest;
 use App\Models\Jabatan;
+use App\Models\LemburBalanceAdjustment;
 use App\Models\LemburRequest;
 use App\Models\Pegawai;
 use App\Models\Presensi;
@@ -30,16 +31,37 @@ class LemburService
     public function balance(User $user): array
     {
         $pegawai = $user->pegawai()->first();
-        $earned = $pegawai ? (int) LemburRequest::query()->where('pegawai_id', $pegawai->id)
-            ->where('request_kind', 'overtime')->where('compensation', 'time_off')->where('status', 'approved')
-            ->whereRaw('COALESCE(after_end_at, before_end_at) <= ?', [now()->toDateTimeString()])->sum('duration_minutes') : 0;
-        $usage = $pegawai ? LemburRequest::query()->where('pegawai_id', $pegawai->id)->where('request_kind', 'usage')
-            ->whereIn('status', ['pending', 'approved'])->selectRaw('status, SUM(duration_minutes) as minutes')->groupBy('status')->pluck('minutes', 'status') : collect();
-        $reserved = (int) ($usage['pending'] ?? 0);
-        $used = (int) ($usage['approved'] ?? 0);
 
-        return ['earned_minutes' => $earned, 'reserved_minutes' => $reserved, 'used_minutes' => $used,
-            'available_minutes' => max(0, $earned - $reserved - $used)];
+        return $this->balances($pegawai ? [$pegawai->id] : [])[$pegawai?->id] ?? [
+            'earned_minutes' => 0, 'reserved_minutes' => 0, 'used_minutes' => 0, 'available_minutes' => 0,
+        ];
+    }
+
+    /** All-time balances shared by the mobile portal and the administrative employee list. */
+    public function balances(array $pegawaiIds): array
+    {
+        if ($pegawaiIds === []) {
+            return [];
+        }
+        $earned = LemburRequest::query()->whereIn('pegawai_id', $pegawaiIds)
+            ->where('request_kind', 'overtime')->where('compensation', 'time_off')->where('status', 'approved')
+            ->whereRaw('COALESCE(after_end_at, before_end_at) <= ?', [now()->toDateTimeString()])
+            ->selectRaw('pegawai_id, SUM(duration_minutes) as minutes')->groupBy('pegawai_id')->pluck('minutes', 'pegawai_id');
+        $usage = LemburRequest::query()->whereIn('pegawai_id', $pegawaiIds)->where('request_kind', 'usage')
+            ->whereIn('status', ['pending', 'approved'])->selectRaw('pegawai_id, status, SUM(duration_minutes) as minutes')
+            ->groupBy('pegawai_id', 'status')->get()->groupBy('pegawai_id');
+        $adjustments = LemburBalanceAdjustment::query()->whereIn('pegawai_id', $pegawaiIds)
+            ->selectRaw('pegawai_id, SUM(delta_minutes) as minutes')->groupBy('pegawai_id')->pluck('minutes', 'pegawai_id');
+
+        return collect($pegawaiIds)->mapWithKeys(function ($id) use ($earned, $usage, $adjustments) {
+            $items = $usage->get($id, collect())->pluck('minutes', 'status');
+            $reserved = (int) ($items['pending'] ?? 0);
+            $used = (int) ($items['approved'] ?? 0);
+            $credit = (int) ($earned[$id] ?? 0) + (int) ($adjustments[$id] ?? 0);
+
+            return [$id => ['earned_minutes' => $credit, 'reserved_minutes' => $reserved, 'used_minutes' => $used,
+                'available_minutes' => max(0, $credit - $reserved - $used)]];
+        })->all();
     }
 
     public function submitUsage(User $user, array $data): LemburRequest
@@ -84,7 +106,13 @@ class LemburService
             $allocated = DB::table('lembur_usage_allocations as allocation')->join('lembur_requests as usage', 'usage.id', '=', 'allocation.usage_request_id')
                 ->whereIn('allocation.source_request_id', $sources->modelKeys())->whereIn('usage.status', ['pending', 'approved'])
                 ->selectRaw('allocation.source_request_id, SUM(allocation.minutes) as minutes')->groupBy('allocation.source_request_id')->pluck('minutes', 'source_request_id');
-            $available = $sources->sum(fn ($source) => max(0, $source->duration_minutes - (int) ($allocated[$source->id] ?? 0)));
+            $manualCredit = (int) LemburBalanceAdjustment::query()->where('pegawai_id', $pegawai->id)
+                ->where('created_at', '<=', min(now()->toDateTimeString(), $usageStart->toDateTimeString()))->sum('delta_minutes');
+            $manualUsed = (int) LemburRequest::query()->where('pegawai_id', $pegawai->id)->where('request_kind', 'usage')
+                ->whereIn('status', ['pending', 'approved'])->sum('manual_balance_minutes');
+            $available = $sources->sum(fn ($source) => max(0, $source->duration_minutes - (int) ($allocated[$source->id] ?? 0)))
+                + $manualCredit - $manualUsed;
+            $available = min($available, $this->balances([$pegawai->id])[$pegawai->id]['available_minutes']);
             if ($minutes > $available) {
                 throw ValidationException::withMessages(['duration_minutes' => 'Saldo lembur tersedia tidak mencukupi. Saldo yang menunggu persetujuan sudah dicadangkan.']);
             }
@@ -106,6 +134,9 @@ class LemburService
                 if ($remaining === 0) {
                     break;
                 }
+            }
+            if ($remaining > 0) {
+                $usage->update(['manual_balance_minutes' => $remaining]);
             }
             foreach ($line->steps as $step) {
                 $usage->approvals()->create(['user_id' => $step->user_id, 'approver_name' => $step->user->name,
@@ -142,17 +173,25 @@ class LemburService
         return ['pegawai' => $pegawai, 'jabatan' => $jabatan, 'line' => $line, 'unavailable_reason' => $reason];
     }
 
-    public function submit(User $user, array $data): LemburRequest
+    public function submit(User $user, array $data, ?User $recordedBy = null): LemburRequest
     {
+        if ($recordedBy) {
+            abort_unless($recordedBy->can(AccessPermission::ADMIN_ACCESS)
+                && $recordedBy->can(AccessPermission::LEMBUR_VIEW)
+                && $recordedBy->can(AccessPermission::LEMBUR_CREATE), 403);
+        }
         $storedPaths = [];
         $createdRequestId = null;
         try {
-            return DB::transaction(function () use ($user, $data, &$storedPaths, &$createdRequestId) {
+            return DB::transaction(function () use ($user, $data, $recordedBy, &$storedPaths, &$createdRequestId) {
                 $context = $this->context($user, lock: true);
                 if ($context['unavailable_reason']) {
                     throw ValidationException::withMessages(['lembur' => $context['unavailable_reason']]);
                 }
                 ['pegawai' => $pegawai, 'jabatan' => $jabatan, 'line' => $line] = $context;
+                if ($recordedBy && (int) $pegawai->id !== (int) ($data['pegawai_id'] ?? 0)) {
+                    throw ValidationException::withMessages(['pegawai_id' => 'Akun pegawai telah berubah. Pilih kembali pegawai.']);
+                }
                 $shift = Shift::query()->lockForUpdate()->find($data['shift_id']);
                 if (! $shift || $shift->is_day_off) {
                     throw ValidationException::withMessages(['shift_id' => 'Shift tidak tersedia. Pilih kembali shift.']);
@@ -203,7 +242,8 @@ class LemburService
                     $attachments[] = ['path' => $path, 'name' => basename(str_replace('\\', '/', $file->getClientOriginalName())), 'size' => $file->getSize()];
                 }
                 $lembur = LemburRequest::query()->create([
-                    'user_id' => $user->id, 'pegawai_id' => $pegawai->id, 'jabatan_id' => $jabatan->id, 'shift_id' => $shift->id,
+                    'user_id' => $user->id, 'recorded_by' => $recordedBy?->id ?? $user->id,
+                    'pegawai_id' => $pegawai->id, 'jabatan_id' => $jabatan->id, 'shift_id' => $shift->id,
                     'nama_pegawai' => $pegawai->nama, 'nama_jabatan' => $jabatan->nama, 'nama_unit' => $jabatan->unitKerja->nama,
                     'nama_shift' => $shift->nama, 'tanggal_lembur' => $data['tanggal_lembur'], 'shift_start_at' => $start, 'shift_end_at' => $end,
                     'before_start_at' => $before ? $start->subMinutes($before) : null, 'before_end_at' => $before ? $start : null,
@@ -236,6 +276,7 @@ class LemburService
     public function decide(LemburRequest $lembur, User $actor, array $data): LemburRequest
     {
         return DB::transaction(function () use ($lembur, $actor, $data) {
+            Pegawai::query()->lockForUpdate()->find($lembur->pegawai_id);
             $lembur = LemburRequest::query()->lockForUpdate()->findOrFail($lembur->id);
             // Even a super-admin must be the current assigned approver.
             abort_unless($lembur->canBeDecidedBy($actor), 403);
@@ -262,12 +303,31 @@ class LemburService
 
     public function cancel(LemburRequest $lembur, User $actor): void
     {
-        DB::transaction(function () use ($lembur, $actor) {
+        $this->cancelRequest($lembur, $actor);
+    }
+
+    public function cancelByAdmin(LemburRequest $lembur, User $actor, string $note): void
+    {
+        abort_unless($actor->can(AccessPermission::ADMIN_ACCESS) && $actor->can(AccessPermission::LEMBUR_VIEW)
+            && $actor->can(AccessPermission::LEMBUR_CANCEL), 403);
+        $note = trim($note);
+        if ($note === '' || mb_strlen($note) > 1000) {
+            throw ValidationException::withMessages(['note' => 'Isi alasan pembatalan, maksimal 1.000 karakter.']);
+        }
+        $this->cancelRequest($lembur, $actor, $note);
+    }
+
+    private function cancelRequest(LemburRequest $lembur, User $actor, ?string $administrativeNote = null): void
+    {
+        DB::transaction(function () use ($lembur, $actor, $administrativeNote) {
             // Match usage submission's employee -> source lock order.
             Pegawai::query()->lockForUpdate()->find($lembur->pegawai_id);
             $lembur = LemburRequest::query()->lockForUpdate()->findOrFail($lembur->id);
-            abort_unless((int) $lembur->user_id === (int) $actor->id, 403);
-            if (! $lembur->canBeCancelledBy($actor)) {
+            if ($administrativeNote === null) {
+                abort_unless((int) $lembur->user_id === (int) $actor->id, 403);
+            }
+            if (! ($lembur->status === 'pending' || ($lembur->status === 'approved'
+                && app(ConfigurationService::class)->current()->cancel_approved_lembur))) {
                 throw ValidationException::withMessages(['cancel' => 'Status pengajuan atau konfigurasi tidak mengizinkan pembatalan lembur ini.']);
             }
             if ($lembur->status === 'approved' && $lembur->request_kind === 'overtime'
@@ -275,8 +335,14 @@ class LemburService
                     ->where('allocation.source_request_id', $lembur->id)->whereIn('usage.status', ['pending', 'approved'])->exists()) {
                 throw ValidationException::withMessages(['cancel' => 'Saldo lembur ini masih digunakan oleh pengajuan penggunaan aktif. Batalkan penggunaan tersebut terlebih dahulu.']);
             }
+            if ($lembur->pegawai_id && $lembur->status === 'approved' && $lembur->request_kind === 'overtime'
+                && $lembur->compensation === 'time_off' && ($lembur->after_end_at ?? $lembur->before_end_at)?->lessThanOrEqualTo(now())
+                && $this->balances([$lembur->pegawai_id])[$lembur->pegawai_id]['available_minutes'] < $lembur->duration_minutes) {
+                throw ValidationException::withMessages(['cancel' => 'Pembatalan akan mengurangi saldo di bawah penggunaan aktif atau penyesuaian saldo. Periksa Master Lembur terlebih dahulu.']);
+            }
             $lembur->approvals()->whereIn('status', ['pending', 'waiting'])->update(['status' => 'skipped']);
-            $lembur->update(['status' => 'cancelled', 'current_level' => null, 'decided_at' => now()]);
+            $lembur->update(['status' => 'cancelled', 'current_level' => null, 'decided_at' => now(),
+                'cancelled_by' => $actor->id, 'cancellation_note' => $administrativeNote]);
             $this->notifications->send($lembur, 'cancelled', $actor);
         });
     }

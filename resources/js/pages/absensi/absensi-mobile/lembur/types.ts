@@ -5,6 +5,7 @@ export type LemburRow = {
     usage_type: 'late_arrival' | 'early_departure' | null;
     usage_start: string | null;
     usage_end: string | null;
+    manual_balance_minutes: number;
     sources: { id: number; date: string; minutes: number }[];
     id: number;
     date: string;

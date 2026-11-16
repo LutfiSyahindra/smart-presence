@@ -6,6 +6,7 @@ use App\Services\Absensi\ConfigurationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -17,6 +18,8 @@ class LemburRequest extends Model
         'before_minutes', 'before_break_minutes', 'after_minutes', 'after_break_minutes', 'duration_minutes',
         'compensation', 'alasan', 'attachments', 'status', 'current_level', 'decided_at',
         'request_kind', 'usage_type', 'usage_start_at', 'usage_end_at',
+        'recorded_by', 'cancelled_by', 'cancellation_note',
+        'manual_balance_minutes',
     ];
 
     protected function casts(): array
@@ -28,6 +31,7 @@ class LemburRequest extends Model
             'before_minutes' => 'integer', 'before_break_minutes' => 'integer', 'after_minutes' => 'integer',
             'after_break_minutes' => 'integer', 'duration_minutes' => 'integer', 'current_level' => 'integer', 'attachments' => 'array',
             'usage_start_at' => 'immutable_datetime', 'usage_end_at' => 'immutable_datetime',
+            'manual_balance_minutes' => 'integer',
         ];
     }
 
@@ -39,6 +43,21 @@ class LemburRequest extends Model
     public function approvals(): HasMany
     {
         return $this->hasMany(LemburApproval::class)->orderBy('level');
+    }
+
+    public function pegawai(): BelongsTo
+    {
+        return $this->belongsTo(Pegawai::class);
+    }
+
+    public function recordedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     public function sources(): BelongsToMany

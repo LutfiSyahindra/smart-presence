@@ -155,6 +155,7 @@ function cancel() {
                     }}
                 </p>
                 <h3>Sumber saldo</h3>
+                <p v-if="request.manual_balance_minutes">Saldo pengaturan admin / Excel: {{ lemburDuration(request.manual_balance_minutes) }}</p>
                 <p v-for="source in request.sources" :key="source.id">
                     Lembur #{{ source.id }} · {{ source.date }} · {{ lemburDuration(source.minutes) }}
                 </p>

@@ -79,6 +79,9 @@ const navigation = computed<NavigationGroup[]>(() => {
     if (presensiChildren.length) {
         mainItems.push({ title: 'Presensi', icon: CalendarDays, children: presensiChildren });
     }
+    if (can('lembur.view')) {
+        mainItems.push({ title: 'Lembur', href: '/absensi/admin-web/lembur', icon: Timer });
+    }
     if (can('approval-line.view')) {
         mainItems.push({ title: 'Aproval Line', href: '/absensi/admin-web/approval-line', icon: GitPullRequestArrow });
     }
@@ -137,6 +140,7 @@ const navigation = computed<NavigationGroup[]>(() => {
                 can('jabatan.view') ? { title: 'Unit dan Jabatan', href: '/absensi/admin-web/master-data/jabatan', icon: BriefcaseBusiness } : null,
                 can('pegawai.view') ? { title: 'Pegawai', href: '/absensi/admin-web/master-data/pegawai', icon: ContactRound } : null,
                 can('master-cuti.view') ? { title: 'Master Cuti', href: '/absensi/admin-web/master-data/cuti', icon: CalendarDays } : null,
+                can('master-lembur.view') ? { title: 'Master Lembur', href: '/absensi/admin-web/master-data/lembur', icon: Timer } : null,
                 shiftChildren.length ? { title: 'Shift', icon: Timer, children: shiftChildren } : null,
                 can('geolocation.view') ? { title: 'Geolokasi', href: '/absensi/admin-web/master-data/geolocation', icon: MapPinned } : null,
             ].filter((item): item is NonNullable<typeof item> => item !== null),

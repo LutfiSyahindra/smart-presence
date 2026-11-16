@@ -15,9 +15,11 @@ use App\Http\Controllers\Absensi\AbsensiMobile\PerubahanShiftController as Mobil
 use App\Http\Controllers\Absensi\AbsensiMobile\PushDeviceController;
 use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
 use App\Http\Controllers\Absensi\AdminWeb\Cuti\CutiController;
+use App\Http\Controllers\Absensi\AdminWeb\Lembur\LemburController as AdminLemburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Cuti\MasterCutiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Geolocation\OfficeLocationController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Jabatan\JabatanController;
+use App\Http\Controllers\Absensi\AdminWeb\MasterData\Lembur\MasterLemburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Pegawai\PegawaiController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\HariLiburController;
 use App\Http\Controllers\Absensi\AdminWeb\MasterData\Shift\ShiftAssignmentController;
@@ -116,6 +118,15 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
 
         Route::post('cuti', [CutiController::class, 'store'])->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_CREATE)->name('cuti.store');
 
+        Route::prefix('lembur')->name('lembur.')->middleware('can:'.AccessPermission::LEMBUR_VIEW)->group(function () {
+            Route::get('/', [AdminLemburController::class, 'index'])->name('index');
+            Route::post('/', [AdminLemburController::class, 'store'])->middleware(['can:'.AccessPermission::LEMBUR_CREATE, 'throttle:20,1'])->name('store');
+            Route::get('{lemburRequest}', [AdminLemburController::class, 'show'])->whereNumber('lemburRequest')->name('show');
+            Route::post('{lemburRequest}/cancel', [AdminLemburController::class, 'cancel'])->middleware('can:'.AccessPermission::LEMBUR_CANCEL)->whereNumber('lemburRequest')->name('cancel');
+            Route::post('{lemburRequest}/decision', [AdminLemburController::class, 'decide'])->middleware('can:'.AccessPermission::CUTI_APPROVE)->whereNumber('lemburRequest')->name('decide');
+            Route::get('{lemburRequest}/lampiran/{attachment}', [AdminLemburController::class, 'attachment'])->whereNumber(['lemburRequest', 'attachment'])->name('attachment');
+        });
+
         Route::prefix('presensi')->name('presensi.')->group(function () {
             Route::get('pegawai', [PresensiController::class, 'index'])->middleware('can:'.AccessPermission::PRESENSI_VIEW)->name('index');
             Route::get('set-pegawai', [PresensiController::class, 'manage'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('manage');
@@ -125,6 +136,13 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
         });
 
         Route::prefix('master-data')->name('master-data.')->group(function () {
+            Route::prefix('lembur')->name('lembur.')->middleware('can:'.AccessPermission::MASTER_LEMBUR_VIEW)->group(function () {
+                Route::get('/', [MasterLemburController::class, 'index'])->name('index');
+                Route::put('saldo', [MasterLemburController::class, 'setBalance'])->middleware('can:'.AccessPermission::MASTER_LEMBUR_ASSIGN)->name('balance');
+                Route::match(['get', 'post'], 'template', [MasterLemburController::class, 'template'])->middleware('can:'.AccessPermission::MASTER_LEMBUR_ASSIGN)->name('template');
+                Route::post('import', [MasterLemburController::class, 'import'])->middleware('can:'.AccessPermission::MASTER_LEMBUR_ASSIGN)->name('import');
+            });
+
             Route::get('cuti', [MasterCutiController::class, 'index'])->middleware('can:'.AccessPermission::MASTER_CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_VIEW)->name('cuti.index');
             Route::post('cuti', [MasterCutiController::class, 'store'])->middleware('can:'.AccessPermission::MASTER_CUTI_CREATE)->middleware('can:'.AccessPermission::CUTI_VIEW)->middleware('can:'.AccessPermission::CUTI_CREATE)->name('cuti.store');
             Route::get('cuti/template', [MasterCutiController::class, 'template'])->middleware('can:'.AccessPermission::MASTER_CUTI_ASSIGN)->name('cuti.template');

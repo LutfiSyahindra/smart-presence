@@ -174,6 +174,7 @@ class LemburController extends Controller
         return [
             'request_kind' => $lembur->request_kind, 'usage_type' => $lembur->usage_type,
             'usage_start' => $lembur->usage_start_at?->format('d M Y, H:i'), 'usage_end' => $lembur->usage_end_at?->format('d M Y, H:i'),
+            'manual_balance_minutes' => $lembur->manual_balance_minutes,
             'sources' => $lembur->sources->map(fn ($source) => ['id' => $source->id,
                 'date' => $source->tanggal_lembur->format('Y-m-d'), 'minutes' => (int) $source->pivot->minutes])->values(),
             'id' => $lembur->id, 'date' => $lembur->tanggal_lembur->format('Y-m-d'), 'name' => $lembur->nama_pegawai,

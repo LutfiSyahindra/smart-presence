@@ -58,6 +58,7 @@ const decide = (decision: 'approved' | 'rejected') => {
                     </div>
                     <div v-if="lembur.request_kind === 'usage'" class="al-info">
                         <strong>Sumber saldo lembur</strong>
+                        <p v-if="lembur.manual_balance_minutes">Saldo pengaturan admin / Excel: {{ duration(lembur.manual_balance_minutes) }}</p>
                         <p v-for="source in lembur.sources" :key="source.id">
                             #LEMBUR-{{ source.id }} · {{ date(source.date) }} · {{ duration(source.minutes) }}
                         </p>

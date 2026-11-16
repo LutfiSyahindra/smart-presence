@@ -72,6 +72,16 @@ final class AccessPermission
 
     public const MASTER_CUTI_ASSIGN = 'master-cuti.assign';
 
+    public const MASTER_LEMBUR_VIEW = 'master-lembur.view';
+
+    public const MASTER_LEMBUR_ASSIGN = 'master-lembur.assign';
+
+    public const LEMBUR_VIEW = 'lembur.view';
+
+    public const LEMBUR_CREATE = 'lembur.create';
+
+    public const LEMBUR_CANCEL = 'lembur.cancel';
+
     public const USERS_VIEW = 'users.view';
 
     public const USERS_CREATE = 'users.create';
@@ -153,6 +163,11 @@ final class AccessPermission
             self::MASTER_CUTI_UPDATE,
             self::MASTER_CUTI_DELETE,
             self::MASTER_CUTI_ASSIGN,
+            self::MASTER_LEMBUR_VIEW,
+            self::MASTER_LEMBUR_ASSIGN,
+            self::LEMBUR_VIEW,
+            self::LEMBUR_CREATE,
+            self::LEMBUR_CANCEL,
             self::USERS_VIEW,
             self::USERS_CREATE,
             self::USERS_UPDATE,

@@ -327,6 +327,112 @@ class PerubahanShiftTest extends TestCase
         $this->actingAs($stranger)->get(self::URL.'/'.$first->id)->assertForbidden();
     }
 
+    #[TestWith(['none'])]
+    #[TestWith(['scheduled'])]
+    #[TestWith(['clock-in'])]
+    #[TestWith(['completed'])]
+    public function test_same_day_configuration_allows_started_shift_changes_and_preserves_attendance(string $attendance): void
+    {
+        $this->travelTo('2026-10-26 17:00');
+        $this->target->update(['jam_masuk' => '09:00', 'jam_keluar' => '17:00']);
+        $record = $attendance === 'none' ? null : Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id, 'tanggal_presensi' => '2026-10-26',
+            'clock_in_at' => in_array($attendance, ['clock-in', 'completed'], true) ? '2026-10-26 08:00:00' : null,
+            'clock_out_at' => $attendance === 'completed' ? '2026-10-26 16:00:00' : null,
+            'clock_in_photo_path' => $attendance === 'completed' ? 'attendance/in.jpg' : null,
+            'clock_out_photo_path' => $attendance === 'completed' ? 'attendance/out.jpg' : null,
+            'clock_in_address' => $attendance === 'completed' ? 'Lokasi masuk' : null,
+            'clock_out_address' => $attendance === 'completed' ? 'Lokasi pulang' : null,
+            'clock_in_approval_status' => $attendance === 'completed' ? 'approved' : null,
+            'clock_out_approval_status' => $attendance === 'completed' ? 'pending' : null,
+            'notes' => 'Catatan kehadiran',
+        ]);
+        $mutable = array_flip(['shift_id', 'notes', 'updated_at', 'updated_by']);
+        $evidence = $record ? array_diff_key($record->fresh()->getRawOriginal(), $mutable) : null;
+        $this->actingAs($this->employee)->post(self::URL, $this->payload())->assertSessionHasErrors('tanggal_perubahan');
+        $this->assertDatabaseCount('perubahan_shift_requests', 0);
+
+        app(ConfigurationService::class)->update([
+            'perubahan_shift_same_day' => true, 'cancel_approved_perubahan_shift' => true,
+        ], $this->approver->id);
+        $item = $this->submit();
+        $this->assertSame('pending', $item->status);
+        $this->assertSame($this->original->id, $record?->fresh()->shift_id ?? $this->pegawai->fresh()->shift_id);
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('approved', $item->fresh()->status);
+        $this->assertDatabaseHas('presensis', ['pegawai_id' => $this->pegawai->id,
+            'tanggal_presensi' => '2026-10-26', 'shift_id' => $this->target->id]);
+        if ($record) {
+            $this->assertSame($evidence, array_diff_key($record->fresh()->getRawOriginal(), $mutable));
+        }
+        $this->assertSame($this->original->id, $this->pegawai->fresh()->shift_id);
+
+        $this->actingAs($this->employee)->post(self::URL.'/'.$item->id.'/cancel')->assertSessionHasNoErrors();
+        $this->assertSame('cancelled', $item->fresh()->status);
+        $this->assertDatabaseCount('presensis', $record ? 1 : 0);
+        if ($record) {
+            $this->assertSame($this->original->id, $record->fresh()->shift_id);
+            $this->assertSame($evidence, array_diff_key($record->fresh()->getRawOriginal(), $mutable));
+            $this->assertStringContainsString('Catatan kehadiran', $record->fresh()->notes);
+        }
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function test_final_approval_rechecks_same_day_configuration_after_attendance_is_completed(bool $enabled): void
+    {
+        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => true], $this->approver->id);
+        $this->travelTo('2026-10-26 07:00');
+        $item = $this->submit();
+        $this->travelTo('2026-10-26 17:00');
+        $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
+            'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00', 'clock_out_at' => '2026-10-26 16:00:00']);
+        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => $enabled], $this->approver->id);
+        $response = $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved']);
+        if ($enabled) {
+            $response->assertSessionHasNoErrors();
+        } else {
+            $response->assertSessionHasErrors('decision');
+        }
+        $this->assertSame($enabled ? 'approved' : 'pending', $item->fresh()->status);
+        $this->assertSame($enabled ? 'approved' : 'pending', $item->fresh()->approvals->sole()->status);
+        $this->assertSame($enabled ? $this->target->id : $this->original->id, $record->fresh()->shift_id);
+        $this->assertSame('2026-10-26 08:00:00', $record->fresh()->clock_in_at->toDateTimeString());
+        $this->assertSame('2026-10-26 16:00:00', $record->fresh()->clock_out_at->toDateTimeString());
+    }
+
+    public function test_same_day_configuration_does_not_allow_past_clocked_shift_changes(): void
+    {
+        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => true], $this->approver->id);
+        $item = $this->submit();
+        $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
+            'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00', 'clock_out_at' => '2026-10-26 16:00:00']);
+        $this->travelTo('2026-10-27 09:00');
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $item->fresh()->status);
+        $this->assertSame($this->original->id, $record->fresh()->shift_id);
+        $this->actingAs($this->employee)->post(self::URL, $this->payload())->assertSessionHasErrors('tanggal_perubahan');
+        $this->assertDatabaseCount('perubahan_shift_requests', 1);
+    }
+
+    public function test_same_day_configuration_keeps_off_shift_restrictions_after_clock_in(): void
+    {
+        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => true], $this->approver->id);
+        $this->target->update(['nama' => 'OFF', 'is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null]);
+        $item = $this->submit();
+        $this->travelTo('2026-10-26 17:00');
+        Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
+            'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00', 'clock_out_at' => '2026-10-26 16:00:00']);
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $item->fresh()->status);
+        $this->actingAs($this->employee)->post(self::URL.'/'.$item->id.'/cancel')->assertSessionHasNoErrors();
+        $this->post(self::URL, $this->payload())->assertSessionHasErrors('tanggal_perubahan');
+        $this->assertDatabaseHas('presensis', ['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id]);
+    }
+
     public function test_configuration_allows_shift_change_after_clock_in_and_restores_original_on_cancellation(): void
     {
         $this->travelTo('2026-10-26 09:00');

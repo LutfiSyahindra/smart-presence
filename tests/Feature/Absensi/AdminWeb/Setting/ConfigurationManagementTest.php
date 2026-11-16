@@ -67,6 +67,7 @@ class ConfigurationManagementTest extends TestCase
         }
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'cancel_approved_cuti' => 'yes'])->assertSessionHasErrors('cancel_approved_cuti');
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'allow_self_approval' => 'yes'])->assertSessionHasErrors('allow_self_approval');
+        $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'perubahan_shift_same_day' => 'yes'])->assertSessionHasErrors('perubahan_shift_same_day');
         $this->put(self::URL, [])->assertSessionHasErrors(array_keys(AbsensiConfiguration::DEFAULTS));
         $this->assertDatabaseHas('absensi_configurations', ['id' => 1, ...AbsensiConfiguration::DEFAULTS]);
     }

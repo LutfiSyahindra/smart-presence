@@ -107,7 +107,7 @@ class ClockOutController extends Controller
                 ->findOrFail($submissionId);
             $attendance = Presensi::query()->where('pegawai_id', $pegawai?->id)->findOrFail($submission->presensi_id);
         } else {
-            $attendance = $pegawai ? $this->attendanceForClockOut($pegawai) : null;
+            $attendance = $pegawai ? $this->attendanceForClockOut($pegawai, completedOnly: true) : null;
         }
 
         if (! $attendance?->clock_out_at) {
@@ -174,20 +174,26 @@ class ClockOutController extends Controller
         return OfficeLocation::query()->oldest('id')->first();
     }
 
-    private function attendanceForClockOut(Pegawai $pegawai): ?Presensi
+    private function attendanceForClockOut(Pegawai $pegawai, bool $completedOnly = false): ?Presensi
     {
+        if (! $completedOnly) {
+            return $this->schedules->clockOutRecord($pegawai);
+        }
+
         $today = $pegawai->presensis()
             ->with('shift')
             ->whereDate('tanggal_presensi', now()->toDateString())
+            ->whereNotNull('clock_out_at')
             ->first();
         if ($today) {
-            return $this->schedules->continuingBeforeDayOff($pegawai, $today);
+            return $today;
         }
 
         $previous = $pegawai->presensis()
             ->with('shift')
             ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
             ->whereNotNull('clock_in_at')
+            ->whereNotNull('clock_out_at')
             ->latest('clock_in_at')
             ->first();
 

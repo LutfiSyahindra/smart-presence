@@ -24,7 +24,16 @@ Baris `presensis` dengan clock-in/out kosong merupakan jadwal dan dapat diubah
 sebelum kedua shift dimulai. Jika konfigurasi **Izinkan pengajuan perubahan shift
 setelah clock-in** aktif, pengajuan dan persetujuan tetap diperbolehkan setelah
 clock-in, termasuk saat shift sudah dimulai; waktu dan bukti presensi dipertahankan.
-Tanpa izin tersebut, presensi yang sudah dimulai atau jam shift yang sudah lewat
+Opsi **Izinkan perubahan shift pada hari H** pada **Pengaturan → Konfigurasi →
+Perubahan shift** mengizinkan pengajuan dan persetujuan pada tanggal dimulainya
+shift, meskipun shift sudah dimulai atau clock-in dan clock-out sudah selesai.
+Opsi ini terpisah dari izin setelah clock-in dan secara default tidak aktif.
+Waktu, foto, lokasi, dan status persetujuan presensi tetap tersimpan. Pengecualian
+hari H hanya berlaku saat tanggal perubahan sama dengan hari ini (WIB); tanggal
+lampau tetap mengikuti konfigurasi persetujuan pengajuan yang sudah lewat dan
+izin perubahan setelah clock-in. Larangan tujuan OFF setelah clock-in, cuti
+disetujui, dan konflik lembur aktif tetap berlaku.
+Tanpa izin yang sesuai, presensi yang sudah dimulai atau jam shift yang sudah lewat
 menolak perubahan. Cuti disetujui dan pengajuan perubahan shift menunggu/disetujui
 untuk pegawai pada tanggal yang sama tetap menolak pengajuan baru.
 Kunci transaksi pada pegawai mencegah pengajuan ganda bersamaan.
@@ -88,6 +97,7 @@ Migrasi:
 php artisan migrate --path=database/migrations/2026_10_23_000002_create_perubahan_shift_requests.php
 php artisan migrate --path=database/migrations/2026_10_23_000003_add_cancellation_to_perubahan_shift_requests.php
 php artisan migrate --path=database/migrations/2026_10_23_000004_add_decision_to_perubahan_shift_requests.php
+php artisan migrate --path=database/migrations/2026_11_16_000001_add_same_day_shift_changes_to_absensi_configurations.php
 ```
 
 Pengujian backend:

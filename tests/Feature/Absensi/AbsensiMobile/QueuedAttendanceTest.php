@@ -136,6 +136,59 @@ class QueuedAttendanceTest extends TestCase
             ->where('attendance.face_similarity', 96));
     }
 
+    public function test_late_night_shift_clock_out_keeps_its_record_when_todays_shift_is_already_assigned(): void
+    {
+        $this->travelTo('2026-10-26 08:00:00');
+        $this->shift->update(['jam_masuk' => '14:00', 'jam_keluar' => '21:00']);
+        $nightShift = Shift::query()->create(['nama' => 'Malam', 'jam_masuk' => '21:00', 'jam_keluar' => '07:00']);
+        $night = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $nightShift->id,
+            'tanggal_presensi' => '2026-10-25', 'clock_in_at' => '2026-10-25 21:00:00']);
+        $today = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-10-26']);
+
+        $submission = $this->submit('clock-out');
+        $this->assertSame($night->id, $submission->presensi_id);
+        $this->assertSame($nightShift->id, $submission->shift_id);
+        $this->assertSame('2026-10-25', $submission->attendance_date->toDateString());
+        $this->travelTo('2026-10-27 01:00:00');
+        $this->succeed($submission);
+
+        $this->assertSame('succeeded', $submission->fresh()->status);
+        $this->assertSame('2026-10-26 08:00:00', $night->fresh()->clock_out_at?->toDateTimeString());
+        $this->assertSame(0, $night->fresh()->earlyDepartureMinutes());
+        $this->assertNull($today->fresh()->clock_in_at);
+        $this->assertNull($today->fresh()->clock_out_at);
+        $this->assertDatabaseCount('presensis', 2);
+        $this->get($submission->fresh()->statusPayload()['success_url'])->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('attendance.date', '2026-10-25')->where('attendance.shift_name', 'Malam')
+                ->where('attendance.clock_out_time', '08:00'));
+    }
+
+    public function test_a_clock_out_received_before_the_next_shift_starts_can_finish_processing_after_the_new_clock_in(): void
+    {
+        $this->travelTo('2026-10-26 13:59:59');
+        $nightShift = Shift::query()->create(['nama' => 'Malam', 'jam_masuk' => '21:00', 'jam_keluar' => '07:00']);
+        $this->shift->update(['jam_masuk' => '14:00', 'jam_keluar' => '21:00']);
+        $night = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $nightShift->id,
+            'tanggal_presensi' => '2026-10-25', 'clock_in_at' => '2026-10-25 21:00:00']);
+        $today = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->shift->id,
+            'tanggal_presensi' => '2026-10-26']);
+        $clockOut = $this->submit('clock-out');
+
+        $this->travelTo('2026-10-26 14:00:00');
+        $clockIn = $this->submit('clock-in', 'b');
+        $this->succeed($clockIn);
+        $this->travelTo('2026-10-26 14:05:00');
+        $this->succeed($clockOut);
+
+        $this->assertSame('succeeded', $clockIn->fresh()->status);
+        $this->assertSame('succeeded', $clockOut->fresh()->status);
+        $this->assertSame('2026-10-26 13:59:59', $night->fresh()->clock_out_at?->toDateTimeString());
+        $this->assertSame('2026-10-26 14:00:00', $today->fresh()->clock_in_at?->toDateTimeString());
+        $this->assertNull($today->fresh()->clock_out_at);
+    }
+
     public function test_network_failure_is_retried_without_changing_the_received_time(): void
     {
         $submission = $this->submit();

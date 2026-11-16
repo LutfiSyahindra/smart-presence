@@ -81,8 +81,10 @@ class PerubahanShiftService
             if (! $target || $target->is($original)) {
                 throw ValidationException::withMessages(['requested_shift_id' => 'Pilih shift tujuan yang tersedia dan berbeda dari shift saat ini.']);
             }
-            $allowClocked = app(ConfigurationService::class)->current()->perubahan_shift_after_clock_in && $record?->clock_in_at;
-            if (! $allowClocked && ($date < now()->toDateString()
+            $configuration = app(ConfigurationService::class)->current();
+            $allowSameDay = $configuration->perubahan_shift_same_day && $date === now()->toDateString();
+            $allowClocked = $configuration->perubahan_shift_after_clock_in && $record?->clock_in_at;
+            if (! $allowSameDay && ! $allowClocked && ($date < now()->toDateString()
                 || (! $original->is_day_off && CarbonImmutable::parse($date.' '.$original->jam_masuk)->lte(now()))
                 || (! $target->is_day_off && CarbonImmutable::parse($date.' '.$target->jam_masuk)->lte(now())))) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Perubahan hanya dapat diajukan sebelum shift asal dan shift tujuan dimulai.']);
@@ -90,7 +92,7 @@ class PerubahanShiftService
             if ($target->is_day_off && $record?->clock_in_at) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Presensi sudah dimulai. Shift tidak dapat diubah menjadi OFF / Libur.']);
             }
-            if (($record?->clock_in_at || $record?->clock_out_at) && ! $allowClocked) {
+            if (($record?->clock_in_at || $record?->clock_out_at) && ! $allowSameDay && ! $allowClocked) {
                 throw ValidationException::withMessages(['tanggal_perubahan' => 'Tanggal ini sudah memiliki catatan presensi. Pilih tanggal lain.']);
             }
             if (CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('status', 'approved')
@@ -171,9 +173,10 @@ class PerubahanShiftService
             throw ValidationException::withMessages(['decision' => 'Jadwal pada tanggal pengajuan sudah berubah. Pengajuan perlu diperbarui.']);
         }
         $configuration = app(ConfigurationService::class)->current();
+        $allowSameDay = $configuration->perubahan_shift_same_day && $date === now()->toDateString();
         $allowClocked = $configuration->perubahan_shift_after_clock_in && $record?->clock_in_at;
         $allowPast = $configuration->approve_past_requests && $date < now()->toDateString();
-        if (! $allowClocked && ! $allowPast && ($date < now()->toDateString()
+        if (! $allowSameDay && ! $allowClocked && ! $allowPast && ($date < now()->toDateString()
             || (! ($request->original_shift['is_day_off'] ?? false) && CarbonImmutable::parse($date.' '.$request->original_shift['start_time'])->lte(now()))
             || (! $shift->is_day_off && CarbonImmutable::parse($date.' '.$shift->jam_masuk)->lte(now())))) {
             throw ValidationException::withMessages(['decision' => 'Shift sudah dimulai atau tanggal pengajuan telah lewat. Perubahan tidak dapat diterapkan.']);
@@ -186,7 +189,7 @@ class PerubahanShiftService
         if ($shift->is_day_off && $record?->clock_in_at) {
             throw ValidationException::withMessages(['decision' => 'Presensi sudah dimulai. Shift tidak dapat diubah menjadi OFF / Libur.']);
         }
-        if ((($record?->clock_in_at || $record?->clock_out_at) && ! $allowClocked)
+        if ((($record?->clock_in_at || $record?->clock_out_at) && ! $allowSameDay && ! $allowClocked)
             || CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('status', 'approved')
                 ->whereDate('tanggal_mulai', '<=', $date)->whereDate('tanggal_selesai', '>=', $date)->exists()
             || LemburRequest::query()->where('pegawai_id', $pegawai->id)->whereDate('tanggal_lembur', $date)->whereIn('status', ['pending', 'approved'])->exists()) {

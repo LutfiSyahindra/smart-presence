@@ -12,13 +12,16 @@ use Illuminate\Support\Collection;
 
 class AttendanceScheduleService
 {
-    /** Keep an approved arrival after midnight attached to the date its night shift began. */
+    /** Keep an unfinished night shift active only until the next working shift starts. */
     public function clockInRecord(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()->with('shift')->whereDate('tanggal_presensi', now()->toDateString())->first();
-        $today = $this->continuingBeforeDayOff($pegawai, $today);
-        if ($today || ! $pegawai->shift || $pegawai->shift->is_day_off || $pegawai->shift->jam_keluar > $pegawai->shift->jam_masuk) {
-            return $today;
+        $current = $this->continuingOvernightRecord($pegawai, $today);
+        if ($current && ! $current->tanggal_presensi->isSameDay(now()) && app(CutiScheduleService::class)->isOnCuti($pegawai, $current)) {
+            $current = $today;
+        }
+        if ($current || $this->hasNextShiftStarted($pegawai, $today) || ! $pegawai->shift || $pegawai->shift->is_day_off || $pegawai->shift->jam_keluar > $pegawai->shift->jam_masuk) {
+            return $current;
         }
 
         $date = now()->subDay()->startOfDay();
@@ -37,15 +40,25 @@ class AttendanceScheduleService
 
         $record = $pegawai->presensis()->with('shift')->whereDate('tanggal_presensi', $date)->first()
             ?? new Presensi(['pegawai_id' => $pegawai->id, 'shift_id' => $pegawai->shift_id, 'tanggal_presensi' => $date]);
+        if ($record->clock_out_at) {
+            return null;
+        }
         $record->setRelation('shift', $record->shift ?? $pegawai->shift);
 
         return $record;
     }
 
-    /** An OFF schedule today must still allow an unfinished overnight shift to clock out. */
-    public function continuingBeforeDayOff(Pegawai $pegawai, ?Presensi $today): ?Presensi
+    public function clockOutRecord(Pegawai $pegawai): ?Presensi
     {
-        if (! $today || $today->clock_in_at || (! $today->is_day_off && ! $today->shift?->is_day_off)) {
+        $today = $pegawai->presensis()->with('shift')->whereDate('tanggal_presensi', now()->toDateString())->first();
+
+        return $this->continuingOvernightRecord($pegawai, $today);
+    }
+
+    /** Yesterday's night shift stops accepting clock-out when the next working shift starts. */
+    public function continuingOvernightRecord(Pegawai $pegawai, ?Presensi $today): ?Presensi
+    {
+        if ($today?->clock_in_at || $this->hasNextShiftStarted($pegawai, $today)) {
             return $today;
         }
 
@@ -54,6 +67,16 @@ class AttendanceScheduleService
 
         return $previous?->shift && ! $previous->shift->is_day_off && $previous->shift->jam_keluar <= $previous->shift->jam_masuk
             ? $previous : $today;
+    }
+
+    private function hasNextShiftStarted(Pegawai $pegawai, ?Presensi $today): bool
+    {
+        $shift = $today?->shift ?? $pegawai->shift;
+        if (! $shift || ! $shift->jam_masuk || app(ShiftHolidayService::class)->isDayOff($pegawai, $today)) {
+            return false;
+        }
+
+        return now()->gte(now()->startOfDay()->setTimeFromTimeString($shift->jam_masuk));
     }
 
     /** Resolve the employee's schedule for one shift date, including approved overtime usage. */

@@ -8,6 +8,18 @@ berhasil, termasuk bila worker baru selesai pada hari berikutnya.
 
 ## Perilaku aplikasi
 
+- Shift malam yang belum clock-out tetap dapat diselesaikan sampai sebelum jam
+  mulai shift kerja berikutnya. Contoh: shift 21:00–07:00 masih dapat clock-out
+  pukul 08:00 jika shift berikutnya mulai pukul 14:00. Tepat pukul 14:00, jadwal
+  berikutnya tampil dan clock-in dapat dilakukan meskipun clock-out sebelumnya
+  terlupa. Jadwal per tanggal diprioritaskan, lalu shift bawaan pegawai.
+- Jam clock-out yang terlupa tetap kosong dan muncul sebagai `Tidak clock out`
+  di log absensi untuk dikoreksi admin. Sistem tidak mengisi jam pulang otomatis.
+  Shift OFF/hari libur tidak menjadi batas waktu mulai shift kerja baru.
+- Setelah clock-out berhasil, jadwal berikutnya langsung tersedia. Penahanan
+  tampilan shift yang selesai selama empat jam pada hari berikutnya dihapus.
+  Permintaan yang diterima sebelum batas shift tetap memakai tanggal, shift,
+  dan waktu penerimaan semula meskipun antrean selesai setelah batas tersebut.
 - Permintaan tersimpan pada tabel `attendance_submissions`; tabel `presensis`
   hanya berubah setelah wajah berhasil diverifikasi.
 - Status adalah `pending`, `processing`, `succeeded`, atau `failed`. Mobile/PWA

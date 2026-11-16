@@ -28,6 +28,7 @@ class ConfigurationController extends Controller
             'cancel_approved_lembur' => ['required', 'boolean'],
             'cancel_approved_perubahan_shift' => ['required', 'boolean'],
             'perubahan_shift_after_clock_in' => ['required', 'boolean'],
+            'perubahan_shift_same_day' => ['required', 'boolean'],
             'clock_in_tolerance_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
             'approve_past_requests' => ['required', 'boolean'],
             'allow_self_approval' => ['required', 'boolean'],

@@ -12,6 +12,7 @@ interface Configuration {
     cancel_approved_lembur: boolean;
     cancel_approved_perubahan_shift: boolean;
     perubahan_shift_after_clock_in: boolean;
+    perubahan_shift_same_day: boolean;
     clock_in_tolerance_minutes: number;
     approve_past_requests: boolean;
     allow_self_approval: boolean;
@@ -60,6 +61,12 @@ const groups = [
                 key: 'perubahan_shift_after_clock_in',
                 label: 'Izinkan pengajuan perubahan shift setelah clock-in',
                 description: 'Pengajuan dapat dibuat dan diterapkan pada tanggal yang sudah memiliki clock-in, termasuk saat shift sudah dimulai.',
+            },
+            {
+                key: 'perubahan_shift_same_day',
+                label: 'Izinkan perubahan shift pada hari H',
+                description:
+                    'Pengajuan dan persetujuan pada tanggal shift tetap diizinkan meskipun shift sudah dimulai atau clock-in dan clock-out sudah dilakukan. Waktu dan bukti presensi tetap tersimpan.',
             },
         ],
     },

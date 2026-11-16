@@ -10,7 +10,6 @@ use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use App\Support\Portal;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -32,31 +31,6 @@ class HomeController extends Controller
             ->with('shift')
             ->first(['id', 'user_id', 'shift_id']);
         $todayPresensi = $pegawai ? $this->schedules->clockInRecord($pegawai) : null;
-
-        if (! $todayPresensi && $pegawai) {
-            $previousPresensi = $pegawai->presensis()
-                ->with('shift')
-                ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
-                ->whereNotNull('clock_in_at')
-                ->latest('clock_in_at')
-                ->first(['id', 'pegawai_id', 'shift_id', 'tanggal_presensi', 'clock_in_at', 'clock_out_at', 'is_day_off']);
-
-            if (
-                $previousPresensi?->shift
-                && ! $previousPresensi->shift->is_day_off
-                && (string) $previousPresensi->shift->jam_keluar <= (string) $previousPresensi->shift->jam_masuk
-                && ! $this->cutiSchedule->isOnCuti($pegawai, $previousPresensi)
-            ) {
-                $scheduledEnd = Carbon::createFromFormat(
-                    'Y-m-d H:i',
-                    $previousPresensi->tanggal_presensi->format('Y-m-d').' '.substr((string) $previousPresensi->shift->jam_keluar, 0, 5),
-                )->addDay();
-
-                if (! $previousPresensi->clock_out_at || now()->lte($scheduledEnd->addHours(4))) {
-                    $todayPresensi = $previousPresensi;
-                }
-            }
-        }
 
         $isOnCuti = $this->cutiSchedule->isOnCuti($pegawai, $todayPresensi);
         $isDayOff = $this->shiftHolidays->isDayOff($pegawai, $todayPresensi);

@@ -31,7 +31,7 @@ class MobileController extends Controller
     public function home(Request $request): JsonResponse
     {
         $pegawai = $this->pegawai($request);
-        $attendance = $pegawai ? $this->currentAttendance($pegawai) : null;
+        $attendance = $pegawai ? $this->schedules->clockInRecord($pegawai) : null;
         $isOnCuti = $this->cutiSchedule->isOnCuti($pegawai, $attendance);
         $isDayOff = $this->shiftHolidays->isDayOff($pegawai, $attendance);
         $shift = $isOnCuti || $isDayOff ? null : ($attendance?->shift ?? $pegawai?->shift);
@@ -67,7 +67,7 @@ class MobileController extends Controller
     public function attendance(Request $request): JsonResponse
     {
         $pegawai = $this->pegawai($request);
-        $attendance = $pegawai ? $this->currentAttendance($pegawai) : null;
+        $attendance = $pegawai ? $this->schedules->clockInRecord($pegawai) : null;
         $attendance?->loadMissing([
             'shift',
             'clockInLocation:id,name,address,latitude,longitude,radius_meters',
@@ -241,32 +241,6 @@ class MobileController extends Controller
         return $request->user()?->pegawai()
             ->with('shift')
             ->first(['id', 'user_id', 'shift_id', 'nama', 'email']);
-    }
-
-    private function currentAttendance(Pegawai $pegawai): ?Presensi
-    {
-        $today = $this->schedules->clockInRecord($pegawai);
-        if ($today) {
-            return $today;
-        }
-
-        $previous = $pegawai->presensis()
-            ->with('shift')
-            ->whereDate('tanggal_presensi', now()->subDay()->toDateString())
-            ->whereNotNull('clock_in_at')
-            ->latest('clock_in_at')
-            ->first();
-        if (! $previous?->shift || $previous->shift->is_day_off || (string) $previous->shift->jam_keluar > (string) $previous->shift->jam_masuk
-            || $this->cutiSchedule->isOnCuti($pegawai, $previous)) {
-            return null;
-        }
-
-        $scheduledEnd = Carbon::createFromFormat(
-            'Y-m-d H:i',
-            $previous->tanggal_presensi->format('Y-m-d').' '.substr((string) $previous->shift->jam_keluar, 0, 5),
-        )->addDay();
-
-        return ! $previous->clock_out_at || now()->lte($scheduledEnd->copy()->addHours(4)) ? $previous : null;
     }
 
     private function profilePhotoPath(Request $request): ?string

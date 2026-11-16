@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Absensi\AbsensiMobile;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Absensi\AbsensiMobile\StorePerubahanShiftRequest;
 use App\Http\Requests\Absensi\AbsensiMobile\DecidePerubahanShiftRequest;
+use App\Http\Requests\Absensi\AbsensiMobile\StorePerubahanShiftRequest;
 use App\Models\PerubahanShiftRequest;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\Absensi\AbsensiMobile\PerubahanShiftService;
+use App\Services\Absensi\ConfigurationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,9 +39,11 @@ class PerubahanShiftController extends Controller
         $query->when(! $allPeriods, fn ($query) => $query->whereDate('tanggal_perubahan', '>=', $period)
             ->whereDate('tanggal_perubahan', '<=', $period->endOfMonth()));
         $context = $service->context($user);
+        $allowPastDates = (bool) app(ConfigurationService::class)->current()->perubahan_shift_past_date;
 
         return Inertia::render('absensi/absensi-mobile/PerubahanShift', [
             'month' => $month, 'today' => now()->toDateString(), 'status' => $filters['status'] ?? '',
+            'allowPastDates' => $allowPastDates,
             'scope' => $scope, 'allPeriods' => $allPeriods,
             'approvalCount' => PerubahanShiftRequest::query()->awaitingApprovalBy($user)->count(),
             'initialRequest' => $perubahanShiftRequest?->exists ? $this->serialize($perubahanShiftRequest, $user) : null,
@@ -54,7 +57,8 @@ class PerubahanShiftController extends Controller
             'employee' => $context['pegawai'] ? ['name' => $context['pegawai']->nama,
                 'position' => $context['jabatan']?->nama, 'unit' => $context['jabatan']?->unitKerja?->nama] : null,
             'currentShift' => $context['pegawai']?->shift ? $service::shiftSnapshot($context['pegawai']->shift) : null,
-            'scheduledShiftIds' => $context['pegawai']?->presensis()->whereDate('tanggal_presensi', '>=', now()->toDateString())
+            'scheduledShiftIds' => $context['pegawai']?->presensis()
+                ->when(! $allowPastDates, fn ($query) => $query->whereDate('tanggal_presensi', '>=', now()->toDateString()))
                 ->whereNotNull('shift_id')->pluck('shift_id', 'tanggal_presensi') ?? (object) [],
             'shifts' => Shift::query()->orderBy('nama')->get()->map(fn ($shift) => $service::shiftSnapshot($shift)),
             'approvalPreview' => $context['line']?->steps->map(fn ($step) => ['level' => $step->level, 'name' => $step->user?->name ?? 'Pengguna tidak tersedia']) ?? [],

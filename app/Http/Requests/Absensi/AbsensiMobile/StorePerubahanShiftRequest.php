@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Absensi\AbsensiMobile;
 
+use App\Services\Absensi\ConfigurationService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePerubahanShiftRequest extends FormRequest
@@ -18,8 +19,10 @@ class StorePerubahanShiftRequest extends FormRequest
 
     public function rules(): array
     {
+        $earliestDate = app(ConfigurationService::class)->current()->perubahan_shift_past_date ? '1900-01-01' : 'today';
+
         return [
-            'tanggal_perubahan' => ['required', 'date_format:Y-m-d', 'after_or_equal:today', 'before_or_equal:2100-12-31'],
+            'tanggal_perubahan' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$earliestDate, 'before_or_equal:2100-12-31'],
             'original_shift_id' => ['required', 'integer', 'exists:shifts,id'],
             'requested_shift_id' => ['required', 'integer', 'exists:shifts,id', 'different:original_shift_id'],
             'alasan' => ['required', 'string', 'max:200'],
@@ -36,7 +39,9 @@ class StorePerubahanShiftRequest extends FormRequest
     {
         return [
             '*.required' => ':attribute wajib diisi.', '*.exists' => ':attribute tidak tersedia. Muat ulang halaman.',
-            'tanggal_perubahan.after_or_equal' => 'Pilih tanggal hari ini atau setelahnya.',
+            'tanggal_perubahan.after_or_equal' => app(ConfigurationService::class)->current()->perubahan_shift_past_date
+                ? 'Tanggal perubahan minimal 1 Januari 1900.'
+                : 'Pengajuan untuk tanggal yang sudah lewat belum diizinkan. Pilih tanggal hari ini atau setelahnya.',
             'tanggal_perubahan.date_format' => 'Gunakan tanggal perubahan yang valid.',
             'tanggal_perubahan.before_or_equal' => 'Tanggal perubahan maksimal 31 Desember 2100.',
             'requested_shift_id.different' => 'Pilih shift tujuan yang berbeda dari shift saat ini.',

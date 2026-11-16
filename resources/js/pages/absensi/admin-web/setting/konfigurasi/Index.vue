@@ -9,10 +9,13 @@ import SettingNavigation from '../components/SettingNavigation.vue';
 
 interface Configuration {
     cancel_approved_cuti: boolean;
+    cuti_past_date: boolean;
     cancel_approved_lembur: boolean;
     cancel_approved_perubahan_shift: boolean;
     perubahan_shift_after_clock_in: boolean;
     perubahan_shift_same_day: boolean;
+    perubahan_shift_past_date: boolean;
+    perubahan_shift_without_default: boolean;
     clock_in_tolerance_minutes: number;
     approve_past_requests: boolean;
     allow_self_approval: boolean;
@@ -29,6 +32,12 @@ const groups = [
         title: 'Pengajuan cuti',
         icon: CalendarDays,
         fields: [
+            {
+                key: 'cuti_past_date',
+                label: 'Izinkan pengajuan cuti untuk tanggal yang sudah lewat',
+                description:
+                    'Pegawai dapat mengajukan cuti untuk kemarin atau tanggal sebelumnya. Kuota mengikuti tahun tanggal mulai cuti. Persetujuan mengikuti pengaturan approval pengajuan yang sudah lewat.',
+            },
             {
                 key: 'cancel_approved_cuti',
                 label: 'Izinkan pembatalan cuti yang sudah disetujui',
@@ -53,6 +62,12 @@ const groups = [
         icon: GitPullRequestArrow,
         fields: [
             {
+                key: 'perubahan_shift_without_default',
+                label: 'Izinkan pengajuan perubahan shift tanpa shift default',
+                description:
+                    'Pegawai yang belum memiliki shift default dapat mengajukan perubahan selama sudah ada jadwal shift pada tanggal yang dipilih. Shift asal mengikuti jadwal tanggal tersebut.',
+            },
+            {
                 key: 'cancel_approved_perubahan_shift',
                 label: 'Izinkan pembatalan perubahan shift yang sudah disetujui',
                 description: 'Jadwal pada tanggal tersebut dikembalikan ke shift asal. Waktu clock-in dan clock-out tetap tersimpan.',
@@ -67,6 +82,12 @@ const groups = [
                 label: 'Izinkan perubahan shift pada hari H',
                 description:
                     'Pengajuan dan persetujuan pada tanggal shift tetap diizinkan meskipun shift sudah dimulai atau clock-in dan clock-out sudah dilakukan. Waktu dan bukti presensi tetap tersimpan.',
+            },
+            {
+                key: 'perubahan_shift_past_date',
+                label: 'Izinkan pengajuan perubahan shift untuk tanggal yang sudah lewat',
+                description:
+                    'Pegawai dapat mengajukan perubahan shift untuk kemarin atau tanggal sebelumnya, termasuk setelah clock-in dan clock-out. Bukti presensi tetap tersimpan. Persetujuan mengikuti pengaturan approval pengajuan yang sudah lewat.',
             },
         ],
     },

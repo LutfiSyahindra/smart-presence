@@ -22,6 +22,7 @@ function runtime(overrides = {}) {
         requests: { data: [] },
         currentShift: { id: 7 },
         scheduledShiftIds: {},
+        allowPastDates: false,
         shifts: [],
         ...overrides,
     });
@@ -77,10 +78,37 @@ test('ordinary shift entry and request details never open a new submission', () 
     }
 });
 
+test('a request without a default shift is ready only on a date with its own schedule', async () => {
+    const app = runtime({
+        currentShift: null,
+        unavailableReason: null,
+        shifts: [{ id: 7 }, { id: 8 }],
+        scheduledShiftIds: { '2026-11-03': 7 },
+    });
+    try {
+        app.state.form.requested_shift_id = '8';
+        app.state.form.alasan = 'Menyesuaikan jadwal';
+        assert.equal(app.state.form.original_shift_id, null);
+        assert.ok(!app.state.ready.value);
+        app.state.form.tanggal_perubahan = '2026-11-03';
+        await vue.nextTick();
+        assert.equal(app.state.form.original_shift_id, 7);
+        assert.ok(app.state.ready.value);
+        app.state.form.tanggal_perubahan = '2026-11-04';
+        await vue.nextTick();
+        assert.equal(app.state.form.original_shift_id, null);
+        assert.ok(!app.state.ready.value);
+        assert.equal(app.state.form.alasan, 'Menyesuaikan jadwal');
+    } finally {
+        app.close();
+    }
+});
+
 test('the form uses the dated shift and updates it when the chosen date changes', async () => {
     const app = runtime({
         shifts: [{ id: 7 }, { id: 8 }, { id: 9 }],
-        scheduledShiftIds: { '2026-11-02': 8, '2026-11-03': 9 },
+        scheduledShiftIds: { '2026-10-31': 9, '2026-11-02': 8, '2026-11-03': 9 },
+        allowPastDates: true,
     });
     try {
         assert.equal(app.state.originalShift.value.id, 8);
@@ -97,6 +125,10 @@ test('the form uses the dated shift and updates it when the chosen date changes'
         assert.equal(app.state.form.original_shift_id, 9);
         assert.equal(app.state.form.requested_shift_id, '');
         assert.equal(app.state.form.alasan, 'Menyesuaikan jadwal');
+        app.state.form.tanggal_perubahan = '2026-10-31';
+        await vue.nextTick();
+        assert.equal(app.state.originalShift.value.id, 9);
+        assert.equal(app.state.form.original_shift_id, 9);
         app.state.form.tanggal_perubahan = '2026-11-04';
         await vue.nextTick();
         assert.equal(app.state.form.original_shift_id, 7);

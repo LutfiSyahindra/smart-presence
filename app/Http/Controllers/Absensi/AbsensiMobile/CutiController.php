@@ -95,6 +95,7 @@ class CutiController extends Controller
             'approvalPreview' => $line?->steps->map(fn ($step) => ['level' => $step->level, 'name' => $step->user?->name ?? 'Pengguna tidak tersedia'])->values() ?? [],
             'unavailableReason' => $unavailableReason,
             'today' => now()->toDateString(),
+            'allowPastDates' => (bool) app(ConfigurationService::class)->current()->cuti_past_date,
         ]);
     }
 

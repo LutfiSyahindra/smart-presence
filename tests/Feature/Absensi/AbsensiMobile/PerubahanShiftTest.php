@@ -20,6 +20,7 @@ use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -327,13 +328,17 @@ class PerubahanShiftTest extends TestCase
         $this->actingAs($stranger)->get(self::URL.'/'.$first->id)->assertForbidden();
     }
 
-    #[TestWith(['none'])]
-    #[TestWith(['scheduled'])]
-    #[TestWith(['clock-in'])]
-    #[TestWith(['completed'])]
-    public function test_same_day_configuration_allows_started_shift_changes_and_preserves_attendance(string $attendance): void
+    #[TestWith(['none', 'perubahan_shift_same_day'])]
+    #[TestWith(['scheduled', 'perubahan_shift_same_day'])]
+    #[TestWith(['clock-in', 'perubahan_shift_same_day'])]
+    #[TestWith(['completed', 'perubahan_shift_same_day'])]
+    #[TestWith(['none', 'perubahan_shift_past_date'])]
+    #[TestWith(['scheduled', 'perubahan_shift_past_date'])]
+    #[TestWith(['clock-in', 'perubahan_shift_past_date'])]
+    #[TestWith(['completed', 'perubahan_shift_past_date'])]
+    public function test_date_configuration_allows_elapsed_shift_changes_and_preserves_attendance(string $attendance, string $setting): void
     {
-        $this->travelTo('2026-10-26 17:00');
+        $this->travelTo($setting === 'perubahan_shift_past_date' ? '2026-10-27 09:00' : '2026-10-26 17:00');
         $this->target->update(['jam_masuk' => '09:00', 'jam_keluar' => '17:00']);
         $record = $attendance === 'none' ? null : Presensi::query()->create([
             'pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id, 'tanggal_presensi' => '2026-10-26',
@@ -353,7 +358,7 @@ class PerubahanShiftTest extends TestCase
         $this->assertDatabaseCount('perubahan_shift_requests', 0);
 
         app(ConfigurationService::class)->update([
-            'perubahan_shift_same_day' => true, 'cancel_approved_perubahan_shift' => true,
+            $setting => true, 'cancel_approved_perubahan_shift' => true,
         ], $this->approver->id);
         $item = $this->submit();
         $this->assertSame('pending', $item->status);
@@ -378,17 +383,19 @@ class PerubahanShiftTest extends TestCase
         }
     }
 
-    #[TestWith([true])]
-    #[TestWith([false])]
-    public function test_final_approval_rechecks_same_day_configuration_after_attendance_is_completed(bool $enabled): void
+    #[TestWith([true, 'perubahan_shift_same_day'])]
+    #[TestWith([false, 'perubahan_shift_same_day'])]
+    #[TestWith([true, 'perubahan_shift_past_date'])]
+    #[TestWith([false, 'perubahan_shift_past_date'])]
+    public function test_final_approval_rechecks_date_configuration_after_attendance_is_completed(bool $enabled, string $setting): void
     {
-        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => true], $this->approver->id);
+        app(ConfigurationService::class)->update([$setting => true], $this->approver->id);
         $this->travelTo('2026-10-26 07:00');
         $item = $this->submit();
-        $this->travelTo('2026-10-26 17:00');
+        $this->travelTo($setting === 'perubahan_shift_past_date' ? '2026-10-27 09:00' : '2026-10-26 17:00');
         $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
             'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00', 'clock_out_at' => '2026-10-26 16:00:00']);
-        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => $enabled], $this->approver->id);
+        app(ConfigurationService::class)->update([$setting => $enabled], $this->approver->id);
         $response = $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved']);
         if ($enabled) {
             $response->assertSessionHasNoErrors();
@@ -417,12 +424,84 @@ class PerubahanShiftTest extends TestCase
         $this->assertDatabaseCount('perubahan_shift_requests', 1);
     }
 
-    public function test_same_day_configuration_keeps_off_shift_restrictions_after_clock_in(): void
+    public function test_past_date_configuration_exposes_historical_schedule_and_uses_it_across_months_in_wib(): void
     {
-        app(ConfigurationService::class)->update(['perubahan_shift_same_day' => true], $this->approver->id);
+        $this->travelTo('2026-11-01 00:30:00');
+        $datedShift = Shift::query()->create(['nama' => 'Siang', 'jam_masuk' => '14:00', 'jam_keluar' => '22:00']);
+        $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $datedShift->id,
+            'tanggal_presensi' => '2026-10-31']);
+        $this->actingAs($this->employee)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('allowPastDates', false)->where('scheduledShiftIds', []));
+        app(ConfigurationService::class)->update(['perubahan_shift_past_date' => true], $this->approver->id);
+        $this->get(self::URL.'?action=create')->assertInertia(fn (Assert $page) => $page
+            ->where('today', '2026-11-01')->where('allowPastDates', true)
+            ->where('scheduledShiftIds.2026-10-31', $datedShift->id));
+        $this->post(self::URL, $this->payload(['tanggal_perubahan' => '2026-10-31']))->assertSessionHasErrors('original_shift_id');
+        $item = $this->submit(['tanggal_perubahan' => '2026-10-31', 'original_shift_id' => $datedShift->id]);
+        $this->assertSame($datedShift->id, $item->original_shift_id);
+        $this->assertSame($datedShift->id, $record->fresh()->shift_id);
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame($this->target->id, $record->fresh()->shift_id);
+        $this->assertSame($this->original->id, $this->pegawai->fresh()->shift_id);
+        $this->assertDatabaseCount('presensis', 1);
+        $this->actingAs($this->employee)->post(self::URL, $this->payload([
+            'tanggal_perubahan' => '2026-10-31', 'original_shift_id' => $this->target->id, 'requested_shift_id' => $datedShift->id,
+        ]))->assertSessionHasErrors('tanggal_perubahan');
+        $this->assertDatabaseCount('perubahan_shift_requests', 1);
+    }
+
+    public function test_past_date_submission_still_requires_past_approval_configuration_for_decisions(): void
+    {
+        $this->travelTo('2026-10-27 09:00');
+        $configuration = app(ConfigurationService::class);
+        $configuration->update(['perubahan_shift_past_date' => true, 'approve_past_requests' => false], $this->approver->id);
+        $item = $this->submit();
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])->assertSessionHasErrors('decision');
+        $this->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $item->fresh()->status);
+        $this->assertSame('pending', $item->fresh()->approvals->sole()->status);
+        $this->assertDatabaseCount('presensis', 0);
+        $configuration->update(['approve_past_requests' => true], $this->approver->id);
+        $this->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasNoErrors();
+        $this->assertSame('rejected', $item->fresh()->status);
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_clock_in_configuration_cannot_bypass_disabled_past_date_submission(): void
+    {
+        $this->travelTo('2026-10-27 09:00');
+        app(ConfigurationService::class)->update(['perubahan_shift_after_clock_in' => true], $this->approver->id);
+        Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
+            'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00']);
+        $this->actingAs($this->employee)->post(self::URL, $this->payload())->assertSessionHasErrors('tanggal_perubahan');
+        try {
+            app(PerubahanShiftService::class)->submit($this->employee, $this->payload());
+            $this->fail('Expected past-date validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('tanggal_perubahan', $exception->errors());
+        }
+        $this->assertDatabaseCount('perubahan_shift_requests', 0);
+    }
+
+    public function test_past_date_configuration_keeps_date_validation_and_same_day_restrictions(): void
+    {
+        app(ConfigurationService::class)->update(['perubahan_shift_past_date' => true], $this->approver->id);
+        $this->travelTo('2026-10-26 17:00');
+        foreach (['2026-10-26', '2026-02-30', '1899-12-31', '2101-01-01'] as $date) {
+            $this->actingAs($this->employee)->post(self::URL, $this->payload(['tanggal_perubahan' => $date]))
+                ->assertSessionHasErrors('tanggal_perubahan');
+        }
+        $this->assertDatabaseCount('perubahan_shift_requests', 0);
+    }
+
+    #[TestWith(['perubahan_shift_same_day'])]
+    #[TestWith(['perubahan_shift_past_date'])]
+    public function test_date_configuration_keeps_off_shift_restrictions_after_clock_in(string $setting): void
+    {
+        app(ConfigurationService::class)->update([$setting => true], $this->approver->id);
         $this->target->update(['nama' => 'OFF', 'is_day_off' => true, 'jam_masuk' => null, 'jam_keluar' => null]);
         $item = $this->submit();
-        $this->travelTo('2026-10-26 17:00');
+        $this->travelTo($setting === 'perubahan_shift_past_date' ? '2026-10-27 09:00' : '2026-10-26 17:00');
         Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id,
             'tanggal_presensi' => '2026-10-26', 'clock_in_at' => '2026-10-26 08:00:00', 'clock_out_at' => '2026-10-26 16:00:00']);
         $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
@@ -453,6 +532,57 @@ class PerubahanShiftTest extends TestCase
         $this->assertStringContainsString('Catatan kehadiran', $record->fresh()->notes);
         $this->assertSame('cancelled', $item->fresh()->status);
         $this->assertSame('approved', $item->fresh()->approvals->first()->status);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_shift_without_default_requires_configuration_and_restores_dated_schedule_on_cancellation(bool $dayOff): void
+    {
+        $this->pegawai->update(['shift_id' => null]);
+        $scheduled = Shift::query()->create(['nama' => 'Jadwal khusus', 'jam_masuk' => '12:00', 'jam_keluar' => '20:00', 'is_day_off' => $dayOff]);
+        $record = Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $scheduled->id,
+            'tanggal_presensi' => '2026-10-26', 'is_day_off' => $dayOff, 'notes' => 'Jadwal dari admin']);
+        $this->actingAs($this->employee)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('currentShift', null)->where('unavailableReason', 'Shift Anda belum ditentukan. Hubungi administrator.'));
+        $this->post(self::URL, $this->payload(['original_shift_id' => $scheduled->id]))->assertSessionHasErrors('pengajuan');
+        app(ConfigurationService::class)->update([
+            'perubahan_shift_without_default' => true, 'cancel_approved_perubahan_shift' => true,
+        ], $this->approver->id);
+        $this->get(self::URL.'?action=create')->assertInertia(fn (Assert $page) => $page
+            ->where('currentShift', null)->where('scheduledShiftIds.2026-10-26', $scheduled->id)
+            ->where('unavailableReason', null)->where('initialCreate', true));
+        $this->post(self::URL, $this->payload())->assertSessionHasErrors('original_shift_id');
+        $item = $this->submit(['original_shift_id' => $scheduled->id]);
+        $this->assertSame($scheduled->id, $item->original_shift_id);
+        $this->assertTrue($item->original_shift['had_dated_schedule']);
+        $this->assertSame($scheduled->id, $record->fresh()->shift_id);
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame($this->target->id, $record->fresh()->shift_id);
+        $this->assertFalse($record->fresh()->is_day_off);
+        $this->assertNull($this->pegawai->fresh()->shift_id);
+        $this->actingAs($this->employee)->post(self::URL.'/'.$item->id.'/cancel')->assertSessionHasNoErrors();
+        $this->assertSame($scheduled->id, $record->fresh()->shift_id);
+        $this->assertSame($dayOff, $record->fresh()->is_day_off);
+        $this->assertNull($this->pegawai->fresh()->shift_id);
+        $this->assertDatabaseCount('presensis', 1);
+    }
+
+    public function test_shift_without_default_cannot_use_another_dates_or_another_employees_schedule(): void
+    {
+        $this->pegawai->update(['shift_id' => null]);
+        app(ConfigurationService::class)->update(['perubahan_shift_without_default' => true], $this->approver->id);
+        Presensi::query()->create(['pegawai_id' => $this->pegawai->id, 'shift_id' => $this->original->id, 'tanggal_presensi' => '2026-10-27']);
+        $other = Pegawai::query()->create(['nama' => 'Pegawai lain']);
+        Presensi::query()->create(['pegawai_id' => $other->id, 'shift_id' => $this->original->id, 'tanggal_presensi' => '2026-10-26']);
+        $this->actingAs($this->employee)->post(self::URL, $this->payload())->assertSessionHasErrors('original_shift_id');
+        $this->assertDatabaseCount('perubahan_shift_requests', 0);
+        $item = $this->submit(['tanggal_perubahan' => '2026-10-27']);
+        $this->pegawai->presensis()->delete();
+        $this->actingAs($this->approver)->post(self::URL.'/'.$item->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $item->fresh()->status);
+        $this->assertNull($this->pegawai->fresh()->shift_id);
     }
 
     public function test_dated_schedules_without_clock_in_or_out_can_be_changed_before_the_shift_starts(): void

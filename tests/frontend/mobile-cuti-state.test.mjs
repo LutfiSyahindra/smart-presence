@@ -16,6 +16,7 @@ function runtime(overrides = {}, permissions = null) {
     const request = { id: 42, status: 'pending', can_cancel: true, can_decide: false };
     const props = vue.reactive({
         today: '2026-10-26',
+        allowPastDates: false,
         filters: { scope: 'mine', month: '2026-10', status: '' },
         requests: { data: [request] },
         initialRequest: request,
@@ -96,6 +97,33 @@ test('instant leave form requires create permission and never replaces a request
         } finally {
             app.close();
         }
+    }
+});
+
+test('past leave dates use the allocated quota for the requested year and follow configuration changes', async () => {
+    const app = runtime({
+        initialCreate: true,
+        initialRequest: null,
+        allowPastDates: true,
+        leaveOptions: [
+            { id: 1, is_tahunan: true, tahun: 2026, sisa: 10 },
+            { id: 1, is_tahunan: true, tahun: 2025, sisa: 3 },
+        ],
+    });
+    try {
+        assert.equal(app.state.earliestDate.value, '1900-01-01');
+        app.state.form.tanggal_mulai = '2025-12-29';
+        app.state.form.tanggal_selesai = '2025-12-30';
+        await vue.nextTick();
+        assert.equal(app.state.availableTypes.value.length, 1);
+        assert.equal(app.state.selectedType.value.tahun, 2025);
+        assert.equal(app.state.selectedType.value.sisa, 3);
+        app.props.allowPastDates = false;
+        await vue.nextTick();
+        assert.equal(app.state.earliestDate.value, '2026-10-26');
+        assert.equal(app.state.form.tanggal_mulai, '2025-12-29');
+    } finally {
+        app.close();
     }
 });
 

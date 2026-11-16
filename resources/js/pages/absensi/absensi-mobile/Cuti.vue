@@ -43,6 +43,7 @@ const props = defineProps<{
     approvalPreview: { level: number; name: string }[];
     unavailableReason: string | null;
     today: string;
+    allowPastDates: boolean;
     initialRequest?: CutiRow | null;
     initialCreate?: boolean;
 }>();
@@ -50,6 +51,7 @@ const page = usePage<SharedData>();
 const sheet = ref<'balance' | 'filter' | 'create' | null>(null);
 const selected = ref<CutiRow | null>(null);
 const form = useForm({ master_cuti_id: '', tanggal_mulai: '', tanggal_selesai: '', alasan: '' });
+const earliestDate = computed(() => (props.allowPastDates ? '1900-01-01' : props.today));
 const decision = useForm({ decision: 'approved', note: '' });
 const cancellation = useForm({});
 const confirmingCancellation = ref(false);
@@ -443,17 +445,19 @@ if (props.initialCreate && !props.initialRequest && can('mobile.cuti.create')) c
                 <div class="date-fields">
                     <label class="form-field"
                         ><span>Mulai tanggal <b>*</b></span
-                        ><input v-model="form.tanggal_mulai" type="date" :min="today" required :aria-invalid="!!form.errors.tanggal_mulai" /><small
-                            v-if="form.errors.tanggal_mulai"
-                            class="field-error"
-                            >{{ form.errors.tanggal_mulai }}</small
-                        ></label
+                        ><input
+                            v-model="form.tanggal_mulai"
+                            type="date"
+                            :min="earliestDate"
+                            required
+                            :aria-invalid="!!form.errors.tanggal_mulai"
+                        /><small v-if="form.errors.tanggal_mulai" class="field-error">{{ form.errors.tanggal_mulai }}</small></label
                     ><label class="form-field"
                         ><span>Sampai tanggal <b>*</b></span
                         ><input
                             v-model="form.tanggal_selesai"
                             type="date"
-                            :min="form.tanggal_mulai || today"
+                            :min="form.tanggal_mulai || earliestDate"
                             required
                             :aria-invalid="!!form.errors.tanggal_selesai"
                         /><small v-if="form.errors.tanggal_selesai" class="field-error">{{ form.errors.tanggal_selesai }}</small></label

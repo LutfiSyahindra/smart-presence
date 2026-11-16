@@ -20,6 +20,10 @@ Server menentukan identitas pegawai, shift asal, status, dan approver; nilai
 identitas/status yang dikirim klien diabaikan. Shift asal mengikuti jadwal pada
 tanggal pilihan, lalu memakai shift default pegawai jika jadwal bertanggal belum
 ada. Formulir memperbarui shift asal dan pilihan tujuan saat tanggal diganti.
+Jika **Izinkan pengajuan perubahan shift tanpa shift default** di Konfigurasi
+aktif, pegawai tanpa shift default dapat mengajukan perubahan selama jadwal shift
+pada tanggal pilihannya sudah tersedia. Tanggal tanpa jadwal tetap diblokir dan
+formulir menampilkan penjelasan untuk memilih tanggal yang memiliki shift.
 Baris `presensis` dengan clock-in/out kosong merupakan jadwal dan dapat diubah
 sebelum kedua shift dimulai. Jika konfigurasi **Izinkan pengajuan perubahan shift
 setelah clock-in** aktif, pengajuan dan persetujuan tetap diperbolehkan setelah

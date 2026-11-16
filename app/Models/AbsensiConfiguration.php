@@ -8,10 +8,13 @@ class AbsensiConfiguration extends Model
 {
     public const DEFAULTS = [
         'cancel_approved_cuti' => false,
+        'cuti_past_date' => false,
         'cancel_approved_lembur' => false,
         'cancel_approved_perubahan_shift' => false,
         'perubahan_shift_after_clock_in' => false,
         'perubahan_shift_same_day' => false,
+        'perubahan_shift_past_date' => false,
+        'perubahan_shift_without_default' => false,
         'clock_in_tolerance_minutes' => 0,
         'approve_past_requests' => true,
         'allow_self_approval' => false,
@@ -23,10 +26,13 @@ class AbsensiConfiguration extends Model
     {
         return [
             'cancel_approved_cuti' => 'boolean',
+            'cuti_past_date' => 'boolean',
             'cancel_approved_lembur' => 'boolean',
             'cancel_approved_perubahan_shift' => 'boolean',
             'perubahan_shift_after_clock_in' => 'boolean',
             'perubahan_shift_same_day' => 'boolean',
+            'perubahan_shift_past_date' => 'boolean',
+            'perubahan_shift_without_default' => 'boolean',
             'clock_in_tolerance_minutes' => 'integer',
             'approve_past_requests' => 'boolean',
             'allow_self_approval' => 'boolean',

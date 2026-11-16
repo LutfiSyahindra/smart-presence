@@ -17,6 +17,14 @@ Akses memakai permission `mobile.access` dan verifikasi email yang sudah berlaku
 
 ## Jadwal dan presensi saat cuti
 
+Konfigurasi **Izinkan pengajuan cuti untuk tanggal yang sudah lewat** memungkinkan
+pengajuan cuti kemarin atau tanggal sebelumnya melalui web dan mobile/PWA. Opsi
+ini secara default tidak aktif dan memerlukan `php artisan migrate` setelah
+pembaruan. Kuota tahunan mengikuti tahun tanggal mulai cuti, termasuk tahun
+sebelumnya jika kuotanya tersedia. Validasi durasi, saldo, tumpang tindih, serta
+approval tetap berlaku. Persetujuan dan penolakan mengikuti konfigurasi approval
+pengajuan yang sudah lewat; tanggal persetujuan tidak mengubah periode cuti.
+
 Setelah seluruh approver menyetujui pengajuan, jadwal pada beranda dan Layanan Presensi otomatis tampil **CUTI** tanpa jam kerja selama rentang tanggal cuti, termasuk tanggal mulai dan selesai. Pengajuan yang masih menunggu, ditolak, atau dibatalkan tidak mengubah jadwal. Setelah periode cuti berakhir, jadwal menggunakan shift pegawai kembali. Ketentuan ini juga berlaku pada cuti yang telah disetujui sebelum pembaruan, tanpa migrasi atau pengisian ulang data.
 
 Tombol clock-in dan clock-out dinonaktifkan selama cuti. Halaman langsung dan pengiriman presensi melalui mobile/PWA maupun API juga ditolak oleh server, termasuk jika pegawai sudah clock-in sebelum cutinya disetujui. Pemeriksaan mencakup tanggal hari ini dan tanggal presensi untuk shift malam yang melewati tengah malam. Persetujuan terakhir dan penyimpanan presensi menggunakan penguncian pegawai yang sama, dengan pemeriksaan ulang sebelum penyimpanan.

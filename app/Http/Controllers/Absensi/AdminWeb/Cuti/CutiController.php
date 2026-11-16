@@ -88,6 +88,7 @@ class CutiController extends Controller
             'canSubmit' => $canSubmit,
             'leaveOptions' => $leaveOptions,
             'today' => now()->toDateString(),
+            'allowPastDates' => (bool) app(ConfigurationService::class)->current()->cuti_past_date,
         ]);
     }
 

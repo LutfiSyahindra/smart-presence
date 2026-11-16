@@ -24,6 +24,7 @@ const props = defineProps<{
     canViewAll: boolean;
     canSubmit: boolean;
     today: string;
+    allowPastDates: boolean;
     leaveOptions: { id: number; nama: string; is_tahunan: boolean; tahun: number; jumlah_hari: number; sisa: number }[];
 }>();
 const baseUrl = '/absensi/admin-web/cuti';
@@ -36,6 +37,7 @@ const selected = ref<CutiRow | null>(null);
 const search = ref(props.filters.search);
 const status = ref(props.filters.status);
 const form = useForm({ master_cuti_id: '', tanggal_mulai: '', tanggal_selesai: '', alasan: '' });
+const earliestDate = computed(() => (props.allowPastDates ? '1900-01-01' : props.today));
 const optionYear = computed(() => Number((form.tanggal_mulai || props.today).slice(0, 4)));
 const availableTypes = computed(() => props.leaveOptions.filter((option) => !option.is_tahunan || option.tahun === optionYear.value));
 const selectedType = computed(() => availableTypes.value.find((option) => String(option.id) === String(form.master_cuti_id)));
@@ -268,14 +270,14 @@ const submit = () => form.post(baseUrl, { preserveScroll: true, onSuccess: () =>
                     <div class="al-date-fields">
                         <label class="al-field"
                             ><span>Tanggal mulai <b>*</b></span
-                            ><input v-model="form.tanggal_mulai" type="date" :min="today" required /><small
+                            ><input v-model="form.tanggal_mulai" type="date" :min="earliestDate" required /><small
                                 v-if="form.errors.tanggal_mulai"
                                 class="al-error"
                                 >{{ form.errors.tanggal_mulai }}</small
                             ></label
                         ><label class="al-field"
                             ><span>Tanggal selesai <b>*</b></span
-                            ><input v-model="form.tanggal_selesai" type="date" :min="form.tanggal_mulai || today" required /><small
+                            ><input v-model="form.tanggal_selesai" type="date" :min="form.tanggal_mulai || earliestDate" required /><small
                                 v-if="form.errors.tanggal_selesai"
                                 class="al-error"
                                 >{{ form.errors.tanggal_selesai }}</small

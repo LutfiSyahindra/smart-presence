@@ -54,6 +54,7 @@ const props = defineProps<{
     initialCreate?: boolean;
     month: string;
     today: string;
+    allowPastDates: boolean;
     status: Status;
     summary: { count: number; pending: number };
     requests: {
@@ -605,19 +606,22 @@ watch(
                     id="shift-date"
                     v-model="form.tanggal_perubahan"
                     type="date"
-                    :min="today"
+                    :min="allowPastDates ? '1900-01-01' : today"
                     max="2100-12-31"
                     required
                     :disabled="form.processing"
                     :aria-invalid="Boolean(form.errors.tanggal_perubahan)"
                     aria-describedby="shift-date-help shift-date-error"
-                /><small id="shift-date-help">Tanggal mengacu pada hari dimulainya shift.</small>
+                /><small id="shift-date-help"
+                    >Tanggal mengacu pada hari dimulainya shift.{{ allowPastDates ? ' Tanggal yang sudah lewat juga dapat diajukan.' : '' }}</small
+                >
                 <p v-if="form.errors.tanggal_perubahan" id="shift-date-error" class="field-error" role="alert">{{ form.errors.tanggal_perubahan }}</p>
             </div>
             <div v-if="originalShift" class="current-shift">
                 <small>SHIFT SAAT INI</small><strong>{{ originalShift.name }}</strong
                 ><span><Clock3 />{{ timeLabel(originalShift) }}</span>
             </div>
+            <p v-else class="notice" role="status">Belum ada shift pada tanggal yang dipilih. Pilih tanggal yang sudah memiliki jadwal shift.</p>
             <p v-if="form.errors.original_shift_id" class="field-error" role="alert">{{ form.errors.original_shift_id }}</p>
             <span class="change-direction" aria-hidden="true"><ArrowDown /></span>
             <div class="form-field">

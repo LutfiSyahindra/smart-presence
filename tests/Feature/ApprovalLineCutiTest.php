@@ -90,6 +90,24 @@ class ApprovalLineCutiTest extends TestCase
         return CutiRequest::query()->latest('id')->firstOrFail();
     }
 
+    public function test_web_cuti_can_be_submitted_for_past_dates_only_when_configured(): void
+    {
+        $this->withoutVite();
+        $this->configure(1);
+        $data = array_replace($this->payload(), ['tanggal_mulai' => '2026-09-29', 'tanggal_selesai' => '2026-09-30']);
+        $this->actingAs($this->applicant)->get(self::CUTI)->assertInertia(fn (Assert $page) => $page->where('allowPastDates', false));
+        $this->post(self::CUTI, $data)->assertSessionHasErrors('tanggal_mulai');
+        app(ConfigurationService::class)->update(['cuti_past_date' => true], $this->admin->id);
+        $this->get(self::CUTI)->assertInertia(fn (Assert $page) => $page->where('allowPastDates', true));
+        $this->post(self::CUTI, $data)->assertSessionHasNoErrors()->assertRedirect(self::CUTI);
+        $cuti = CutiRequest::query()->sole();
+        $this->assertSame('pending', $cuti->status);
+        $this->actingAs($this->approvers[0])->post($this->decisionUrl($cuti), ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame('approved', $cuti->fresh()->status);
+        $this->assertSame('2026-09-29', $cuti->fresh()->tanggal_mulai->toDateString());
+        $this->assertSame(2, $cuti->jumlah_hari);
+    }
+
     private function decisionUrl(CutiRequest $cuti): string
     {
         return self::CUTI."/{$cuti->id}/decision";

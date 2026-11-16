@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Absensi\AdminWeb\Cuti;
 
+use App\Services\Absensi\ConfigurationService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCutiRequest extends FormRequest
@@ -13,9 +14,11 @@ class StoreCutiRequest extends FormRequest
 
     public function rules(): array
     {
+        $earliestDate = app(ConfigurationService::class)->current()->cuti_past_date ? '1900-01-01' : 'today';
+
         return [
             'master_cuti_id' => ['required', 'integer', 'exists:master_cutis,id'],
-            'tanggal_mulai' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'tanggal_mulai' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$earliestDate],
             'tanggal_selesai' => ['required', 'date_format:Y-m-d', 'after_or_equal:tanggal_mulai'],
             'alasan' => ['required', 'string', 'max:2000'],
         ];
@@ -31,7 +34,9 @@ class StoreCutiRequest extends FormRequest
         return [
             'master_cuti_id.required' => 'Pilih jenis cuti yang diberikan kepada Anda.',
             'master_cuti_id.exists' => 'Jenis cuti tidak tersedia.',
-            'tanggal_mulai.after_or_equal' => 'Tanggal mulai tidak boleh sebelum hari ini.',
+            'tanggal_mulai.after_or_equal' => app(ConfigurationService::class)->current()->cuti_past_date
+                ? 'Tanggal mulai minimal 1 Januari 1900.'
+                : 'Pengajuan cuti untuk tanggal yang sudah lewat belum diizinkan. Pilih tanggal hari ini atau setelahnya.',
             'tanggal_selesai.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
             'alasan.required' => 'Alasan cuti wajib diisi.',
             'alasan.max' => 'Alasan cuti maksimal 2.000 karakter.',

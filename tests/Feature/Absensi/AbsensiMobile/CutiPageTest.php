@@ -8,8 +8,11 @@ use App\Models\Jabatan;
 use App\Models\MasterCuti;
 use App\Models\Pegawai;
 use App\Models\PegawaiCuti;
+use App\Models\Shift;
 use App\Models\UnitKerja;
 use App\Models\User;
+use App\Services\Absensi\AdminWeb\Cuti\CutiService;
+use App\Services\Absensi\ConfigurationService;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -68,10 +71,10 @@ class CutiPageTest extends TestCase
     public function test_approved_cuti_cancellation_obeys_configuration_and_returns_the_balance(): void
     {
         $cuti = $this->submit();
-        $service = app(\App\Services\Absensi\AdminWeb\Cuti\CutiService::class);
+        $service = app(CutiService::class);
         $service->decide($cuti, $this->approver, ['decision' => 'approved']);
         $this->actingAs($this->employee)->post(self::URL."/{$cuti->id}/cancel")->assertSessionHasErrors('cancel');
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['cancel_approved_cuti' => true], $this->approver->id);
+        app(ConfigurationService::class)->update(['cancel_approved_cuti' => true], $this->approver->id);
         $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('requests.data.0.can_cancel', true)->where('balance.used', 2));
         $this->post(self::URL."/{$cuti->id}/cancel")->assertSessionHasNoErrors();
         $this->assertSame('cancelled', $cuti->fresh()->status);
@@ -83,19 +86,68 @@ class CutiPageTest extends TestCase
     {
         $cuti = $this->submit();
         $this->travelTo('2026-10-28 09:00');
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => false], $this->approver->id);
+        app(ConfigurationService::class)->update(['approve_past_requests' => false], $this->approver->id);
         $this->actingAs($this->approver)->post('/absensi/mobile/notifikasi/cuti/approve-many', ['request_ids' => [$cuti->id]])->assertSessionHasErrors('decision');
         $this->post(self::URL."/{$cuti->id}/decision", ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasErrors('decision');
         $this->assertSame('pending', $cuti->fresh()->status);
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => true], $this->approver->id);
+        app(ConfigurationService::class)->update(['approve_past_requests' => true], $this->approver->id);
         $this->post(self::URL."/{$cuti->id}/decision", ['decision' => 'rejected', 'note' => 'Tidak disetujui.'])->assertSessionHasNoErrors();
         $this->assertSame('rejected', $cuti->fresh()->status);
+    }
+
+    public function test_past_cuti_submission_requires_configuration_and_preserves_requested_period_and_balance(): void
+    {
+        $data = ['tanggal_mulai' => '2026-09-29', 'tanggal_selesai' => '2026-09-30'];
+        $this->actingAs($this->employee)->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('allowPastDates', false));
+        $this->post(self::URL, $this->payload($data))->assertSessionHasErrors('tanggal_mulai');
+        $configuration = app(ConfigurationService::class);
+        $configuration->update(['cuti_past_date' => true, 'approve_past_requests' => false], $this->approver->id);
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('allowPastDates', true));
+        $cuti = $this->submit($data);
+        $this->assertSame(2, $cuti->jumlah_hari);
+        $this->get(self::URL.'?month=2026-09')->assertInertia(fn (Assert $page) => $page
+            ->where('requests.total', 1)->where('balance.pending', 2)->where('balance.available', 10));
+        $this->post(self::URL, $this->payload($data))->assertSessionHasErrors('tanggal_mulai');
+        $this->actingAs($this->approver)->post(self::URL.'/'.$cuti->id.'/decision', ['decision' => 'approved'])
+            ->assertSessionHasErrors('decision');
+        $this->assertSame('pending', $cuti->fresh()->status);
+        $configuration->update(['approve_past_requests' => true], $this->approver->id);
+        $this->post(self::URL.'/'.$cuti->id.'/decision', ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame('2026-09-29', $cuti->fresh()->tanggal_mulai->toDateString());
+        $this->assertSame('2026-09-30', $cuti->fresh()->tanggal_selesai->toDateString());
+        $this->actingAs($this->employee)->get(self::URL.'?month=2026-09')->assertInertia(fn (Assert $page) => $page
+            ->where('balance.used', 2)->where('balance.pending', 0)->where('balance.available', 10));
+        $configuration->update(['cuti_past_date' => false], $this->approver->id);
+        $this->post(self::URL, $this->payload(['tanggal_mulai' => '2026-10-18', 'tanggal_selesai' => '2026-10-18']))
+            ->assertSessionHasErrors('tanggal_mulai');
+        $this->assertDatabaseCount('cuti_requests', 1);
+    }
+
+    public function test_past_annual_cuti_requires_quota_for_the_requested_year_and_valid_dates(): void
+    {
+        app(ConfigurationService::class)->update(['cuti_past_date' => true], $this->approver->id);
+        $data = ['tanggal_mulai' => '2025-12-29', 'tanggal_selesai' => '2025-12-30'];
+        $this->actingAs($this->employee)->post(self::URL, $this->payload($data))->assertSessionHasErrors('master_cuti_id');
+        $allocation = PegawaiCuti::query()->create(['master_cuti_id' => $this->annual->id, 'pegawai_id' => $this->pegawai->id,
+            'tahun' => 2025, 'jumlah_hari' => 1]);
+        $this->post(self::URL, $this->payload($data))->assertSessionHasErrors('tanggal_selesai');
+        $allocation->update(['jumlah_hari' => 3]);
+        $this->post(self::URL, $this->payload(['tanggal_mulai' => '2025-12-31', 'tanggal_selesai' => '2026-01-01']))
+            ->assertSessionHasErrors('tanggal_selesai');
+        $this->post(self::URL, $this->payload(['tanggal_mulai' => '2025-12-30', 'tanggal_selesai' => '2025-12-29']))
+            ->assertSessionHasErrors('tanggal_selesai');
+        $this->post(self::URL, $this->payload(['tanggal_mulai' => '2025-02-30']))->assertSessionHasErrors('tanggal_mulai');
+        $cuti = $this->submit($data);
+        $this->assertSame(2025, $cuti->tahun_cuti);
+        $this->get(self::URL.'?month=2025-12')->assertInertia(fn (Assert $page) => $page
+            ->where('balance.total', 3)->where('balance.available', 1));
+        $this->get(self::URL.'?month=2026-10')->assertInertia(fn (Assert $page) => $page->where('balance.available', 12));
     }
 
     public function test_late_approval_counts_leave_on_the_requested_date_in_the_previous_month(): void
     {
         $this->travelTo('2026-10-30 09:00');
-        $shift = \App\Models\Shift::query()->create(['nama' => 'Shift Pagi', 'jam_masuk' => '08:00', 'jam_keluar' => '16:00']);
+        $shift = Shift::query()->create(['nama' => 'Shift Pagi', 'jam_masuk' => '08:00', 'jam_keluar' => '16:00']);
         $this->pegawai->forceFill(['shift_id' => $shift->id, 'shift_assigned_at' => '2026-10-01',
             'tanggal_mulai_bekerja' => '2026-10-01'])->save();
         $cuti = $this->submit(['tanggal_mulai' => '2026-10-30', 'tanggal_selesai' => '2026-10-30']);
@@ -103,7 +155,7 @@ class CutiPageTest extends TestCase
         $this->actingAs($this->employee)->get('/absensi/mobile/presensi/log?month=2026-10')
             ->assertInertia(fn (Assert $page) => $page->where('days.29.date', '2026-10-30')
                 ->where('days.29.status', 'absent')->where('days.29.flags.leave', false));
-        app(\App\Services\Absensi\ConfigurationService::class)->update(['approve_past_requests' => true], $this->approver->id);
+        app(ConfigurationService::class)->update(['approve_past_requests' => true], $this->approver->id);
         $this->actingAs($this->approver)->post(self::URL."/{$cuti->id}/decision", ['decision' => 'approved'])->assertSessionHasNoErrors();
         $this->assertSame('2026-11-03', $cuti->fresh()->decided_at->toDateString());
         $this->assertSame('2026-10-30', $cuti->fresh()->tanggal_mulai->toDateString());

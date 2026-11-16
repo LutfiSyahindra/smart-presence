@@ -6,6 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class AbsensiConfiguration extends Model
 {
+    public const PRESENSI_PEGAWAI_SCOPE_UNIT = 'unit-kerja';
+
+    public const PRESENSI_PEGAWAI_SCOPE_APPROVAL_LINE = 'approval-line';
+
+    public const PRESENSI_PEGAWAI_SCOPE_ALL = 'all';
+
     public const DEFAULTS = [
         'cancel_approved_cuti' => false,
         'cuti_past_date' => false,
@@ -18,6 +24,9 @@ class AbsensiConfiguration extends Model
         'clock_in_tolerance_minutes' => 0,
         'approve_past_requests' => true,
         'allow_self_approval' => false,
+        'mobile_presensi_pegawai_scope' => self::PRESENSI_PEGAWAI_SCOPE_UNIT,
+        'mobile_presensi_pegawai_approval_type' => ApprovalLine::TYPE_PRESENSI,
+        'mobile_presensi_pegawai_all_role_ids' => [],
     ];
 
     protected $guarded = ['id'];
@@ -36,6 +45,7 @@ class AbsensiConfiguration extends Model
             'clock_in_tolerance_minutes' => 'integer',
             'approve_past_requests' => 'boolean',
             'allow_self_approval' => 'boolean',
+            'mobile_presensi_pegawai_all_role_ids' => 'array',
         ];
     }
 }

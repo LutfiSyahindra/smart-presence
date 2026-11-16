@@ -28,6 +28,8 @@ final class AccessPermission
 
     public const MOBILE_HISTORY = 'mobile.history';
 
+    public const MOBILE_PRESENSI_PEGAWAI_VIEW = 'mobile.presensi-pegawai.view';
+
     public const MOBILE_CUTI_VIEW = 'mobile.cuti.view';
 
     public const MOBILE_CUTI_CREATE = 'mobile.cuti.create';
@@ -145,6 +147,7 @@ final class AccessPermission
             self::ADMIN_ACCESS,
             self::MOBILE_ACCESS,
             self::MOBILE_ACCOUNT,
+            self::MOBILE_PRESENSI_PEGAWAI_VIEW,
             ...self::additional(),
             self::JABATAN_VIEW,
             self::JABATAN_CREATE,

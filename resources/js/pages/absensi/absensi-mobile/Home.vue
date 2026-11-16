@@ -22,6 +22,7 @@ import {
     Sparkles,
     Timer,
     TimerReset,
+    UsersRound,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import MobileNotificationBell from './components/MobileNotificationBell.vue';
@@ -31,6 +32,7 @@ const props = defineProps<{
     attendanceSubmissions?: AttendanceSubmissionStatus[];
     canAccessAdmin: boolean;
     canAccessAccount: boolean;
+    canViewPresensiPegawai: boolean;
     profilePhotoUrl: string | null;
     todaySchedule: {
         shift_name: string | null;
@@ -116,6 +118,18 @@ const quickActions = computed(() =>
         },
         { label: 'Perubahan Shift', caption: 'Pengajuan shift', icon: ArrowRightLeft, color: '#5b54a4', background: '#efedfb', perubahanShift: true },
         { label: 'Lembur', caption: 'Jam tambahan', icon: Timer, color: '#b86a37', background: '#fff1e8', lembur: true },
+        ...(props.canViewPresensiPegawai
+            ? [
+                  {
+                      label: 'Presensi Pegawai',
+                      caption: 'Kehadiran tim',
+                      icon: UsersRound,
+                      color: '#087f78',
+                      background: '#e8f6f2',
+                      presensiPegawai: true,
+                  },
+              ]
+            : []),
         ...(props.canAccessAdmin
             ? [{ label: 'Portal admin', caption: 'Kelola data', icon: ShieldCheck, color: '#31577c', background: '#eaf1f7', admin: true }]
             : []),
@@ -336,6 +350,16 @@ const { can } = usePermission();
                             <Link
                                 v-if="can('mobile.history') && action.history"
                                 :href="route('absensi.mobile.attendance.log')"
+                                class="quick-action"
+                                :style="{ '--action-color': action.color, '--action-background': action.background }"
+                            >
+                                <span class="quick-icon"><component :is="action.icon" /></span>
+                                <strong>{{ action.label }}</strong>
+                                <small>{{ action.caption }}</small>
+                            </Link>
+                            <Link
+                                v-else-if="action.presensiPegawai"
+                                :href="route('absensi.mobile.presensi-pegawai.index')"
                                 class="quick-action"
                                 :style="{ '--action-color': action.color, '--action-background': action.background }"
                             >

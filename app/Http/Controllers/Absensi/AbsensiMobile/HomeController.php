@@ -10,6 +10,7 @@ use App\Services\Absensi\CutiScheduleService;
 use App\Services\Absensi\ShiftHolidayService;
 use App\Support\AccessPermission;
 use App\Support\Portal;
+use App\Support\PresensiPegawaiAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -55,6 +56,7 @@ class HomeController extends Controller
                 ->map(fn (AttendanceSubmission $submission) => $submission->statusPayload())->values()->all(),
             'canAccessAdmin' => Portal::canAccessAdmin($request),
             'canAccessAccount' => $canAccessAccount,
+            'canViewPresensiPegawai' => $user && PresensiPegawaiAccess::allows($user),
             'profilePhotoUrl' => $hasPhoto
                 ? route('absensi.mobile.account.photo.show', absolute: false).'?v='.$user->profile_photo_updated_at?->timestamp
                 : null,

@@ -27,26 +27,64 @@ function runtime(overrides = {}) {
         ...overrides,
     });
     const exports = {};
+    const cleanup = [];
+    let back;
     vm.runInNewContext(compiled, {
         exports,
         require(name) {
-            if (name === 'vue') return { ...vue, onMounted() {}, onUnmounted() {} };
+            if (name === 'vue') return { ...vue, onMounted: (handler) => handler(), onUnmounted: (handler) => cleanup.push(handler) };
+            if (name === '@/lib/mobile-navigation')
+                return {
+                    registerMobileBackHandler(handler) {
+                        back = handler;
+                        return () => {};
+                    },
+                };
             if (name === '@inertiajs/vue3')
                 return {
                     usePage: () => ({ props: { flash: {} } }),
-                    useForm: (initial) => vue.reactive({ ...initial, errors: {}, processing: false }),
+                    useForm(initial) {
+                        let defaults = { ...initial };
+                        return vue.reactive({
+                            ...initial,
+                            errors: {},
+                            processing: false,
+                            defaults(values) {
+                                defaults = { ...values };
+                            },
+                            reset() {
+                                Object.assign(this, defaults);
+                            },
+                            clearErrors() {
+                                this.errors = {};
+                            },
+                        });
+                    },
                 };
             return {};
         },
     });
     const scope = vue.effectScope();
     const state = scope.run(() => exports.default.setup(props, { expose() {} }));
-    return { props, state, close: () => scope.stop() };
+    return {
+        props,
+        state,
+        back: () => back(),
+        close() {
+            cleanup.forEach((handler) => handler());
+            scope.stop();
+        },
+    };
 }
 
-test('instant shift entry opens the form with the current date and shift and keeps drafts across refreshes', async () => {
+test('instant shift entry opens the choice before the form and keeps drafts across refreshes', async () => {
     const app = runtime();
     try {
+        assert.equal(app.state.sheet.value, 'type');
+        app.props.requests = { data: [] };
+        await vue.nextTick();
+        assert.equal(app.state.sheet.value, 'type');
+        app.state.openForm();
         assert.equal(app.state.sheet.value, 'create');
         assert.equal(app.state.form.tanggal_perubahan, '2026-11-02');
         assert.equal(app.state.form.original_shift_id, 7);
@@ -62,6 +100,23 @@ test('instant shift entry opens the form with the current date and shift and kee
         await vue.nextTick();
         app.props.initialCreate = true;
         await vue.nextTick();
+        assert.equal(app.state.sheet.value, null);
+    } finally {
+        app.close();
+    }
+});
+
+test('the apply button opens the choice and mobile back closes it before leaving the page', () => {
+    const app = runtime({ initialCreate: false });
+    try {
+        assert.equal(app.back(), false);
+        app.state.openSubmissionOptions();
+        assert.equal(app.state.sheet.value, 'type');
+        assert.equal(app.back(), true);
+        assert.equal(app.state.sheet.value, null);
+        assert.equal(app.back(), false);
+        app.state.openSubmissionOptions();
+        app.state.closeSheet();
         assert.equal(app.state.sheet.value, null);
     } finally {
         app.close();

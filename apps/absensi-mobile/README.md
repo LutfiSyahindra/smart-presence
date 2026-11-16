@@ -124,9 +124,12 @@ Mode build di atas tidak memerlukan Vite/HMR yang berjalan.
 
 Navigasi bawah Beranda dan Akun membuka panel **Ajukan untuk** dengan ikon
 pena-dokumen. Panel yang sama dipakai PWA, Android, dan iOS melalui frontend
-Laravel/Inertia. Cuti dan Perubahan Shift langsung membuka formulir baru melalui
-`?action=create`; Lembur langsung membuka `/lembur/ajukan`. Formulir hanya dibuka
-saat masuk agar penyegaran realtime tidak menghapus draf atau membuka ulang panel
+Laravel/Inertia. Cuti langsung membuka formulir baru melalui `?action=create`;
+Perubahan Shift membuka modal pilihan melalui `?action=create`: **Perubahan Shift**
+melanjutkan ke formulir, sedangkan **Pertukaran Shift** dengan pegawai lain ditandai
+**Coming Soon** dan belum dapat dipilih. Lembur langsung membuka `/lembur/ajukan`.
+Panel pengajuan hanya dibuka saat masuk agar penyegaran realtime tidak menghapus
+draf atau membuka ulang panel
 yang telah ditutup. Absensi langsung menuju clock-in atau clock-out sesuai status
 kehadiran hari ini; status cuti, libur, selesai, atau konfigurasi belum lengkap
 ditampilkan pada halaman presensi. Pilihan mengikuti izin untuk mengajukan.

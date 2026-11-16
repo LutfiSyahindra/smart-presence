@@ -2,8 +2,8 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/vue3';
-import { CalendarDays, Clock3, GitPullRequestArrow, Save, ShieldCheck, SlidersHorizontal, Timer } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { CalendarDays, Clock3, GitPullRequestArrow, Save, ShieldCheck, SlidersHorizontal, Timer, UsersRound } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import FlashMessage from '../components/FlashMessage.vue';
 import SettingNavigation from '../components/SettingNavigation.vue';
 
@@ -19,10 +19,21 @@ interface Configuration {
     clock_in_tolerance_minutes: number;
     approve_past_requests: boolean;
     allow_self_approval: boolean;
+    mobile_presensi_pegawai_scope: 'unit-kerja' | 'approval-line';
+    mobile_presensi_pegawai_approval_type: string;
+    mobile_presensi_pegawai_all_role_ids: number[];
 }
 
-const props = defineProps<{ configuration: Configuration; can: { update: boolean } }>();
+const props = defineProps<{
+    configuration: Configuration;
+    approvalTypeOptions: { value: string; label: string }[];
+    roleOptions: { id: number; name: string }[];
+    can: { update: boolean };
+}>();
 const form = useForm({ ...props.configuration });
+const roleSearch = ref('');
+const filteredRoles = computed(() => props.roleOptions.filter((role) => role.name.toLowerCase().includes(roleSearch.value.trim().toLowerCase())));
+const roleError = computed(() => Object.entries(form.errors).find(([key]) => key.startsWith('mobile_presensi_pegawai_all_role_ids'))?.[1]);
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Pengaturan', href: '/absensi/admin-web/setting/konfigurasi' },
     { title: 'Konfigurasi', href: '/absensi/admin-web/setting/konfigurasi' },
@@ -112,7 +123,17 @@ const groups = [
 ] satisfies {
     title: string;
     icon: unknown;
-    fields: { key: Exclude<keyof Configuration, 'clock_in_tolerance_minutes'>; label: string; description: string }[];
+    fields: {
+        key: Exclude<
+            keyof Configuration,
+            | 'clock_in_tolerance_minutes'
+            | 'mobile_presensi_pegawai_scope'
+            | 'mobile_presensi_pegawai_approval_type'
+            | 'mobile_presensi_pegawai_all_role_ids'
+        >;
+        label: string;
+        description: string;
+    }[];
 }[];
 const example = computed(() => {
     const minutes = Math.max(0, Math.min(1440, Number(form.clock_in_tolerance_minutes) || 0));
@@ -136,7 +157,7 @@ const save = () =>
                 <span class="configuration-icon"><SlidersHorizontal :size="25" /></span>
                 <div>
                     <h1>Konfigurasi Absensi</h1>
-                    <p>Atur kebijakan pengajuan, persetujuan, dan toleransi kehadiran untuk seluruh pegawai.</p>
+                    <p>Atur kebijakan pengajuan, persetujuan, cakupan presensi mobile, dan toleransi kehadiran.</p>
                 </div>
             </header>
             <form @submit.prevent="save">
@@ -144,6 +165,103 @@ const save = () =>
                     Anda hanya dapat melihat konfigurasi. Hubungi administrator untuk mendapatkan akses mengubah pengaturan.
                 </div>
                 <div class="configuration-grid">
+                    <section class="card configuration-card">
+                        <div class="card-body">
+                            <h2><UsersRound :size="20" />Presensi Pegawai mobile</h2>
+                            <div class="configuration-field">
+                                <label for="mobile-presensi-pegawai-scope" class="form-label">Tampilkan data berdasarkan</label>
+                                <select
+                                    id="mobile-presensi-pegawai-scope"
+                                    v-model="form.mobile_presensi_pegawai_scope"
+                                    class="form-select"
+                                    :disabled="!can.update || form.processing"
+                                    aria-describedby="presensi-pegawai-scope-help presensi-pegawai-scope-error"
+                                >
+                                    <option value="unit-kerja">Kepala unit (unit kerja)</option>
+                                    <option value="approval-line">Approval line</option>
+                                </select>
+                                <p id="presensi-pegawai-scope-help">
+                                    Kepala unit melihat pegawai lain dalam unit kerjanya. Approval line menampilkan pegawai dengan jabatan yang
+                                    menempatkan pengguna sebagai approver pada salah satu tingkat, termasuk lintas unit.
+                                </p>
+                                <p
+                                    v-if="form.errors.mobile_presensi_pegawai_scope"
+                                    id="presensi-pegawai-scope-error"
+                                    class="text-danger"
+                                    role="alert"
+                                >
+                                    {{ form.errors.mobile_presensi_pegawai_scope }}
+                                </p>
+                            </div>
+                            <div v-if="form.mobile_presensi_pegawai_scope === 'approval-line'" class="configuration-field">
+                                <label for="mobile-presensi-pegawai-approval-type" class="form-label">Kategori approval line</label>
+                                <select
+                                    id="mobile-presensi-pegawai-approval-type"
+                                    v-model="form.mobile_presensi_pegawai_approval_type"
+                                    class="form-select"
+                                    :disabled="!can.update || form.processing"
+                                    aria-describedby="presensi-pegawai-approval-help presensi-pegawai-approval-error"
+                                >
+                                    <option v-for="option in approvalTypeOptions" :key="option.value" :value="option.value">
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                                <p id="presensi-pegawai-approval-help">
+                                    Mengikuti penugasan terbaru pada menu Aproval Line untuk kategori yang dipilih. Pengguna tanpa penugasan pada
+                                    kategori tersebut memerlukan role akses seluruh presensi untuk membuka Presensi Pegawai.
+                                </p>
+                                <p
+                                    v-if="form.errors.mobile_presensi_pegawai_approval_type"
+                                    id="presensi-pegawai-approval-error"
+                                    class="text-danger"
+                                    role="alert"
+                                >
+                                    {{ form.errors.mobile_presensi_pegawai_approval_type }}
+                                </p>
+                            </div>
+                            <div class="configuration-field">
+                                <label for="presensi-pegawai-role-search" class="form-label">Role yang dapat melihat seluruh absensi pegawai</label>
+                                <input
+                                    id="presensi-pegawai-role-search"
+                                    v-model="roleSearch"
+                                    type="search"
+                                    class="form-control"
+                                    placeholder="Cari role..."
+                                    :disabled="!can.update || form.processing"
+                                    aria-describedby="presensi-pegawai-role-help"
+                                />
+                                <fieldset
+                                    class="configuration-role-list"
+                                    :disabled="!can.update || form.processing"
+                                    aria-describedby="presensi-pegawai-role-help presensi-pegawai-role-error"
+                                >
+                                    <legend class="visually-hidden">Pilih role akses seluruh absensi pegawai</legend>
+                                    <label v-for="role in filteredRoles" :key="role.id" class="configuration-role-option">
+                                        <input
+                                            v-model="form.mobile_presensi_pegawai_all_role_ids"
+                                            type="checkbox"
+                                            class="form-check-input"
+                                            :value="role.id"
+                                        />
+                                        <span>{{ role.name }}</span>
+                                    </label>
+                                    <p v-if="!filteredRoles.length">
+                                        {{ roleOptions.length ? 'Role tidak ditemukan.' : 'Belum ada role tersedia.' }}
+                                    </p>
+                                </fieldset>
+                                <p id="presensi-pegawai-role-help">
+                                    {{ form.mobile_presensi_pegawai_all_role_ids.length }} role dipilih. Pengguna dengan salah satu role ini dapat
+                                    melihat seluruh pegawai lintas unit, termasuk presensi sendiri, tanpa penugasan approval line atau unit pribadi.
+                                    Kosongkan untuk memakai cakupan kepala unit atau approval line bagi semua pengguna.
+                                </p>
+                                <p v-if="roleError" id="presensi-pegawai-role-error" class="text-danger" role="alert">{{ roleError }}</p>
+                            </div>
+                            <p class="configuration-note">
+                                Pengguna tetap memerlukan permission Presensi Pegawai mobile dan akses mobile. Pengaturan berlaku pada daftar,
+                                ringkasan, dan foto. Role yang tidak dipilih tetap mengikuti cakupan di atas.
+                            </p>
+                        </div>
+                    </section>
                     <section v-for="group in groups" :key="group.title" class="card configuration-card">
                         <div class="card-body">
                             <h2><component :is="group.icon" :size="20" />{{ group.title }}</h2>
@@ -323,6 +441,29 @@ h2 {
     padding: 12px 15px;
     background: #f7f8fc;
     border-radius: 8px;
+}
+.configuration-role-list {
+    display: grid;
+    gap: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #e1e6ef;
+    border-radius: 8px;
+}
+.configuration-role-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.configuration-role-option .form-check-input {
+    width: 1.1em;
+    height: 1.1em;
+    margin: 0;
+    flex-shrink: 0;
 }
 .configuration-actions {
     display: flex;

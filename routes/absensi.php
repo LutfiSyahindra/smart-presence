@@ -12,6 +12,7 @@ use App\Http\Controllers\Absensi\AbsensiMobile\HomeController as MobileHomeContr
 use App\Http\Controllers\Absensi\AbsensiMobile\LemburController as MobileLemburController;
 use App\Http\Controllers\Absensi\AbsensiMobile\NotificationController as MobileNotificationController;
 use App\Http\Controllers\Absensi\AbsensiMobile\PerubahanShiftController as MobilePerubahanShiftController;
+use App\Http\Controllers\Absensi\AbsensiMobile\PresensiPegawaiController;
 use App\Http\Controllers\Absensi\AbsensiMobile\PushDeviceController;
 use App\Http\Controllers\Absensi\AdminWeb\ApprovalLine\ApprovalLineController;
 use App\Http\Controllers\Absensi\AdminWeb\Cuti\CutiController;
@@ -54,6 +55,13 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::MOBILE_ACCESS])
     ->name('absensi.mobile.')
     ->group(function () {
         Route::get('/', MobileHomeController::class)->name('home');
+        Route::get('presensi-pegawai', [PresensiPegawaiController::class, 'index'])
+            ->middleware('can:'.AccessPermission::MOBILE_PRESENSI_PEGAWAI_VIEW)->name('presensi-pegawai.index');
+        Route::get('presensi-pegawai/pegawai/{pegawai}/foto-profil', [PresensiPegawaiController::class, 'profilePhoto'])
+            ->whereNumber('pegawai')->middleware('can:'.AccessPermission::MOBILE_PRESENSI_PEGAWAI_VIEW)->name('presensi-pegawai.profile-photo');
+        Route::get('presensi-pegawai/{presensi}/foto/{type}', [PresensiPegawaiController::class, 'photo'])
+            ->whereNumber('presensi')->whereIn('type', ['in', 'out'])
+            ->middleware('can:'.AccessPermission::MOBILE_PRESENSI_PEGAWAI_VIEW)->name('presensi-pegawai.photo');
         Route::get('perubahan-shift', [MobilePerubahanShiftController::class, 'index'])->name('perubahan-shift.index');
         Route::post('perubahan-shift', [MobilePerubahanShiftController::class, 'store'])->middleware('throttle:20,1')->name('perubahan-shift.store');
         Route::get('perubahan-shift/{perubahanShiftRequest}', [MobilePerubahanShiftController::class, 'index'])->whereNumber('perubahanShiftRequest')->name('perubahan-shift.show');

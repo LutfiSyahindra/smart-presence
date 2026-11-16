@@ -34,8 +34,12 @@ class AuthorizationSeeder extends Seeder
         ]);
 
         $pegawai->syncPermissions(
-            $permissions->whereIn('name', AccessPermission::mobile()),
+            $permissions->whereIn('name', AccessPermission::mobile())
+                ->where('name', '!=', AccessPermission::MOBILE_PRESENSI_PEGAWAI_VIEW),
         );
+
+        Role::query()->where('name', 'kepala-unit')->where('guard_name', 'web')->get()
+            ->each(fn (Role $role) => $role->givePermissionTo(AccessPermission::MOBILE_PRESENSI_PEGAWAI_VIEW));
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }

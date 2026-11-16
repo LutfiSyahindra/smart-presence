@@ -41,7 +41,7 @@ class PresensiService
     }
 
     /** @param array<string, mixed> $filters */
-    public function paginate(array $filters): LengthAwarePaginator
+    public function paginate(array $filters, string $photoRoute = 'absensi.admin-web.presensi.photo'): LengthAwarePaginator
     {
         $paginator = $this->presensis->paginate($filters);
         $recordIds = $paginator->getCollection()
@@ -63,6 +63,7 @@ class PresensiService
             $pegawai,
             $presensis->get($pegawai->getAttribute('presensi_record_id')),
             $filters['date_from'],
+            $photoRoute,
         ));
     }
 
@@ -115,7 +116,7 @@ class PresensiService
     }
 
     /** @return array<string, mixed> */
-    private function row(Pegawai $pegawai, ?Presensi $presensi, string $fallbackDate): array
+    private function row(Pegawai $pegawai, ?Presensi $presensi, string $fallbackDate, string $photoRoute): array
     {
         $lateMinutes = $presensi ? $this->lateMinutes($presensi) : 0;
         $earlyDepartureMinutes = $presensi?->earlyDepartureMinutes() ?? 0;
@@ -139,20 +140,21 @@ class PresensiService
                 'nama' => $presensi->shift->nama,
                 'jam_masuk' => $schedule['start_time'],
                 'jam_keluar' => $schedule['end_time'],
+                'note' => $schedule['note'],
             ] : null,
             'clock_in' => [
                 'approval_status' => $presensi?->clock_in_approval_status,
                 'time' => $presensi?->clock_in_at?->format('H:i'),
                 'date_time' => $presensi?->clock_in_at?->format('Y-m-d H:i'),
                 'location' => $presensi ? $this->location($presensi, 'in') : null,
-                'photo_url' => $presensi ? $this->photoUrl($presensi, $presensi->clock_in_photo_path, 'in') : null,
+                'photo_url' => $presensi ? $this->photoUrl($presensi, $presensi->clock_in_photo_path, 'in', $photoRoute) : null,
             ],
             'clock_out' => [
                 'approval_status' => $presensi?->clock_out_approval_status,
                 'time' => $presensi?->clock_out_at?->format('H:i'),
                 'date_time' => $presensi?->clock_out_at?->format('Y-m-d H:i'),
                 'location' => $presensi ? $this->location($presensi, 'out') : null,
-                'photo_url' => $presensi ? $this->photoUrl($presensi, $presensi->clock_out_photo_path, 'out') : null,
+                'photo_url' => $presensi ? $this->photoUrl($presensi, $presensi->clock_out_photo_path, 'out', $photoRoute) : null,
             ],
             'is_day_off' => $presensi?->is_day_off ?? false,
             'overtime_minutes' => $presensi?->overtime_minutes ?? 0,
@@ -249,16 +251,16 @@ class PresensiService
         ];
     }
 
-    private function photoUrl(Presensi $presensi, ?string $path, string $type): ?string
+    private function photoUrl(Presensi $presensi, ?string $path, string $type, string $photoRoute): ?string
     {
         if (! $path) {
             return null;
         }
-        if (Str::startsWith($path, ['http://', 'https://'])) {
+        if ($photoRoute === 'absensi.admin-web.presensi.photo' && Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
 
-        return route('absensi.admin-web.presensi.photo', ['presensi' => $presensi->id, 'type' => $type], false);
+        return route($photoRoute, ['presensi' => $presensi->id, 'type' => $type], false);
     }
 
     private function validDate(mixed $value): ?string

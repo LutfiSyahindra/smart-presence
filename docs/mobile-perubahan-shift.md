@@ -3,7 +3,11 @@
 Menu **Perubahan Shift** di beranda membuka `/absensi/mobile/perubahan-shift`.
 Halaman menggunakan frontend Laravel/Inertia/Vue bersama untuk PWA, Android,
 dan iOS. Header dan tombol Ajukan berada di luar area konten yang digulir.
-Panel periode, filter, formulir, dan detail menggunakan dialog dengan fokus
+Tombol **Ajukan** dan menu Pengajuan (`?action=create`) membuka modal pilihan:
+**Perubahan Shift** untuk mengganti shift sendiri, dan **Pertukaran Shift** untuk
+menukar shift dengan pegawai lain. Perubahan Shift membuka formulir yang sudah
+ada; Pertukaran Shift ditandai **Coming Soon** dan belum dapat dipilih.
+Panel pilihan, periode, filter, formulir, dan detail menggunakan dialog dengan fokus
 terkunci serta tombol kembali mobile yang menutup panel terlebih dahulu.
 Isian yang belum dikirim meminta konfirmasi sebelum dihapus.
 

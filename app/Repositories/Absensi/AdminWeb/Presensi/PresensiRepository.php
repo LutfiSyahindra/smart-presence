@@ -50,7 +50,9 @@ class PresensiRepository implements PresensiRepositoryInterface
     private function rosterQuery(array $filters): Builder
     {
         $query = Pegawai::query()
-            ->whereHas('user')
+            ->when(isset($filters['pegawai_scope']),
+                fn (Builder $query) => $query->whereIn('pegawais.id', $filters['pegawai_scope']),
+                fn (Builder $query) => $query->whereHas('user'))
             ->leftJoin('presensis', function (JoinClause $join) use ($filters) {
                 $join->on('presensis.pegawai_id', '=', 'pegawais.id')
                     ->whereBetween('presensis.tanggal_presensi', [$filters['date_from'], $filters['date_to']]);
@@ -73,7 +75,9 @@ class PresensiRepository implements PresensiRepositoryInterface
     private function attendanceQuery(array $filters): Builder
     {
         $query = Presensi::query()
-            ->whereHas('pegawai.user')
+            ->when(isset($filters['pegawai_scope']),
+                fn (Builder $query) => $query->whereIn('pegawai_id', $filters['pegawai_scope']),
+                fn (Builder $query) => $query->whereHas('pegawai.user'))
             ->whereBetween('tanggal_presensi', [$filters['date_from'], $filters['date_to']])
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $query->whereHas('pegawai', function (Builder $query) use ($search) {
@@ -92,6 +96,7 @@ class PresensiRepository implements PresensiRepositoryInterface
     private function applyRosterStatus(Builder $query, ?string $status): Builder
     {
         return match ($status) {
+            'unrecorded' => $query->whereNull('presensis.id'),
             'approval-pending' => $query->where(fn ($query) => $query->where('presensis.clock_in_approval_status', 'pending')->orWhere('presensis.clock_out_approval_status', 'pending'))
                 ->where(fn ($query) => $query->whereNull('presensis.clock_in_approval_status')->orWhere('presensis.clock_in_approval_status', '!=', 'rejected'))
                 ->where(fn ($query) => $query->whereNull('presensis.clock_out_approval_status')->orWhere('presensis.clock_out_approval_status', '!=', 'rejected')),

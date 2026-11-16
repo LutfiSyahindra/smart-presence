@@ -73,8 +73,8 @@ const props = defineProps<{
     unavailableReason: string | null;
 }>();
 const page = usePage<SharedData>();
-// Initialize once so background refreshes never reset a draft or reopen a closed form.
-const sheet = ref<'month' | 'filter' | 'create' | 'discard' | null>(props.initialCreate && !props.initialRequest ? 'create' : null);
+// Initialize once so background refreshes never reset a draft or reopen a closed panel.
+const sheet = ref<'month' | 'filter' | 'type' | 'create' | 'discard' | null>(props.initialCreate && !props.initialRequest ? 'type' : null);
 const selected = ref<ShiftRequest | null>(props.initialRequest ?? null);
 const confirmingCancel = ref(false);
 const cancellation = useForm({});
@@ -215,6 +215,9 @@ function openMonth() {
 function openFilter() {
     draftStatus.value = props.status;
     sheet.value = 'filter';
+}
+function openSubmissionOptions() {
+    sheet.value = 'type';
 }
 function openForm() {
     form.defaults({ tanggal_perubahan: props.today, original_shift_id: shiftForDate(props.today)?.id ?? null, requested_shift_id: '', alasan: '' });
@@ -516,7 +519,7 @@ watch(
                     <span>RENCANAKAN LEBIH BAIK</span>
                     <p>Perlu menyesuaikan shift?</p>
                 </div>
-                <button type="button" class="apply-button" aria-label="Ajukan perubahan shift" aria-haspopup="dialog" @click="openForm">
+                <button type="button" class="apply-button" aria-label="Ajukan perubahan shift" aria-haspopup="dialog" @click="openSubmissionOptions">
                     <span><Plus /></span>Ajukan<ArrowRight />
                 </button>
             </footer>
@@ -572,6 +575,31 @@ watch(
                 <button type="button" class="outline-button" @click="draftStatus = ''"><X />Reset</button
                 ><button type="button" class="primary-button" @click="applyFilters({ status: draftStatus })">Terapkan filter<Check /></button></div
         ></template>
+    </CutiSheet>
+    <CutiSheet
+        :open="sheet === 'type'"
+        title="Pilih pengajuan shift"
+        description="Pilih jenis penyesuaian shift yang Anda butuhkan."
+        @close="closeSheet"
+    >
+        <div class="shift-type-options">
+            <button type="button" class="shift-type-option" aria-haspopup="dialog" @click="openForm">
+                <span class="shift-type-icon"><CalendarDays aria-hidden="true" /></span>
+                <span class="shift-type-copy">
+                    <strong>Perubahan Shift</strong>
+                    <small>Ganti shift Anda dengan shift lain.</small>
+                </span>
+                <ChevronRight class="shift-type-arrow" aria-hidden="true" />
+            </button>
+            <button type="button" class="shift-type-option" disabled>
+                <span class="shift-type-icon"><ArrowRightLeft aria-hidden="true" /></span>
+                <span class="shift-type-copy">
+                    <strong>Pertukaran Shift</strong>
+                    <small>Tukarkan shift Anda dengan pegawai lain.</small>
+                    <span class="shift-type-soon">Coming Soon</span>
+                </span>
+            </button>
+        </div>
     </CutiSheet>
     <CutiSheet
         :open="sheet === 'create'"
@@ -1713,6 +1741,86 @@ button:disabled {
 .text-button svg {
     width: 15px;
     height: 15px;
+}
+.shift-type-options {
+    display: grid;
+    gap: 12px;
+}
+.shift-type-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 92px;
+    padding: 16px;
+    border: 1px solid #dce5d5;
+    border-radius: 18px;
+    background: #fff;
+    color: #294b38;
+    text-align: left;
+    touch-action: manipulation;
+}
+.shift-type-option:not(:disabled):hover {
+    border-color: #96ad87;
+    background: #f3f7ee;
+}
+.shift-type-option:disabled {
+    background: #f3f5f0;
+    color: #5c6c5b;
+    cursor: not-allowed;
+    opacity: 1;
+}
+.shift-type-icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #eaf1e1;
+    color: #4c7040;
+}
+.shift-type-option:disabled .shift-type-icon {
+    background: #e7ebe4;
+    color: #74816d;
+}
+.shift-type-icon svg {
+    width: 22px;
+    height: 22px;
+}
+.shift-type-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    gap: 5px;
+}
+.shift-type-copy strong {
+    font-size: 14px;
+    font-weight: 750;
+    line-height: 1.5;
+}
+.shift-type-copy small {
+    color: #697b62;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.shift-type-arrow {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: #6c855b;
+}
+.shift-type-soon {
+    margin-top: 3px;
+    padding: 4px 8px;
+    border-radius: 7px;
+    background: #f5e8ce;
+    color: #856226;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.5;
 }
 .filter-options {
     display: grid;

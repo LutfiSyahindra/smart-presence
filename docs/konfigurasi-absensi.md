@@ -16,10 +16,52 @@ Jalankan `php artisan migrate` untuk membuat tabel dan permission baru.
 | Toleransi clock-in | 0 menit |
 | Approval pengajuan tanggal lampau | Diizinkan |
 | Approval diri sendiri | Tidak diizinkan |
+| Cakupan Presensi Pegawai mobile | Kepala unit (unit kerja) |
+| Kategori approval line Presensi Pegawai mobile | Presensi (di luar radius) |
+| Role yang dapat melihat seluruh absensi pegawai | Tidak ada role dipilih |
 
 Permission `configuration.view` memberikan akses melihat; `configuration.update`
 memberikan akses menyimpan bersama permission melihat dan `admin.access`.
 Super-admin mendapatkan keduanya melalui migration dan seeder.
+
+Pada bagian **Presensi Pegawai mobile**, pilih **Tampilkan data berdasarkan**:
+
+- **Kepala unit (unit kerja)**: pengguna dengan permission
+  `mobile.presensi-pegawai.view` melihat pegawai lain dalam unit kerjanya yang aktif.
+- **Approval line**: pengguna melihat pegawai dengan jabatan yang menempatkannya
+  sebagai approver pada salah satu tingkat dalam **kategori approval line** yang
+  dipilih. Kategori tersedia: Cuti, Lembur, Perubahan Shift, dan Presensi (di luar
+  radius). Atur penugasan melalui menu Aproval Line. Cakupan dapat melintasi unit;
+  akun approver tidak wajib terhubung dengan pegawai atau memiliki unit pribadi.
+
+Pada **Role yang dapat melihat seluruh absensi pegawai**, centang satu atau beberapa
+role yang diizinkan melihat seluruh pegawai lintas unit. Pengguna dengan salah satu
+role terpilih mendapat cakupan seluruh pegawai, termasuk presensi sendiri, pegawai
+tanpa akun/unit, dan unit yang sudah tidak aktif. Pengguna tidak memerlukan unit
+pribadi atau penugasan approval line. Pilihan ini mengesampingkan kedua cakupan di
+atas hanya untuk role yang dipilih. Nilai awal kosong; super-admin juga harus
+dipilih secara eksplisit untuk mendapat cakupan seluruh pegawai.
+
+Semua cakupan tetap memerlukan `mobile.access` dan `mobile.presensi-pegawai.view`.
+Pada cakupan kepala unit/approval line, presensi sendiri tetap melalui Riwayat. Daftar, ringkasan, pencarian, pagination,
+foto profil, dan foto presensi memakai cakupan yang sama, termasuk untuk super-admin.
+Mode approval line memakai penugasan saat ini dan hanya jabatan serta unit aktif;
+tidak memerlukan pengajuan atau catatan presensi sebelumnya. Tanpa penugasan yang
+sesuai, menu disembunyikan dan akses ditolak. Perubahan konfigurasi atau penugasan
+berlaku pada permintaan berikutnya. Tidak ada fallback ke unit saat mode approval
+line dipilih. Pengaturan ini tidak mengubah alur persetujuan pengajuan.
+
+Perubahan daftar role, keanggotaan role, atau penghapusan role berlaku pada
+permintaan berikutnya, termasuk akses foto. Penggantian nama role mempertahankan
+konfigurasi karena role disimpan berdasarkan ID. Role dari guard selain `web`
+tidak dapat dipilih. Mengosongkan pilihan mengembalikan semua pengguna ke cakupan
+kepala unit atau approval line. Migrasi
+`2026_11_16_000005_add_mobile_presensi_pegawai_all_roles_to_absensi_configurations.php`
+menambahkan kolom JSON `mobile_presensi_pegawai_all_role_ids`.
+
+Jalankan `php artisan migrate` untuk menambahkan kolom
+`mobile_presensi_pegawai_scope` dan `mobile_presensi_pegawai_approval_type`.
+Instalasi lama tetap memakai kepala unit sebagai cakupan awal.
 
 Aktifkan **Izinkan pengajuan perubahan shift tanpa shift default** agar pegawai
 yang belum memiliki shift default tetap dapat mengajukan perubahan. Jadwal shift

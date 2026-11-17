@@ -87,7 +87,8 @@ class AttendanceScheduleService
     private function hasNextShiftStarted(Pegawai $pegawai, ?Presensi $today): bool
     {
         $shift = $today?->shift ?? $pegawai->shift;
-        if (! $shift || ! $shift->jam_masuk || app(ShiftHolidayService::class)->isDayOff($pegawai, $today)) {
+        if (! $shift || ! $shift->jam_masuk || app(ShiftHolidayService::class)->isDayOff($pegawai, $today)
+            || app(CutiScheduleService::class)->isOnCuti($pegawai, $today)) {
             return false;
         }
 

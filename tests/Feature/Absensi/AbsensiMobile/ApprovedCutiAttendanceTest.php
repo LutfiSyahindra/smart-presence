@@ -3,6 +3,8 @@
 namespace Tests\Feature\Absensi\AbsensiMobile;
 
 use App\Contracts\FaceVerifier;
+use App\Jobs\ProcessAttendanceSubmission;
+use App\Models\AttendanceSubmission;
 use App\Models\CutiRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
@@ -14,6 +16,7 @@ use App\ValueObjects\FaceVerificationResult;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
@@ -154,23 +157,107 @@ class ApprovedCutiAttendanceTest extends TestCase
         $this->assertSchedule(true);
     }
 
-    public function test_cuti_blocks_clock_out_from_an_overnight_shift(): void
+    #[DataProvider('overnightCutiClockOutChannels')]
+    public function test_unfinished_night_shift_can_finish_before_todays_cuti_takes_over(bool $api, bool $queued, ?string $todaySchedule, string $time): void
     {
-        $this->shift->update(['nama' => 'Shift Malam', 'jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
-        $attendance = $this->attendance()->fill([
-            'tanggal_presensi' => '2026-10-20', 'clock_in_at' => '2026-10-20 22:00:00',
+        $this->travelTo('2026-10-21 '.$time);
+        config(['attendance.queue_enabled' => $queued]);
+        Queue::fake();
+        $nightShift = Shift::query()->create(['nama' => 'Shift Malam', 'jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
+        $attendance = $this->attendance();
+        $attendance->update([
+            'shift_id' => $nightShift->id, 'tanggal_presensi' => '2026-10-20', 'clock_in_at' => '2026-10-20 22:00:00',
         ]);
-        $attendance->save();
+        $today = $todaySchedule ? Presensi::query()->create([
+            'pegawai_id' => $this->pegawai->id,
+            'shift_id' => $todaySchedule === 'off' ? Shift::query()->create(['nama' => 'OFF', 'is_day_off' => true])->id : $this->shift->id,
+            'tanggal_presensi' => '2026-10-21', 'is_day_off' => $todaySchedule === 'off',
+        ]) : null;
         $this->cuti();
+
+        $this->actingAs($this->user)->get('/absensi/mobile')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('todaySchedule.shift_name', 'Shift Malam')
+                ->where('todayAttendance.is_on_leave', false)->where('todayAttendance.can_clock_out', true));
+        $this->get('/absensi/mobile/presensi')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('today.date', '2026-10-20')->where('today.shift_name', 'Shift Malam')
+                ->where('attendance.status', 'ready_to_clock_out'));
+        $this->get('/absensi/mobile/presensi?action=create')->assertRedirectToRoute('absensi.mobile.clock-out.create');
+        $this->get('/absensi/mobile/clock-out')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('schedule.date', '2026-10-20')->where('schedule.shift_name', 'Shift Malam'));
+        // The exception only completes the existing shift; a second clock-in remains blocked.
+        $this->post('/absensi/mobile/clock-in', $this->payload('clock-in'))->assertSessionHasErrors('attendance');
+
+        Sanctum::actingAs($this->user, ['mobile']);
+        $this->getJson('/api/mobile/v1/home')->assertOk()
+            ->assertJsonPath('data.schedule.shift_name', 'Shift Malam')
+            ->assertJsonPath('data.attendance.is_on_leave', false)->assertJsonPath('data.attendance.can_clock_out', true);
+        $this->getJson('/api/mobile/v1/attendance')->assertOk()
+            ->assertJsonPath('data.id', $attendance->id)->assertJsonPath('data.date', '2026-10-20')
+            ->assertJsonPath('data.status', 'ready_to_clock_out');
+        $action = $this->getJson('/api/mobile/v1/attendance/clock-out')->assertOk()
+            ->assertJsonPath('data.schedule.date', '2026-10-20');
+        $this->mock(FaceVerifier::class)->shouldReceive('compare')->once()->andReturn(new FaceVerificationResult(true, 98, 'test-verifier'));
+        $receivedAt = now()->toDateTimeString();
+        $payload = $this->payload('clock-out');
+        if ($api) {
+            $payload['location_token'] = $action->json('data.location_challenge.token');
+            $this->postJson('/api/mobile/v1/attendance/clock-out', $payload)->assertStatus($queued ? 202 : 200);
+        } else {
+            $this->post('/absensi/mobile/clock-out', $payload)->assertSessionHasNoErrors()->assertRedirect();
+        }
+        if ($queued) {
+            $submission = AttendanceSubmission::query()->sole();
+            $this->assertSame($attendance->id, $submission->presensi_id);
+            $this->assertSame('2026-10-20', $submission->attendance_date->toDateString());
+            // A delayed worker must evaluate the exception at the submission time.
+            $this->travelTo('2026-10-22 08:00:00');
+            app()->call([new ProcessAttendanceSubmission($submission->id), 'handle']);
+            $this->assertSame('succeeded', $submission->fresh()->status);
+        }
+
+        $this->assertSame($receivedAt, $attendance->fresh()->clock_out_at?->toDateTimeString());
+        $this->assertSame($nightShift->id, $attendance->fresh()->shift_id);
+        $this->assertSame('2026-10-20', $attendance->fresh()->tanggal_presensi->toDateString());
+        $this->assertNull($today?->fresh()->clock_in_at);
+        $this->assertNull($today?->fresh()->clock_out_at);
+        $this->assertDatabaseCount('presensis', $today ? 2 : 1);
         $this->assertSchedule(true);
+        $this->get('/absensi/mobile/clock-out')->assertRedirect('/absensi/mobile');
+        $this->getJson('/api/mobile/v1/home')->assertOk()->assertJsonPath('data.schedule.shift_name', 'CUTI');
+        $this->getJson('/api/mobile/v1/attendance')->assertOk()
+            ->assertJsonPath('data.status', 'on_leave')->assertJsonPath('data.can_clock_out', false);
+    }
+
+    public static function overnightCutiClockOutChannels(): array
+    {
+        return [
+            'web before shift end' => [false, false, null, '05:30:00'],
+            'web after assigned shift start' => [false, false, 'working', '08:00:00'],
+            'API after default shift start' => [true, false, null, '08:00:00'],
+            'API with OFF assignment' => [true, false, 'off', '08:00:00'],
+            'queued web default shift' => [false, true, null, '08:00:00'],
+            'queued web assigned shift' => [false, true, 'working', '08:00:00'],
+            'queued API assigned shift' => [true, true, 'working', '08:00:00'],
+            'queued API with OFF assignment' => [true, true, 'off', '08:00:00'],
+        ];
+    }
+
+    public function test_cuti_covering_the_night_shift_date_still_blocks_clock_out(): void
+    {
+        $this->travelTo('2026-10-21 06:00:00');
+        $this->shift->update(['nama' => 'Shift Malam', 'jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
+        $attendance = $this->attendance();
+        $attendance->update(['tanggal_presensi' => '2026-10-20', 'clock_in_at' => '2026-10-20 22:00:00']);
+        $this->cuti(['tanggal_mulai' => '2026-10-20', 'tanggal_selesai' => '2026-10-20']);
+
         $this->actingAs($this->user)->post('/absensi/mobile/clock-out', $this->payload('clock-out'))
             ->assertSessionHasErrors(['attendance' => CutiScheduleService::BLOCKED_MESSAGE]);
+        Sanctum::actingAs($this->user, ['mobile']);
+        $this->getJson('/api/mobile/v1/attendance/clock-out')->assertUnprocessable()
+            ->assertJsonPath('errors.attendance.0', CutiScheduleService::BLOCKED_MESSAGE);
         $this->assertNull($attendance->fresh()->clock_out_at);
-
-        // Also block a previous shift whose attendance date was covered by approved leave.
-        CutiRequest::query()->update(['tanggal_mulai' => '2026-10-20', 'tanggal_selesai' => '2026-10-20']);
-        $this->post('/absensi/mobile/clock-out', $this->payload('clock-out'))
-            ->assertSessionHasErrors(['attendance' => CutiScheduleService::BLOCKED_MESSAGE]);
     }
 
     public function test_normal_schedule_returns_after_cuti_even_with_unfinished_overnight_attendance(): void

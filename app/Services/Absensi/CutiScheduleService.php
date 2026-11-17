@@ -18,10 +18,20 @@ class CutiScheduleService
             return false;
         }
 
+        $at ??= now();
         $dates = array_unique(array_filter([
-            ($at ?? now())->toDateString(),
+            $at->toDateString(),
             $attendance?->tanggal_presensi?->toDateString(),
         ]));
+
+        // Finish yesterday's started night shift using its attendance date, even if leave starts today.
+        // Use the received time for queued submissions, which may be processed on a later day.
+        if ($attendance?->clock_in_at && ! $attendance->clock_out_at && ! $attendance->is_day_off
+            && $attendance->tanggal_presensi?->isSameDay($at->copy()->subDay())
+            && $attendance->shift && ! $attendance->shift->is_day_off
+            && $attendance->shift->jam_keluar <= $attendance->shift->jam_masuk) {
+            $dates = [$attendance->tanggal_presensi->toDateString()];
+        }
 
         return CutiRequest::query()
             ->where('pegawai_id', $pegawai->id)

@@ -32,7 +32,8 @@ class FastApiFaceVerifierTest extends TestCase
             return $request->url() === 'http://127.0.0.1:8001/api/v1/verify'
                 && $request->hasHeader('Authorization', 'Bearer '.self::TOKEN)
                 && $request->hasFile('profile_photo')
-                && $request->hasFile('clock_in_photo');
+                && $request->hasFile('clock_in_photo')
+                && $request->hasFile('minimum_similarity', '40');
         });
     }
 
@@ -84,6 +85,35 @@ class FastApiFaceVerifierTest extends TestCase
         $result = $this->verifier()->compare($this->jpeg(), $this->jpeg());
 
         $this->assertFalse($result->matched);
+    }
+
+    public function test_similarity_sent_to_the_service_cannot_fall_below_1(): void
+    {
+        Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 0.99])]);
+        $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 0.0);
+
+        $this->assertFalse($verifier->compare($this->jpeg(), $this->jpeg())->matched);
+        Http::assertSent(fn (Request $request): bool => $request->hasFile('minimum_similarity', '1'));
+    }
+
+    public function test_a_configured_minimum_of_1_accepts_a_service_match_below_40(): void
+    {
+        foreach ([1.0, 1.25, 39.99] as $similarity) {
+            Http::swap(new Factory);
+            Http::fake(['*' => Http::response(['verified' => true, 'similarity' => $similarity])]);
+            $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 1.0);
+
+            $this->assertTrue($verifier->compare($this->jpeg(), $this->jpeg())->matched);
+            Http::assertSent(fn (Request $request): bool => $request->hasFile('minimum_similarity', '1'));
+        }
+    }
+
+    public function test_a_configured_minimum_of_1_does_not_override_a_service_rejection(): void
+    {
+        Http::fake(['*' => Http::response(['verified' => false, 'similarity' => 39.99])]);
+        $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 1.0);
+
+        $this->assertFalse($verifier->compare($this->jpeg(), $this->jpeg())->matched);
     }
 
     public function test_it_respects_an_explicitly_configured_minimum(): void

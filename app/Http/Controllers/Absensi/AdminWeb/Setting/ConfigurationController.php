@@ -20,6 +20,7 @@ class ConfigurationController extends Controller
     {
         $roles = Role::query()->where('guard_name', 'web')->orderBy('name')->get(['id', 'name']);
         $settings = $configuration->current()->only(array_keys(AbsensiConfiguration::DEFAULTS));
+        $settings['face_minimum_similarity'] = $configuration->faceMinimumSimilarity();
         $settings['mobile_presensi_pegawai_all_role_ids'] = array_values(array_intersect(
             $settings['mobile_presensi_pegawai_all_role_ids'] ?? [], $roles->modelKeys(),
         ));
@@ -46,6 +47,7 @@ class ConfigurationController extends Controller
             'perubahan_shift_without_default' => ['required', 'boolean'],
             'clock_in_tolerance_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
             'clock_out_without_clock_in' => ['required', 'boolean'],
+            'face_minimum_similarity' => ['required', 'numeric', 'min:1', 'max:100', 'decimal:0,2'],
             'approve_past_requests' => ['required', 'boolean'],
             'allow_self_approval' => ['required', 'boolean'],
             'mobile_presensi_pegawai_scope' => ['required', Rule::in([
@@ -61,6 +63,11 @@ class ConfigurationController extends Controller
             'clock_in_tolerance_minutes.integer' => 'Toleransi clock-in harus berupa menit bulat.',
             'clock_in_tolerance_minutes.min' => 'Toleransi clock-in minimal 0 menit.',
             'clock_in_tolerance_minutes.max' => 'Toleransi clock-in maksimal 1440 menit.',
+            'face_minimum_similarity.required' => 'Batas minimal similarity wajah wajib diisi.',
+            'face_minimum_similarity.numeric' => 'Batas minimal similarity wajah harus berupa angka.',
+            'face_minimum_similarity.min' => 'Batas minimal similarity wajah paling rendah 1%.',
+            'face_minimum_similarity.max' => 'Batas minimal similarity wajah paling tinggi 100%.',
+            'face_minimum_similarity.decimal' => 'Batas minimal similarity wajah maksimal 2 angka desimal.',
             'mobile_presensi_pegawai_scope.required' => 'Pilih cakupan Presensi Pegawai mobile.',
             'mobile_presensi_pegawai_scope.in' => 'Cakupan harus berdasarkan kepala unit atau approval line.',
             'mobile_presensi_pegawai_approval_type.required' => 'Pilih kategori approval line untuk Presensi Pegawai mobile.',

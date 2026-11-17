@@ -32,6 +32,7 @@ interface Configuration {
     perubahan_shift_without_default: boolean;
     clock_in_tolerance_minutes: number;
     clock_out_without_clock_in: boolean;
+    face_minimum_similarity: number;
     approve_past_requests: boolean;
     allow_self_approval: boolean;
     mobile_presensi_pegawai_scope: 'unit-kerja' | 'approval-line';
@@ -161,6 +162,7 @@ const groups = [
         key: Exclude<
             keyof Configuration,
             | 'clock_in_tolerance_minutes'
+            | 'face_minimum_similarity'
             | 'mobile_presensi_pegawai_scope'
             | 'mobile_presensi_pegawai_approval_type'
             | 'mobile_presensi_pegawai_all_role_ids'
@@ -184,7 +186,7 @@ const fieldSummaries: Record<PolicyKey, string> = {
     approve_past_requests: 'Approval dan penolakan tetap tersedia setelah tanggal pengajuan lewat.',
 };
 const groupDescriptions: Record<string, string> = {
-    Presensi: 'Atur urutan presensi dan batas keterlambatan pegawai.',
+    Presensi: 'Atur urutan presensi, batas keterlambatan, dan similarity wajah pegawai.',
     'Pengajuan cuti': 'Tentukan waktu pengajuan dan ketentuan pembatalan cuti.',
     Lembur: 'Atur pembatalan pengajuan dan penggunaan lembur.',
     'Perubahan shift': 'Tentukan kapan pegawai dapat mengubah atau membatalkan shift.',
@@ -203,7 +205,7 @@ const changed = (key: keyof Configuration) => changedKeys.value.includes(key);
 const categoryFor = (key: string) =>
     key.startsWith('mobile_presensi_pegawai_')
         ? 'mobile'
-        : key === 'clock_in_tolerance_minutes'
+        : key === 'clock_in_tolerance_minutes' || key === 'face_minimum_similarity'
           ? 'Presensi'
           : groups.find((group) => group.fields.some((field) => field.key === key))?.title;
 const categories = computed(() =>
@@ -215,7 +217,7 @@ const categories = computed(() =>
             count: group.fields.filter((field) => form[field.key]).length + '/' + group.fields.length,
             detail:
                 group.title === 'Presensi'
-                    ? 'Clock-out & toleransi'
+                    ? 'Clock-out, toleransi & wajah'
                     : group.title === 'Pengajuan cuti'
                       ? 'Pengajuan & pembatalan'
                       : group.title === 'Lembur'
@@ -253,8 +255,12 @@ const visibleGroups = computed(() =>
             fields: group.fields.filter((field) => matchesSearch(group.title, field.label, field.description, fieldSummaries[field.key])),
             showTolerance:
                 group.title === 'Presensi' && matchesSearch('Presensi toleransi clock-in keterlambatan menit dispensasi penggunaan lembur'),
+            showFaceSimilarity:
+                group.title === 'Presensi' && matchesSearch('Presensi similarity kemiripan kecocokan verifikasi wajah face detection persen minimum'),
         }))
-        .filter((group) => (search.value.trim() ? group.fields.length || group.showTolerance : group.title === activeCategory.value)),
+        .filter((group) =>
+            search.value.trim() ? group.fields.length || group.showTolerance || group.showFaceSimilarity : group.title === activeCategory.value,
+        ),
 );
 const showMobile = computed(() =>
     search.value.trim()
@@ -263,8 +269,10 @@ const showMobile = computed(() =>
 );
 const resultCount = computed(
     () =>
-        visibleGroups.value.reduce((total, group) => total + group.fields.length + Number(group.showTolerance), 0) +
-        (showMobile.value ? (form.mobile_presensi_pegawai_scope === 'approval-line' ? 3 : 2) : 0),
+        visibleGroups.value.reduce(
+            (total, group) => total + group.fields.length + Number(group.showTolerance) + Number(group.showFaceSimilarity),
+            0,
+        ) + (showMobile.value ? (form.mobile_presensi_pegawai_scope === 'approval-line' ? 3 : 2) : 0),
 );
 const selectCategory = (key: string) => {
     activeCategory.value = key;
@@ -373,7 +381,9 @@ const save = () =>
                                     <h2 :id="'configuration-heading-' + group.id">{{ group.title }}</h2>
                                     <p>{{ groupDescriptions[group.title] }}</p>
                                 </div>
-                                <span class="configuration-panel-count">{{ group.fields.length + Number(group.showTolerance) }} pengaturan</span>
+                                <span class="configuration-panel-count"
+                                    >{{ group.fields.length + Number(group.showTolerance) + Number(group.showFaceSimilarity) }} pengaturan</span
+                                >
                             </header>
                             <div
                                 v-for="field in group.fields"
@@ -477,6 +487,60 @@ const save = () =>
                                 </details>
                                 <p v-if="form.errors.clock_in_tolerance_minutes" id="tolerance-error" class="configuration-field-error" role="alert">
                                     {{ form.errors.clock_in_tolerance_minutes }}
+                                </p>
+                            </div>
+                            <div
+                                v-if="group.showFaceSimilarity"
+                                class="configuration-tolerance"
+                                :class="{ modified: changed('face_minimum_similarity') }"
+                            >
+                                <div class="configuration-field-heading">
+                                    <div>
+                                        <label for="face-minimum-similarity"
+                                            >Batas minimal similarity wajah<span
+                                                v-if="changed('face_minimum_similarity')"
+                                                class="configuration-change-label"
+                                                >Diubah</span
+                                            ></label
+                                        >
+                                        <p>Persentase kecocokan minimal untuk verifikasi wajah saat clock-in dan clock-out.</p>
+                                    </div>
+                                    <div class="configuration-minutes">
+                                        <input
+                                            id="face-minimum-similarity"
+                                            v-model.number="form.face_minimum_similarity"
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            step="0.01"
+                                            required
+                                            :disabled="!can.update || form.processing"
+                                            :aria-invalid="!!form.errors.face_minimum_similarity"
+                                            :aria-describedby="
+                                                'face-similarity-help' + (form.errors.face_minimum_similarity ? ' face-similarity-error' : '')
+                                            "
+                                        /><span>%</span>
+                                    </div>
+                                </div>
+                                <p id="face-similarity-help" class="configuration-field-help">
+                                    Isi 1–100%, maksimal 2 angka desimal. Nilai lebih tinggi memperketat kecocokan. Setelah disimpan, berlaku pada
+                                    verifikasi berikutnya.
+                                </p>
+                                <details class="configuration-details">
+                                    <summary>Detail verifikasi <ChevronDown :size="13" /></summary>
+                                    <p>
+                                        Wajah juga wajib lolos pencocokan model dan pemeriksaan keaslian. Skor di atas batas ini belum tentu diterima
+                                        jika pemeriksaan tersebut gagal. Persentase ini adalah skor kecocokan, bukan tingkat akurasi sistem. Perubahan
+                                        tidak menghitung ulang presensi yang sudah tersimpan.
+                                    </p>
+                                </details>
+                                <p
+                                    v-if="form.errors.face_minimum_similarity"
+                                    id="face-similarity-error"
+                                    class="configuration-field-error"
+                                    role="alert"
+                                >
+                                    {{ form.errors.face_minimum_similarity }}
                                 </p>
                             </div>
                         </section>

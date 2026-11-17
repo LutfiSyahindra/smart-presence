@@ -15,7 +15,11 @@ py -3.13 -m venv .venv
 
 Isi variabel `FACE_SERVICE_*` pada `.env` di root proyek. `FACE_SERVICE_TOKEN` harus berupa nilai acak minimal 32 karakter dan nilainya dipakai oleh Laravel serta FastAPI.
 
-Clock-in dan clock-out wajib lolos keputusan jarak bawaan model DeepFace. `FACE_SERVICE_MIN_SIMILARITY=40` menjadi batas confidence tambahan; nilai di bawah 40 tetap dibatasi ke 40 oleh Laravel dan FastAPI. Confidence bukan ukuran akurasi sistem pada pegawai RSARSY. `FACE_SERVICE_DISTANCE_THRESHOLD` dapat memperketat batas jarak, tetapi tidak dapat melonggarkan keputusan bawaan model. Laravel dan FastAPI harus memakai nilai konfigurasi yang sama. Kalibrasi batas yang lebih ketat menggunakan pasangan foto pegawai yang sama dan berbeda.
+Clock-in dan clock-out wajib lolos keputusan jarak bawaan model DeepFace. Batas confidence tambahan diatur melalui **Pengaturan > Konfigurasi > Presensi > Batas minimal similarity wajah**, dengan rentang 1-100% dan maksimal dua angka desimal. Nilai disimpan di database dan dikirim Laravel sebagai multipart `minimum_similarity` pada setiap verifikasi, termasuk pekerjaan antrean. Perubahan berlaku pada verifikasi berikutnya tanpa mengedit `.env`, membangun ulang frontend, atau memulai ulang layanan. Riwayat presensi tidak dihitung ulang. `FACE_SERVICE_MIN_SIMILARITY` menjadi nilai awal saat migrasi dan cadangan FastAPI jika permintaan tidak menyertakan batas. Nilai dari database menggantikan cadangan tersebut, sehingga batas juga dapat diturunkan kembali tanpa mengubah environment layanan.
+
+Confidence bukan ukuran akurasi sistem pada pegawai RSARSY. Batas minimal 1%, keputusan jarak model, dan pemeriksaan anti-spoofing tetap berlaku. `FACE_SERVICE_DISTANCE_THRESHOLD` dapat memperketat batas jarak, tetapi tidak dapat melonggarkan keputusan bawaan model. Kalibrasi batas yang lebih ketat menggunakan pasangan foto pegawai yang sama dan berbeda.
+
+Untuk penerapan pertama pengaturan similarity ini: perbarui dan restart FastAPI terlebih dahulu (atau rebuild container), jalankan `php artisan migrate` dan `npm run build` dari root proyek, lalu `php artisan queue:restart` agar worker memuat kode baru. Setelah penerapan awal, perubahan angka cukup disimpan dari halaman konfigurasi. Tidak diperlukan APK baru.
 
 Sebelum menyimpan atau mengganti foto referensi, Laravel memanggil `/api/v1/profile/validate`. Foto unggahan wajib memuat tepat satu wajah, memiliki dimensi minimal 480 x 480, serta lolos pemeriksaan ukuran, ketajaman, dan pencahayaan area wajah. Foto web disesuaikan otomatis sebelum diunggah: foto kecil diperbesar secukupnya, foto besar diperkecil, dan rasio gambar tetap dipertahankan tanpa pemotongan. Sisi terpanjang dibatasi 1024 piksel; gambar sangat sempit diberi ruang putih agar dimensi unggahan tetap memenuhi batas minimum. Resize tidak menambah detail wajah sehingga foto buram tetap dapat ditolak oleh pemeriksaan kualitas. Jika validasi gagal, respons tidak valid, atau layanan tidak tersedia, foto lama tetap dipertahankan.
 
@@ -63,7 +67,7 @@ Port hanya dipublikasikan ke `127.0.0.1:8001`. Jangan mengekspos service ini lan
 
 - `GET /api/v1/health/live`: pemeriksaan proses, tanpa token.
 - `GET /api/v1/health/ready`: kesiapan service dan status model, tanpa token.
-- `POST /api/v1/verify`: multipart `profile_photo` dan `clock_in_photo`, wajib header `Authorization: Bearer <token>`.
+- `POST /api/v1/verify`: multipart `profile_photo`, `clock_in_photo`, serta `minimum_similarity` opsional (angka 1-100). Wajib header `Authorization: Bearer <token>`. Batas hanya berlaku pada permintaan tersebut dan tidak mengubah konfigurasi global engine.
 - `POST /api/v1/profile/validate`: multipart `profile_photo`, wajib token yang sama. Mengembalikan `{"valid": true}` setelah pemeriksaan kualitas dan ekstraksi embedding berhasil, atau error `invalid_profile_photo` / `service_unavailable`.
 
 ## Pengujian

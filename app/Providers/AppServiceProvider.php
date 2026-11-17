@@ -22,6 +22,7 @@ use App\Repositories\Absensi\AdminWeb\Setting\Role\RoleRepositoryInterface;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepository;
 use App\Repositories\Absensi\AdminWeb\Setting\User\UserRepositoryInterface;
 use App\Services\Absensi\AbsensiMobile\FastApiFaceVerifier;
+use App\Services\Absensi\ConfigurationService;
 use App\Services\MobileDataChanges;
 use App\Support\CutiAccess;
 use App\Support\PengajuanAccess;
@@ -43,7 +44,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(MobileDataChanges::class);
-        $this->app->scoped(\App\Services\Absensi\ConfigurationService::class);
+        $this->app->scoped(ConfigurationService::class);
         $this->app->bind(JabatanRepositoryInterface::class, JabatanRepository::class);
         $this->app->bind(UnitKerjaRepositoryInterface::class, UnitKerjaRepository::class);
         $this->app->bind(PegawaiRepositoryInterface::class, PegawaiRepository::class);
@@ -52,7 +53,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
         $this->app->bind(RoleRepositoryInterface::class, RoleRepository::class);
         $this->app->bind(PermissionRepositoryInterface::class, PermissionRepository::class);
-        $this->app->singleton(FaceVerifier::class, function (Application $app): FaceVerifier {
+        $this->app->scoped(FaceVerifier::class, function (Application $app): FaceVerifier {
             $driver = $app['config']->get('face-verification.driver');
 
             if ($driver === 'fastapi') {
@@ -63,7 +64,7 @@ class AppServiceProvider extends ServiceProvider
                     token: (string) $fastApi['token'],
                     connectTimeout: max(1, (int) $fastApi['connect_timeout']),
                     timeout: max(1, (int) $fastApi['timeout']),
-                    minimumSimilarity: max(40, min(100, (float) $app['config']->get('face-verification.minimum_similarity', 40))),
+                    minimumSimilarity: $app->make(ConfigurationService::class)->faceMinimumSimilarity(),
                 );
             }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Absensi\AdminWeb\Setting;
 
+use App\Contracts\FaceVerifier;
 use App\Models\AbsensiConfiguration;
 use App\Models\ApprovalLine;
 use App\Models\Pegawai;
@@ -12,6 +13,8 @@ use App\Services\Absensi\ConfigurationService;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -45,6 +48,7 @@ class ConfigurationManagementTest extends TestCase
             ->component('absensi/admin-web/setting/konfigurasi/Index')->where('configuration', AbsensiConfiguration::DEFAULTS)->where('can.update', true));
         $data = array_fill_keys(array_keys(AbsensiConfiguration::DEFAULTS), true);
         $data['clock_in_tolerance_minutes'] = 10;
+        $data['face_minimum_similarity'] = 75.25;
         $data['approve_past_requests'] = false;
         $data['mobile_presensi_pegawai_scope'] = AbsensiConfiguration::PRESENSI_PEGAWAI_SCOPE_APPROVAL_LINE;
         $data['mobile_presensi_pegawai_approval_type'] = ApprovalLine::TYPE_CUTI;
@@ -125,6 +129,11 @@ class ConfigurationManagementTest extends TestCase
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'cuti_past_date' => 'yes'])->assertSessionHasErrors('cuti_past_date');
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'clock_out_without_clock_in' => 'yes'])
             ->assertSessionHasErrors('clock_out_without_clock_in');
+        foreach ([-1, 0, 0.99, 100.01, 75.255, null, '', 'invalid', true, [70]] as $similarity) {
+            $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS,
+                'cancel_approved_cuti' => true, 'face_minimum_similarity' => $similarity])
+                ->assertSessionHasErrors('face_minimum_similarity');
+        }
         foreach (['all', '', null, ['unit-kerja']] as $scope) {
             $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'mobile_presensi_pegawai_scope' => $scope])
                 ->assertSessionHasErrors('mobile_presensi_pegawai_scope');
@@ -142,6 +151,48 @@ class ConfigurationManagementTest extends TestCase
         }
         $this->put(self::URL, [])->assertSessionHasErrors(array_keys(AbsensiConfiguration::DEFAULTS));
         $this->assertStoredConfiguration(AbsensiConfiguration::DEFAULTS);
+    }
+
+    public function test_saved_similarity_is_sent_to_the_face_service_in_each_new_worker_scope(): void
+    {
+        config(['face-verification.fastapi.url' => 'http://face-service.test',
+            'face-verification.fastapi.token' => str_repeat('test', 8),
+            'face-verification.minimum_similarity' => 95]);
+        Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 70.0])]);
+        $admin = User::factory()->create();
+        $admin->assignRole('super-admin');
+        $previousVerifier = null;
+
+        foreach ([1.0, 1.25, 39.99, 40.0, 75.25, 100.0, 60.5] as $minimum) {
+            $this->actingAs($admin)->put(self::URL, [...AbsensiConfiguration::DEFAULTS,
+                'face_minimum_similarity' => $minimum])->assertSessionHasNoErrors();
+            // A long-lived queue worker clears scoped services between jobs.
+            $this->app->forgetScopedInstances();
+            $verifier = app(FaceVerifier::class);
+            $this->assertNotSame($previousVerifier, $verifier);
+            $this->assertSame($minimum <= 70, $verifier->compare('profile', 'camera')->matched);
+            $this->get(self::URL)->assertInertia(fn (Assert $page) => $page->where('configuration.face_minimum_similarity', fn ($value) => (float) $value === $minimum));
+            $previousVerifier = $verifier;
+        }
+
+        $this->assertSame([1.0, 1.25, 39.99, 40.0, 75.25, 100.0, 60.5], Http::recorded()->map(
+            fn (array $record) => (float) collect($record[0]->data())->firstWhere('name', 'minimum_similarity')['contents'],
+        )->all());
+        Http::assertSent(fn (Request $request) => $request->hasFile('profile_photo') && $request->hasFile('clock_in_photo'));
+    }
+
+    public function test_similarity_migration_preserves_the_previous_environment_setting(): void
+    {
+        $migration = require database_path('migrations/2026_11_17_000002_add_face_minimum_similarity_to_absensi_configurations.php');
+        foreach ([1.0, 1.25, 39.99, 82.75] as $minimum) {
+            config(['face-verification.minimum_similarity' => $minimum]);
+            $migration->down();
+            $this->app->forgetScopedInstances();
+            $this->assertSame($minimum, app(ConfigurationService::class)->faceMinimumSimilarity());
+            $migration->up();
+
+            $this->assertDatabaseHas('absensi_configurations', ['id' => 1, 'face_minimum_similarity' => $minimum]);
+        }
     }
 
     public function test_tolerance_agrees_with_late_and_on_time_filters_including_midnight(): void

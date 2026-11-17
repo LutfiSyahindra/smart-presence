@@ -165,6 +165,61 @@ def test_explicit_higher_similarity_limit_is_still_enforced() -> None:
     assert result["verified"] is False
 
 
+def test_request_similarity_overrides_the_environment_without_changing_defaults() -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=90.0))
+    engine._deepface = FakeDeepFace(confidence=63.0)
+    photo = image_bytes(800, 600)
+
+    for minimum, accepted in [(70.0, False), (63.0, True), (1.0, True), (1.25, True), (39.99, True), (40.0, True), (100.0, False)]:
+        result = engine.verify(photo, photo, minimum_similarity=minimum)
+        assert result["verified"] is accepted
+        assert result["minimum_similarity"] == minimum
+        assert engine.settings.min_similarity == 90.0
+
+    assert engine.verify(photo, photo)["verified"] is False
+
+
+
+@pytest.mark.parametrize(("confidence", "minimum", "accepted"), [
+    (0.99, 1.0, False), (1.0, 1.0, True), (1.25, 1.25, True),
+    (1.24, 1.25, False), (39.99, 1.0, True),
+])
+def test_request_similarity_supports_values_from_1_percent(
+    confidence: float, minimum: float, accepted: bool,
+) -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=90.0))
+    engine._deepface = FakeDeepFace(confidence=confidence)
+    photo = image_bytes(800, 600)
+
+    result = engine.verify(photo, photo, minimum_similarity=minimum)
+
+    assert result["verified"] is accepted
+    assert result["minimum_similarity"] == minimum
+
+
+def test_environment_similarity_can_start_at_1_percent() -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=1.0))
+    engine._deepface = FakeDeepFace(confidence=1.0)
+    photo = image_bytes(800, 600)
+
+    result = engine.verify(photo, photo)
+
+    assert result["verified"] is True
+    assert result["minimum_similarity"] == 1.0
+
+
+def test_request_similarity_still_requires_model_and_distance_checks() -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, distance_threshold=0.05))
+    fake = FakeDeepFace(confidence=99.0)
+    engine._deepface = fake
+    photo = image_bytes(800, 600)
+    assert engine.verify(photo, photo, minimum_similarity=1.0)["verified"] is False
+
+    engine.settings.distance_threshold = None
+    fake.verified = False
+    assert engine.verify(photo, photo, minimum_similarity=1.0)["verified"] is False
+
+
 @pytest.mark.parametrize("missing", [[], FaceNotDetected("Face could not be detected")])
 def test_missing_detection_uses_fallback_with_alignment_and_anti_spoofing(missing: Any) -> None:
     fake = FakeDeepFace()

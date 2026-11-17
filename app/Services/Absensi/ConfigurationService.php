@@ -26,6 +26,12 @@ class ConfigurationService
         $this->configuration = $configuration;
     }
 
+    public function faceMinimumSimilarity(): float
+    {
+        return max(1, min(100, (float) ($this->current()->face_minimum_similarity
+            ?? config('face-verification.minimum_similarity', 40))));
+    }
+
     public function assertCanDecide(CarbonInterface $date): void
     {
         if (! $this->current()->approve_past_requests && $date->toDateString() < now()->toDateString()) {

@@ -403,7 +403,10 @@ class QueuedAttendanceTest extends TestCase
         config(['queue.default' => 'database']);
         Queue::swap($this->realQueue);
         $service = app(QueuedAttendanceService::class);
-        $this->mock(FaceVerifier::class)->shouldReceive('compare')->times(300)->andReturn(new FaceVerificationResult(true, 96, 'test'));
+        $verifier = $this->mock(FaceVerifier::class);
+        $verifier->shouldReceive('compare')->times(300)->andReturn(new FaceVerificationResult(true, 96, 'test'));
+        // The worker clears scoped instances between jobs; recreate the test double.
+        $this->app->bind(FaceVerifier::class, fn () => $verifier);
         $service->dispatch($first);
         $service->dispatch($first);
         for ($index = 1; $index < 300; $index++) {

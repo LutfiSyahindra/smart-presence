@@ -89,7 +89,10 @@ class DeepFaceEngine:
 
         return {"valid": True}
 
-    def verify(self, profile_bytes: bytes, clock_in_bytes: bytes) -> dict[str, Any]:
+    def verify(
+        self, profile_bytes: bytes, clock_in_bytes: bytes,
+        *, minimum_similarity: float | None = None,
+    ) -> dict[str, Any]:
         clock_in_image = self._decode_image(clock_in_bytes, profile_photo=False)
         profile_cache_key = sha256(profile_bytes).hexdigest()
 
@@ -156,7 +159,11 @@ class DeepFaceEngine:
             threshold = self._optional_float(result.get("threshold"))
             normalized_similarity = self._percentage(similarity)
 
-            minimum_similarity = max(40.0, self.settings.min_similarity)
+            # Laravel sends the current database setting on each authenticated request.
+            # Keep it local so concurrent requests cannot change the engine's defaults.
+            minimum_similarity = max(
+                1.0, self.settings.min_similarity if minimum_similarity is None else minimum_similarity
+            )
             matched = (
                 result.get("verified") is True
                 and distance is not None

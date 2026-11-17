@@ -1,7 +1,7 @@
 import secrets
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, Header, Request, UploadFile
+from fastapi import APIRouter, File, Form, Header, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
@@ -45,6 +45,7 @@ async def verify_faces(
     request: Request,
     profile_photo: Annotated[UploadFile, File(description="Foto profil referensi")],
     clock_in_photo: Annotated[UploadFile, File(description="Foto clock-in dari kamera")],
+    minimum_similarity: Annotated[float | None, Form(ge=1, le=100, allow_inf_nan=False)] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> VerificationResponse:
     settings: Settings = request.app.state.settings
@@ -57,6 +58,7 @@ async def verify_faces(
         engine.verify,
         profile_bytes,
         clock_in_bytes,
+        minimum_similarity=minimum_similarity,
     )
 
     return VerificationResponse.model_validate(result)

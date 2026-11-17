@@ -24,6 +24,8 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
 
     public function compare(string $profilePhoto, string $clockInPhoto): FaceVerificationResult
     {
+        $minimumSimilarity = max(1, min(100, $this->minimumSimilarity));
+
         try {
             $response = $this->client()
                 ->attach('profile_photo', $profilePhoto, 'profile-photo', [
@@ -32,7 +34,7 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
                 ->attach('clock_in_photo', $clockInPhoto, 'clock-in-photo', [
                     'Content-Type' => $this->mimeType($clockInPhoto),
                 ])
-                ->post('/api/v1/verify');
+                ->post('/api/v1/verify', ['minimum_similarity' => $minimumSimilarity]);
         } catch (ConnectionException $exception) {
             throw $this->unavailable($exception);
         } catch (Throwable $exception) {
@@ -65,7 +67,7 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
         return new FaceVerificationResult(
             matched: $payload['verified']
                 && $normalizedSimilarity !== null
-                && $normalizedSimilarity >= max(40, $this->minimumSimilarity),
+                && $normalizedSimilarity >= $minimumSimilarity,
             similarity: $normalizedSimilarity,
             provider: mb_substr($provider, 0, 50),
         );
@@ -109,7 +111,7 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
     {
         $reason = $response->json('error.code');
         $message = $response->json('error.message');
-  
+
         if (! is_string($reason)) {
             return $this->unavailable();
         }

@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi.testclient import TestClient
+import pytest
 
 from app.config import Settings
 from app.exceptions import FaceServiceError
@@ -14,6 +15,7 @@ class FakeEngine:
     model_loaded = True
 
     def __init__(self, result: dict[str, Any] | None = None) -> None:
+        self.minimum_similarities: list[float | None] = []
         self.result = result or {
             "verified": True,
             "similarity": 98.25,
@@ -29,7 +31,8 @@ class FakeEngine:
     def warm_up(self) -> None:
         return None
 
-    def verify(self, _: bytes, __: bytes) -> dict[str, Any]:
+    def verify(self, _: bytes, __: bytes, *, minimum_similarity: float | None = None) -> dict[str, Any]:
+        self.minimum_similarities.append(minimum_similarity)
         return self.result
 
     def validate_profile(self, contents: bytes) -> dict[str, bool]:
@@ -38,7 +41,7 @@ class FakeEngine:
 
 
 class SpoofEngine(FakeEngine):
-    def verify(self, _: bytes, __: bytes) -> dict[str, Any]:
+    def verify(self, _: bytes, __: bytes, *, minimum_similarity: float | None = None) -> dict[str, Any]:
         raise FaceServiceError("spoof_detected", "Spoof terdeteksi.")
 
 
@@ -87,6 +90,37 @@ def test_verify_returns_a_stable_spoof_error() -> None:
     assert response.json() == {
         "error": {"code": "spoof_detected", "message": "Spoof terdeteksi."}
     }
+
+
+def test_verify_passes_each_requests_similarity_to_the_engine() -> None:
+    engine = FakeEngine()
+    with TestClient(create_app(settings(), engine)) as client:
+        for minimum in [1, 1.25, 39.99, 40, 75.25, 100, 60.5]:
+            response = client.post(
+                "/api/v1/verify", headers={"Authorization": f"Bearer {TOKEN}"},
+                files=files(), data={"minimum_similarity": str(minimum)},
+            )
+            assert response.status_code == 200
+        response = client.post(
+            "/api/v1/verify", headers={"Authorization": f"Bearer {TOKEN}"}, files=files(),
+        )
+        assert response.status_code == 200
+
+    assert engine.minimum_similarities == [1.0, 1.25, 39.99, 40.0, 75.25, 100.0, 60.5, None]
+
+
+@pytest.mark.parametrize("minimum", ["-1", "0", "0.99", "100.01", "NaN", "Infinity", "-Infinity", "invalid"])
+def test_verify_rejects_invalid_similarity_without_running_inference(minimum: str) -> None:
+    engine = FakeEngine()
+    with TestClient(create_app(settings(), engine)) as client:
+        response = client.post(
+            "/api/v1/verify", headers={"Authorization": f"Bearer {TOKEN}"},
+            files=files(), data={"minimum_similarity": minimum},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+    assert engine.minimum_similarities == []
 
 
 def test_verify_rejects_unsupported_file_types() -> None:

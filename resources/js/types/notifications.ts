@@ -1,6 +1,7 @@
 export interface AdminNotification {
     id: string;
     title: string;
+    request_type?: string | null;
     message: string;
     event: string;
     read_at: string | null;

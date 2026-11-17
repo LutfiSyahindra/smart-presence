@@ -91,6 +91,13 @@ const events: Record<string, { label: string; icon: typeof Bell; tone: string }>
     approval_required: { label: 'Butuh persetujuan', icon: ShieldCheck, tone: 'amber' },
 };
 const noticeStatus = (event: string) => events[event] ?? { label: 'Pembaruan', icon: Bell, tone: 'teal' };
+const requestCategories = new Map([
+    ['cuti', 'PENGAJUAN CUTI'],
+    ['lembur', 'PENGAJUAN LEMBUR'],
+    ['perubahan-shift', 'PERUBAHAN SHIFT'],
+    ['presensi', 'PRESENSI DI LUAR RADIUS'],
+]);
+const noticeCategory = (requestType: AdminNotification['request_type']) => requestCategories.get(requestType ?? '') ?? 'NOTIFIKASI PENGAJUAN';
 const timestamp = (value: string) =>
     new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value));
 const notificationGroups = computed(() => {
@@ -200,7 +207,7 @@ async function readAll() {
                                 /></span>
                                 <div class="notice-copy">
                                     <div class="notice-topline">
-                                        <span class="notice-category">PENGAJUAN CUTI</span
+                                        <span class="notice-category">{{ noticeCategory(item.request_type) }}</span
                                         ><span v-if="!item.read_at" class="unread-dot" aria-label="Belum dibaca"></span>
                                     </div>
                                     <h3>{{ item.title }}</h3>

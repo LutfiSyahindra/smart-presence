@@ -123,6 +123,7 @@ class NotificationController extends Controller
     {
         return [
             'id' => $notification->id, 'title' => $notification->data['title'] ?? 'Notifikasi pengajuan',
+            'request_type' => $notification->data['request_type'] ?? null,
             'message' => $notification->data['message'] ?? '', 'event' => $notification->data['event'] ?? '',
             'read_at' => $notification->read_at?->toIso8601String(), 'created_at' => $notification->created_at->toIso8601String(),
             'url' => route('absensi.mobile.notifikasi.open', $notification->id, absolute: false),

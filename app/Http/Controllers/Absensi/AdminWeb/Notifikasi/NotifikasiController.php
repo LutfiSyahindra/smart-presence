@@ -12,6 +12,7 @@ use App\Services\Absensi\AbsensiMobile\PerubahanShiftService;
 use App\Services\Absensi\AbsensiMobile\PresensiApprovalService;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use App\Support\AccessPermission;
+use App\Support\NotificationFilters;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,10 +28,12 @@ class NotifikasiController extends Controller
     {
         $user = $request->user();
         $filters = $request->validate([
+            ...NotificationFilters::rules(),
             'search' => ['nullable', 'string', 'max:150'],
             'request_type' => ['nullable', Rule::in(['all', 'cuti', 'lembur', 'perubahan-shift', 'presensi'])],
         ]);
         $search = trim($filters['search'] ?? '');
+        $notificationFilters = NotificationFilters::values($filters);
         $requestType = $category === 'butuh-approval' ? ($filters['request_type'] ?? 'all') : 'all';
         $inbox = CutiRequest::query()->awaitingApprovalBy($user);
         $approved = CutiRequest::query()->where('status', 'approved')
@@ -64,7 +67,15 @@ class NotifikasiController extends Controller
         $queries = ['cuti' => $category === 'disetujui' ? $approved : $inbox, 'lembur' => $category === 'disetujui' ? $lemburApproved : $lemburInbox];
         $queries['perubahan-shift'] = $category === 'disetujui' ? $shiftApproved : $shiftInbox;
         $queries['presensi'] = $category === 'disetujui' ? $presensiApproved : $presensiInbox;
+        $options = NotificationFilters::options($queries);
         foreach ($queries as $type => $query) {
+            [$start, $end] = match ($type) {
+                'cuti' => ['tanggal_mulai', 'tanggal_selesai'],
+                'lembur' => ['tanggal_lembur', null],
+                'perubahan-shift' => ['tanggal_perubahan', null],
+                'presensi' => ['tanggal_presensi', null],
+            };
+            NotificationFilters::apply($query, $notificationFilters, $start, $end);
             $query->when($search !== '', fn (Builder $query) => $query->where(function (Builder $query) use ($search) {
                 $query->where('nama_pegawai', 'like', "%{$search}%")->orWhere('nama_jabatan', 'like', "%{$search}%")->orWhere('nama_unit', 'like', "%{$search}%");
             }))->select('id')->selectRaw("'{$type}' as request_type")
@@ -112,7 +123,8 @@ class NotifikasiController extends Controller
                 ];
             }),
             'category' => $category,
-            'filters' => ['search' => $search, 'request_type' => $requestType],
+            'filters' => [...$notificationFilters, 'search' => $search, 'request_type' => $requestType],
+            'filterOptions' => $options,
             'overview' => $overview,
             'requestTypeCounts' => $requestTypeCounts,
         ]);

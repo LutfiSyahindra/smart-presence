@@ -31,6 +31,18 @@ menampilkan detail pengajuan yang bersangkutan. Tersedia tombol tandai semua
 dibaca. Data diperbarui setiap 20 detik saat halaman terlihat, saat kembali ke tab,
 dan saat service worker menerima push.
 
+Riwayat notifikasi, **Pengajuan Butuh Approval**, dan **Pengajuan Disetujui**
+menyediakan filter **Dari tanggal**, **Sampai tanggal**, **Unit**, **Jabatan**, dan
+**Nama pegawai**. Filter dapat digabungkan, diterapkan melalui **Terapkan filter**,
+dan dikosongkan melalui **Reset filter**. Tanggal awal/akhir bersifat inklusif dan
+dapat diisi salah satunya. Riwayat memakai tanggal notifikasi; daftar pengajuan
+memakai tanggal cuti/lembur/perubahan shift/presensi. Cuti ditampilkan bila
+periodenya beririsan dengan rentang filter. Pilihan unit/jabatan berasal dari
+data yang dapat diakses pengguna, termasuk snapshot nama pada pengajuan lama.
+Filter diproses sebelum paginasi, dipertahankan dalam URL, dan tidak mengubah
+badge total belum dibaca atau jumlah antrean persetujuan. Mengubah filter
+membersihkan pilihan persetujuan massal.
+
 Badge sidebar **Semua Notifikasi** menampilkan jumlah notifikasi belum dibaca.
 Badge **Pengajuan Butuh Approval** menampilkan jumlah pengajuan yang sedang
 menunggu giliran pengguna tersebut, tanpa dipengaruhi pencarian atau paginasi.

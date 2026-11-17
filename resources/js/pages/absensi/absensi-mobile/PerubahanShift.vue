@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import type { SharedData } from '@/types';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import { Dialog, DialogDescription, DialogPanel, DialogTitle } from '@headlessui/vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -48,6 +50,8 @@ type ShiftRequest = {
 };
 const props = defineProps<{
     scope: 'mine' | 'delegation';
+    filters: NotificationFilterValues;
+    filterOptions: NotificationFilterOptions;
     allPeriods: boolean;
     approvalCount: number;
     initialRequest: ShiftRequest | null;
@@ -140,14 +144,21 @@ const approvalLabel = (status: string) =>
     ({ pending: 'Menunggu persetujuan', waiting: 'Tahap berikutnya', approved: 'Disetujui', rejected: 'Ditolak', skipped: 'Dilewati' })[status] ??
     status;
 
-function applyFilters(changes: { month?: string; status?: Status; scope?: 'mine' | 'delegation' } = {}) {
+function applyFilters(changes: Partial<NotificationFilterValues> & { month?: string; status?: Status; scope?: 'mine' | 'delegation' } = {}) {
     if (loading.value) return;
     sheet.value = null;
     loading.value = true;
     error.value = '';
     router.get(
         route('absensi.mobile.perubahan-shift.index'),
-        { month: props.allPeriods ? undefined : props.month, status: props.status, scope: props.scope, ...changes },
+        {
+            ...props.filters,
+            month: props.allPeriods ? undefined : props.month,
+            status: props.status,
+            scope: props.scope,
+            ...changes,
+            ...(changes.month ? { date_from: '', date_to: '' } : {}),
+        },
         {
             preserveState: true,
             preserveScroll: true,
@@ -164,6 +175,10 @@ function applyFilters(changes: { month?: string; status?: Status; scope?: 'mine'
 }
 function switchScope(scope: 'mine' | 'delegation') {
     applyFilters({ scope, status: '', month: scope === 'mine' ? props.today.slice(0, 7) : undefined });
+}
+function applyNotificationFilters(filters: NotificationFilterValues) {
+    selected.value = null;
+    applyFilters({ ...filters, month: undefined });
 }
 function openDetail(item: ShiftRequest) {
     cancellation.clearErrors();
@@ -342,6 +357,13 @@ watch(
             </nav>
 
             <div ref="content" class="shift-content" tabindex="0" aria-label="Daftar pengajuan perubahan shift" :aria-busy="loading" scroll-region>
+                <NotificationFilters
+                    mobile
+                    :filters="filters"
+                    :filter-options="filterOptions"
+                    :disabled="loading || decision.processing"
+                    @apply="applyNotificationFilters"
+                />
                 <p v-if="page.props.flash.success" class="notice success-notice" role="status"><CheckCheck />{{ page.props.flash.success }}</p>
                 <section class="shift-hero" aria-labelledby="shift-hero-title">
                     <div class="hero-orbit" aria-hidden="true"></div>

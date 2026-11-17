@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem, SharedData } from '@/types';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowRightLeft, Bell, CalendarDays, CheckCheck, CheckCircle2, ClipboardList, Inbox, MapPin, Search, Timer } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
@@ -17,7 +19,8 @@ import { duration, requestCode, type ApprovalRequestRow, type ApprovalRequestTyp
 const props = defineProps<{
     requests: Paginated<ApprovalRequestRow>;
     category: 'butuh-approval' | 'disetujui';
-    filters: { search: string; request_type: ApprovalRequestType };
+    filters: NotificationFilterValues & { search: string; request_type: ApprovalRequestType };
+    filterOptions: NotificationFilterOptions;
     overview: { inbox: number; approved: number };
     requestTypeCounts: Record<Exclude<ApprovalRequestType, 'all'>, number>;
 }>();
@@ -103,17 +106,37 @@ const approveSelected = () => {
     });
 };
 const search = ref(props.filters.search);
+const filtered = computed(() =>
+    Boolean(
+        search.value ||
+            props.filters.date_from ||
+            props.filters.date_to ||
+            props.filters.unit ||
+            props.filters.jabatan ||
+            props.filters.employee_name,
+    ),
+);
 let timer: ReturnType<typeof setTimeout> | undefined;
-const visitRequestType = (requestType: ApprovalRequestType) => {
+const visitRequestType = (requestType: ApprovalRequestType, changes: Partial<NotificationFilterValues> = {}) => {
     if (timer) clearTimeout(timer);
     if (bulkForm.processing) return;
+    selected.value = null;
+    bulkForm.reset();
+    bulkForm.clearErrors();
+    bulkReviewOpen.value = false;
     router.get(
         `${baseUrl}/${props.category}`,
-        { search: search.value.trim() || undefined, request_type: props.category === 'butuh-approval' ? requestType : undefined },
+        {
+            ...props.filters,
+            ...changes,
+            search: search.value.trim() || undefined,
+            request_type: props.category === 'butuh-approval' ? requestType : undefined,
+        },
         { preserveState: true, preserveScroll: true, replace: true },
     );
 };
 const applySearch = () => visitRequestType(activeRequestType.value);
+const applyFilters = (filters: NotificationFilterValues) => visitRequestType(activeRequestType.value, filters);
 watch(search, () => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(applySearch, 400);
@@ -210,6 +233,7 @@ onBeforeUnmount(() => {
                         />
                     </form>
                 </header>
+                <NotificationFilters :filters="filters" :filter-options="filterOptions" :disabled="bulkForm.processing" @apply="applyFilters" />
                 <div v-if="category === 'butuh-approval' && requests.data.length" class="bulk-approval-bar">
                     <div aria-live="polite">
                         <strong>{{ selectedRequests.length }} pengajuan dipilih</strong>
@@ -384,7 +408,7 @@ onBeforeUnmount(() => {
                     <component :is="category === 'butuh-approval' ? activeRequestSection.icon : activeCategory.icon" />
                     <h3>
                         {{
-                            search
+                            filtered
                                 ? 'Pengajuan tidak ditemukan'
                                 : category === 'butuh-approval'
                                   ? `Tidak ada ${activeRequestSection.name} yang butuh approval`
@@ -393,8 +417,8 @@ onBeforeUnmount(() => {
                     </h3>
                     <p>
                         {{
-                            search
-                                ? 'Coba cari nama pegawai, jabatan, atau unit lain.'
+                            filtered
+                                ? 'Coba ubah atau reset filter untuk melihat pengajuan lainnya.'
                                 : category === 'butuh-approval'
                                   ? activeRequestType === 'perubahan-shift'
                                       ? 'Belum ada pengajuan perubahan shift untuk ditinjau.'

@@ -73,6 +73,26 @@ test('individual marking and select all include only requests awaiting this appr
     } finally { app.close(); }
 });
 
+test('date range and employee filters replace the month, clear selection, and reset completely', () => {
+    const app = approvalPage();
+    try {
+        app.props.filters.month = '2026-10';
+        app.state.toggleSelection(1);
+        app.state.confirmingBulk.value = true;
+        const filters = { date_from: '2026-10-30', date_to: '2026-11-02', unit: 'IGD', jabatan: 'Perawat', employee_name: 'Nadia' };
+        app.state.applyNotificationFilters(filters);
+        assert.deepEqual({ ...app.visits[0][1] }, { ...filters, search: '', month: '', sort: 'oldest' });
+        assert.equal(app.state.selectedIds.value.length, 0);
+        assert.equal(app.state.confirmingBulk.value, false);
+        Object.assign(app.props.filters, filters, { month: '' });
+        app.state.applyFilters({ month: '2026-12' });
+        assert.equal(app.visits[1][1].date_from, '');
+        assert.equal(app.visits[1][1].date_to, '');
+        app.state.resetFilters();
+        assert.deepEqual({ ...app.visits[2][1] }, { date_from: '', date_to: '', unit: '', jabatan: '', employee_name: '', search: '', month: '', sort: 'oldest' });
+    } finally { app.close(); }
+});
+
 test('reviewing a detail preserves marked requests and approval requires confirmation', () => {
     const app = approvalPage();
     try {

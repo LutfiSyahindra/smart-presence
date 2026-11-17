@@ -147,7 +147,7 @@ class PresensiApprovalTest extends TestCase
             ->where('scope', 'delegation')->where('filters.sort', 'oldest')
             ->where('totalRequests', 2)->where('requests.data.0.id', $october->id));
         $this->get($base.'?month=2026-11&search=IGD&sort=newest')->assertInertia(fn (Assert $page) => $page
-            ->where('filters', ['search' => 'IGD', 'month' => '2026-11', 'sort' => 'newest'])
+            ->where('filters.search', 'IGD')->where('filters.month', '2026-11')->where('filters.sort', 'newest')
             ->where('totalRequests', 2)->where('requests.total', 1)->where('requests.data.0.id', $november->id));
         $this->get($base.'?sort=newest')->assertInertia(fn (Assert $page) => $page->where('requests.data.0.id', $november->id));
         $this->get($base.'?month=2026-11&search=TidakAda')->assertInertia(fn (Assert $page) => $page

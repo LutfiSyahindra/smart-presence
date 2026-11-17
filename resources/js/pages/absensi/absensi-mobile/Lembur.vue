@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import type { SharedData } from '@/types';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -29,6 +31,8 @@ import { lemburDuration as duration, lemburStatuses as statuses, type LemburRow,
 
 const props = defineProps<{
     month: string;
+    filters: NotificationFilterValues;
+    filterOptions: NotificationFilterOptions;
     today: string;
     scope: 'mine' | 'delegation';
     allPeriods: boolean;
@@ -80,14 +84,23 @@ const activeStatusLabel = computed(() => statuses.find((item) => item.value === 
 function dateLabel(date: string) {
     return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${date}T12:00:00`));
 }
-function applyFilters(changes: { month?: string; status?: '' | LemburStatus; scope?: 'mine' | 'delegation' } = {}) {
+function applyFilters(
+    changes: Partial<NotificationFilterValues> & { month?: string; status?: '' | LemburStatus; scope?: 'mine' | 'delegation' } = {},
+) {
     sheet.value = null;
     if (loading.value) return;
     loading.value = true;
     error.value = '';
     router.get(
         route('absensi.mobile.lembur.index'),
-        { month: props.allPeriods ? undefined : props.month, status: props.status, scope: props.scope, ...changes },
+        {
+            ...props.filters,
+            month: props.allPeriods ? undefined : props.month,
+            status: props.status,
+            scope: props.scope,
+            ...changes,
+            ...(changes.month ? { date_from: '', date_to: '' } : {}),
+        },
         {
             preserveState: true,
             preserveScroll: true,
@@ -104,6 +117,10 @@ function applyFilters(changes: { month?: string; status?: '' | LemburStatus; sco
 }
 function changeMonth(month: string) {
     applyFilters({ month });
+}
+function applyNotificationFilters(filters: NotificationFilterValues) {
+    selected.value = null;
+    applyFilters({ ...filters, month: undefined });
 }
 function switchScope(scope: 'mine' | 'delegation') {
     applyFilters({ scope, status: '', month: scope === 'mine' ? props.today.slice(0, 7) : undefined });
@@ -263,6 +280,13 @@ watch(
                 </div>
 
                 <section class="requests-card" aria-labelledby="requests-title">
+                    <NotificationFilters
+                        mobile
+                        :filters="filters"
+                        :filter-options="filterOptions"
+                        :disabled="loading || detailBusy"
+                        @apply="applyNotificationFilters"
+                    />
                     <div class="section-heading">
                         <div>
                             <span class="eyebrow">AKTIVITAS ANDA</span>

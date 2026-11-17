@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CutiRequest;
 use App\Services\Absensi\AdminWeb\Cuti\CutiService;
 use App\Support\AccessPermission;
+use App\Support\NotificationFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,7 @@ class CutiApprovalController extends Controller
     public function index(Request $request): Response
     {
         $filters = $request->validate([
+            ...NotificationFilters::rules(),
             'search' => ['nullable', 'string', 'max:150'],
             'month' => ['nullable', 'date_format:Y-m'],
             'sort' => ['nullable', Rule::in(['oldest', 'newest'])],
@@ -28,6 +30,9 @@ class CutiApprovalController extends Controller
         $sort = $filters['sort'] ?? 'oldest';
         $pending = CutiRequest::query()->awaitingApprovalBy($request->user());
         $totalPending = (clone $pending)->count();
+        $notificationFilters = NotificationFilters::values($filters);
+        $options = NotificationFilters::options([$pending]);
+        NotificationFilters::apply($pending, $notificationFilters, 'tanggal_mulai', 'tanggal_selesai');
 
         $pending->when($search !== '', fn (Builder $query) => $query->where(function (Builder $query) use ($search) {
             $query->where('nama_pegawai', 'like', "%{$search}%")
@@ -41,7 +46,8 @@ class CutiApprovalController extends Controller
         }
 
         return Inertia::render('absensi/absensi-mobile/CutiApprovals', [
-            'filters' => ['search' => $search, 'month' => $month, 'sort' => $sort],
+            'filters' => [...$notificationFilters, 'search' => $search, 'month' => $month, 'sort' => $sort],
+            'filterOptions' => $options,
             'totalPending' => $totalPending,
             'requests' => $pending->with('approvals')->orderBy('created_at', $sort === 'newest' ? 'desc' : 'asc')
                 ->orderBy('id', $sort === 'newest' ? 'desc' : 'asc')->paginate(10)->withQueryString()->through(fn (CutiRequest $cuti) => [

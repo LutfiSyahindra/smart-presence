@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import type { SharedData } from '@/types';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -25,9 +27,10 @@ import type { CutiRow } from '../admin-web/cuti/types';
 import CutiSheet from './components/CutiSheet.vue';
 import MobileBackLink from './components/MobileBackLink.vue';
 
-type Filters = { search: string; month: string; sort: 'oldest' | 'newest' };
+type Filters = NotificationFilterValues & { search: string; month: string; sort: 'oldest' | 'newest' };
 const props = defineProps<{
     filters: Filters;
+    filterOptions: NotificationFilterOptions;
     totalPending: number;
     requests: { data: CutiRow[]; total: number; current_page: number; last_page: number; prev_page_url: string | null; next_page_url: string | null };
 }>();
@@ -45,7 +48,17 @@ const bulk = useForm({ request_ids: [] as number[] });
 const bulkErrors = computed(() => Object.values(bulk.errors).filter(Boolean));
 const decisionErrors = computed(() => decision.errors as Record<string, string | undefined>);
 const activeFilterCount = computed(() => Number(Boolean(props.filters.month)) + Number(props.filters.sort !== 'oldest'));
-const filtered = computed(() => Boolean(props.filters.search || props.filters.month));
+const filtered = computed(() =>
+    Boolean(
+        props.filters.search ||
+            props.filters.month ||
+            props.filters.date_from ||
+            props.filters.date_to ||
+            props.filters.unit ||
+            props.filters.jabatan ||
+            props.filters.employee_name,
+    ),
+);
 const periodLabel = computed(() =>
     props.filters.month
         ? new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(`${props.filters.month}-01T12:00:00`))
@@ -87,6 +100,7 @@ function applyFilters(changes: Partial<Filters> = {}) {
     cancelSelection();
     bulk.clearErrors();
     const next = { ...props.filters, search: search.value.trim(), ...changes };
+    if (changes.month && (next.date_from || next.date_to)) Object.assign(next, { date_from: '', date_to: '' });
     search.value = next.search;
     router.get(base, next, {
         preserveState: true,
@@ -100,6 +114,12 @@ function openFilter() {
     draft.month = props.filters.month;
     draft.sort = props.filters.sort;
     filterOpen.value = true;
+}
+function applyNotificationFilters(filters: NotificationFilterValues) {
+    applyFilters({ ...filters, month: '' });
+}
+function resetFilters() {
+    applyFilters({ search: '', month: '', sort: 'oldest', date_from: '', date_to: '', unit: '', jabatan: '', employee_name: '' });
 }
 function toggleSelection(id: number) {
     if (bulk.processing || loading.value || !selectableRequests.value.some((cuti) => cuti.id === id)) return;
@@ -216,6 +236,13 @@ onBeforeUnmount(() => {
             </header>
 
             <div class="approval-content" :aria-busy="loading">
+                <NotificationFilters
+                    mobile
+                    :filters="filters"
+                    :filter-options="filterOptions"
+                    :disabled="bulk.processing || loading"
+                    @apply="applyNotificationFilters"
+                />
                 <div v-if="page.props.flash.success" class="notice success" role="status">
                     <CircleCheck /><span>{{ page.props.flash.success }}</span>
                 </div>
@@ -308,12 +335,7 @@ onBeforeUnmount(() => {
                                 : 'Semua permintaan persetujuan cuti akan muncul di sini saat membutuhkan keputusan Anda.'
                         }}
                     </p>
-                    <button
-                        v-if="filtered && totalPending"
-                        type="button"
-                        class="reset-search"
-                        @click="applyFilters({ search: '', month: '', sort: 'oldest' })"
-                    >
+                    <button v-if="filtered && totalPending" type="button" class="reset-search" @click="resetFilters">
                         Tampilkan semua pengajuan<ArrowRight />
                     </button>
                     <span v-else class="empty-note"><ShieldCheck />Satu ruang, semua persetujuan.</span>

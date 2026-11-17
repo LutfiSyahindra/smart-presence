@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import { mobileCsrfHeaders, useMobileNotifications } from '@/composables/useMobileNotifications';
 import { usePermission } from '@/composables/usePermission';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import type { AdminNotification } from '@/types/notifications';
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
@@ -43,10 +45,14 @@ const props = defineProps<{
     perubahanShiftPendingApprovalCount?: number;
     presensiPendingApprovalCount?: number;
     today: string;
+    filters: NotificationFilterValues;
+    filterOptions: NotificationFilterOptions;
 }>();
 const { feedback, pushActive, busy, available, supported, enablePush, refresh } = useMobileNotifications();
 const saving = ref(false);
 const base = '/absensi/mobile/notifikasi';
+const applyFilters = (filters: NotificationFilterValues) =>
+    router.get(base, { ...filters, tab: 'notifications' }, { preserveState: true, preserveScroll: true, replace: true });
 const compactCount = (count: number) => (count > 99 ? '99+' : count);
 const { can } = usePermission();
 const categories = computed(() => [
@@ -184,6 +190,7 @@ async function readAll() {
                         </button>
                     </div>
 
+                    <NotificationFilters mobile :filters="filters" :filter-options="filterOptions" date-label="Tanggal notifikasi" @apply="applyFilters" />
                     <section v-for="group in notificationGroups" :key="group.label" class="notification-group" :aria-label="group.label">
                         <h3 class="date-heading">{{ group.label }}<span></span></h3>
                         <div class="notice-list">
@@ -210,8 +217,14 @@ async function readAll() {
 
                     <section v-if="!notifications.data.length" class="empty-state">
                         <span class="empty-icon"><Inbox /></span><span class="section-eyebrow">RUANG UNTUK KABAR BAIK</span>
-                        <h2>Belum ada notifikasi</h2>
-                        <p>Pembaruan pengajuan Anda akan hadir di sini.<br />Kami akan mengabari saat ada kabar terbaru.</p>
+                        <h2>{{ Object.values(filters).some(Boolean) ? 'Notifikasi tidak ditemukan' : 'Belum ada notifikasi' }}</h2>
+                        <p>
+                            {{
+                                Object.values(filters).some(Boolean)
+                                    ? 'Coba ubah atau reset filter untuk melihat notifikasi lainnya.'
+                                    : 'Pembaruan pengajuan Anda akan hadir di sini.'
+                            }}
+                        </p>
                     </section>
 
                     <section class="push-card" :class="{ 'push-enabled': pushActive }">

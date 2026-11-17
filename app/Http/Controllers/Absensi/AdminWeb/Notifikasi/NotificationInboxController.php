@@ -9,6 +9,7 @@ use App\Models\PerubahanShiftRequest;
 use App\Models\PresensiRequest;
 use App\Services\Notifications\WebPushService;
 use App\Support\AccessPermission;
+use App\Support\NotificationFilters;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,8 +21,14 @@ class NotificationInboxController extends Controller
 {
     public function index(Request $request): Response
     {
+        $filters = NotificationFilters::values($request->validate(NotificationFilters::rules()));
+        $query = $request->user()->notifications();
+        $options = NotificationFilters::notificationOptions($query);
+        NotificationFilters::applyNotifications($query, $filters);
+
         return Inertia::render('absensi/admin-web/notifikasi/Inbox', [
-            'notifications' => $request->user()->notifications()->latest()->paginate(20)->withQueryString()
+            'filters' => $filters, 'filterOptions' => $options,
+            'notifications' => $query->latest()->paginate(20)->withQueryString()
                 ->through(fn (DatabaseNotification $notification) => $this->serialize($notification)),
             'unreadCount' => $request->user()->unreadNotifications()->count(),
         ]);

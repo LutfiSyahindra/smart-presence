@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import type { AdminNotification } from '@/types/notifications';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Bell, CheckCheck, Inbox } from 'lucide-vue-next';
@@ -8,8 +10,15 @@ import '../approval-workflow.css';
 import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
 
-defineProps<{ notifications: Paginated<AdminNotification>; unreadCount: number }>();
+defineProps<{
+    notifications: Paginated<AdminNotification>;
+    unreadCount: number;
+    filters: NotificationFilterValues;
+    filterOptions: NotificationFilterOptions;
+}>();
 const baseUrl = '/absensi/admin-web/notifikasi';
+const applyFilters = (filters: NotificationFilterValues) =>
+    router.get(`${baseUrl}/semua`, filters, { preserveState: true, preserveScroll: true, replace: true });
 const markingRead = ref(false);
 const date = (value: string) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value));
 let polling: ReturnType<typeof router.poll> | undefined;
@@ -44,6 +53,7 @@ const markAllRead = () => {
                     <Link :href="`${baseUrl}/butuh-approval`" class="inbox-tab"><Inbox /> Butuh approval</Link>
                     <Link :href="`${baseUrl}/disetujui`" class="inbox-tab">Pengajuan disetujui</Link>
                 </nav>
+                <NotificationFilters :filters="filters" :filter-options="filterOptions" date-label="Tanggal notifikasi" @apply="applyFilters" />
                 <div v-if="notifications.data.length" class="inbox-list">
                     <Link v-for="item in notifications.data" :key="item.id" :href="item.url" class="inbox-item" :class="{ unread: !item.read_at }">
                         <span class="inbox-icon"><Bell /></span>
@@ -57,8 +67,14 @@ const markAllRead = () => {
                 </div>
                 <div v-else class="al-empty">
                     <Bell />
-                    <h3>Belum ada notifikasi</h3>
-                    <p>Pengajuan baru dan pembaruan persetujuan akan tampil di sini.</p>
+                    <h3>{{ Object.values(filters).some(Boolean) ? 'Notifikasi tidak ditemukan' : 'Belum ada notifikasi' }}</h3>
+                    <p>
+                        {{
+                            Object.values(filters).some(Boolean)
+                                ? 'Coba ubah atau reset filter untuk melihat notifikasi lainnya.'
+                                : 'Pengajuan baru dan pembaruan persetujuan akan tampil di sini.'
+                        }}
+                    </p>
                 </div>
                 <Pagination :links="notifications.links" :from="notifications.from" :to="notifications.to" :total="notifications.total" />
             </section>

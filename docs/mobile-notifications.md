@@ -9,9 +9,21 @@ terverifikasi, tanpa perlu akses admin-web.
 Lonceng di beranda dan halaman cuti membuka **Inbox** dengan jumlah notifikasi
 belum dibaca. Tab **Notifikasi** menampilkan riwayat berdasarkan tanggal, status
 pengajuan, paginasi, tombol **Baca semua**, dan pengaturan notifikasi perangkat.
-Tab **Butuh persetujuan** menampilkan kategori pengajuan; hanya **Cuti** yang aktif,
-sedangkan kategori lain berlabel **Segera hadir** dan tidak dapat dipilih.
+Tab **Butuh persetujuan** menampilkan kategori **Cuti**, **Presensi**, **Lembur**,
+dan **Perubahan shift**; kategori lain berlabel **Segera hadir** dan tidak dapat dipilih.
 Header Inbox rata tengah dan tetap terlihat saat halaman digulir.
+
+Inbox **Notifikasi** serta daftar persetujuan cuti, lembur, perubahan shift, dan
+presensi menyediakan filter rentang tanggal, unit, jabatan, dan nama pegawai.
+Gunakan **Terapkan filter** untuk menggabungkan filter atau **Reset filter**
+untuk mengosongkannya. Kedua batas tanggal inklusif; salah satu batas boleh
+kosong. Riwayat memakai tanggal notifikasi, sedangkan daftar persetujuan memakai
+tanggal pengajuan terkait (termasuk cuti yang beririsan dengan rentang tanggal).
+Rentang tanggal menggantikan pilihan bulan saat diterapkan. Filter dipertahankan
+dalam URL/paginasi, diproses di server, dan tetap mengikuti hak akses pengguna.
+Tampilan yang sama dipakai Android Capacitor dan PWA; pembaruan ini cukup
+dideploy pada server tanpa perubahan native APK.
+
 Kategori Cuti membuka halaman khusus **Persetujuan Cuti** di `/absensi/mobile/notifikasi/cuti`.
 Halaman ini memiliki pencarian nama/unit/jenis cuti, filter periode, pengurutan,
 rincian pengajuan, serta tindakan setujui/tolak tanpa membuka halaman Delegasi.

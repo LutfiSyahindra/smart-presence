@@ -10,6 +10,7 @@ use App\Models\LemburRequest;
 use App\Models\Shift;
 use App\Services\Absensi\AbsensiMobile\LemburService;
 use App\Services\Absensi\ConfigurationService;
+use App\Support\NotificationFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -34,6 +35,7 @@ class LemburController extends Controller
     public function index(Request $request, LemburService $service, ?LemburRequest $lemburRequest = null): Response
     {
         $filters = $request->validate([
+            ...NotificationFilters::rules(),
             'month' => ['nullable', 'date_format:Y-m', 'after_or_equal:1900-01', 'before_or_equal:2100-12'],
             'scope' => ['nullable', Rule::in(['mine', 'delegation'])],
             'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'cancelled'])],
@@ -44,7 +46,9 @@ class LemburController extends Controller
             abort_unless($lemburRequest->canBeViewedBy($user), 403);
         }
         $month = $filters['month'] ?? ($lemburRequest?->tanggal_lembur?->format('Y-m') ?? now()->format('Y-m'));
-        $allPeriods = $scope === 'delegation' && empty($filters['month']);
+        $notificationFilters = NotificationFilters::values($filters);
+        $hasDateRange = $notificationFilters['date_from'] !== '' || $notificationFilters['date_to'] !== '';
+        $allPeriods = $hasDateRange || ($scope === 'delegation' && empty($filters['month']));
         $query = LemburRequest::query();
         if ($scope === 'mine') {
             $query->where('user_id', $user->id);
@@ -52,6 +56,8 @@ class LemburController extends Controller
             $query->when(! app(ConfigurationService::class)->current()->allow_self_approval, fn (Builder $query) => $query->where('user_id', '!=', $user->id))
                 ->whereHas('approvals', fn (Builder $steps) => $steps->where('user_id', $user->id));
         }
+        $options = NotificationFilters::options([$query]);
+        NotificationFilters::apply($query, $notificationFilters, 'tanggal_lembur');
         if (! $allPeriods) {
             $period = CarbonImmutable::createFromFormat('!Y-m', $month);
             $query->whereDate('tanggal_lembur', '>=', $period->toDateString())
@@ -65,6 +71,7 @@ class LemburController extends Controller
         ];
 
         return Inertia::render('absensi/absensi-mobile/Lembur', [
+            'filters' => $notificationFilters, 'filterOptions' => $options,
             'month' => $month, 'today' => now()->toDateString(), 'scope' => $scope, 'allPeriods' => $allPeriods,
             'status' => $filters['status'] ?? '', 'summary' => $summary,
             'balance' => $service->balance($user),

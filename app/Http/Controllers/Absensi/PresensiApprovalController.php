@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PresensiRequest;
 use App\Services\Absensi\AbsensiMobile\PresensiApprovalService;
 use App\Support\AccessPermission;
+use App\Support\NotificationFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class PresensiApprovalController extends Controller
     public function index(Request $request): Response
     {
         $filters = $request->validate([
+            ...NotificationFilters::rules(),
             'search' => ['nullable', 'string', 'max:150'],
             'scope' => ['nullable', Rule::in(['mine', 'delegation'])],
             'month' => ['nullable', 'date_format:Y-m'],
@@ -31,6 +33,9 @@ class PresensiApprovalController extends Controller
         $query = $scope === 'mine' ? PresensiRequest::query()->where('user_id', $request->user()->id)
             : PresensiRequest::query()->awaitingApprovalBy($request->user());
         $totalRequests = (clone $query)->count();
+        $notificationFilters = NotificationFilters::values($filters);
+        $options = NotificationFilters::options([$query]);
+        NotificationFilters::apply($query, $notificationFilters, 'tanggal_presensi');
         if ($month !== '') {
             $period = CarbonImmutable::createFromFormat('!Y-m', $month);
             $query->whereBetween('tanggal_presensi', [$period->toDateString(), $period->endOfMonth()->toDateString()]);
@@ -38,7 +43,8 @@ class PresensiApprovalController extends Controller
 
         return Inertia::render('absensi/absensi-mobile/PresensiApprovals', [
             'scope' => $scope, 'search' => $search,
-            'filters' => ['search' => $search, 'month' => $month, 'sort' => $sort],
+            'filters' => [...$notificationFilters, 'search' => $search, 'month' => $month, 'sort' => $sort],
+            'filterOptions' => $options,
             'totalRequests' => $totalRequests,
             'requests' => $query->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('nama_pegawai', 'like', "%{$search}%")->orWhere('nama_unit', 'like', "%{$search}%")))

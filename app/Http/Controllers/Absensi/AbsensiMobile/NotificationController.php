@@ -10,6 +10,7 @@ use App\Models\PresensiRequest;
 use App\Services\Notifications\MobilePushService;
 use App\Services\Notifications\WebPushService;
 use App\Support\AccessPermission;
+use App\Support\NotificationFilters;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class NotificationController extends Controller
     public function index(Request $request): Response|RedirectResponse
     {
         $filters = $request->validate([
+            ...NotificationFilters::rules(),
             'tab' => ['nullable', Rule::in(['notifications', 'approvals'])],
             'category' => ['nullable', Rule::in(['cuti', 'lembur', 'perubahan-shift', 'presensi'])],
         ]);
@@ -43,8 +45,13 @@ class NotificationController extends Controller
             ? CutiRequest::query()->awaitingApprovalBy($request->user())->count() : 0;
         $lemburCount = LemburRequest::query()->awaitingApprovalBy($request->user())->count();
         $shiftCount = PerubahanShiftRequest::query()->awaitingApprovalBy($request->user())->count();
+        $notificationFilters = NotificationFilters::values($filters);
+        $query = $this->query($request);
+        $options = NotificationFilters::notificationOptions($query);
+        NotificationFilters::applyNotifications($query, $notificationFilters);
 
         return Inertia::render('absensi/absensi-mobile/Notifications', [
+            'filters' => $notificationFilters, 'filterOptions' => $options,
             'activeTab' => $filters['tab'] ?? 'notifications',
             'unreadCount' => $this->query($request)->whereNull('read_at')->count(),
             'pendingApprovalCount' => $cutiCount + $lemburCount + $shiftCount + $presensiCount,
@@ -53,7 +60,7 @@ class NotificationController extends Controller
             'lemburPendingApprovalCount' => $lemburCount,
             'perubahanShiftPendingApprovalCount' => $shiftCount,
             'today' => now()->toDateString(),
-            'notifications' => $this->query($request)->latest()->paginate(20)->withQueryString()->through($this->serialize(...)),
+            'notifications' => $query->latest()->paginate(20)->withQueryString()->through($this->serialize(...)),
         ]);
     }
 

@@ -100,6 +100,25 @@ test('switching request sections clears selections, open reviews, and stale erro
     } finally { app.close(); }
 });
 
+test('combined notification filters preserve the request type and clear bulk selection before navigating', () => {
+    const app = approvalPage();
+    try {
+        app.props.filters.request_type = 'lembur';
+        app.state.search.value = 'pegawai';
+        app.state.toggleAll({ target: { checked: true } });
+        app.state.bulkReviewOpen.value = true;
+        const filters = { date_from: '2026-10-30', date_to: '2026-11-02', unit: 'IGD', jabatan: 'Perawat', employee_name: 'Nadia' };
+        app.state.applyFilters(filters);
+        assert.deepEqual({ ...app.visits[0].data }, { ...filters, search: 'pegawai', request_type: 'lembur' });
+        assert.equal(app.state.selectedRequests.value.length, 0);
+        assert.equal(app.state.bulkReviewOpen.value, false);
+        Object.assign(app.props.filters, filters);
+        app.state.visitRequestType('cuti');
+        assert.equal(app.visits[1].data.unit, 'IGD');
+        assert.equal(app.visits[1].data.date_from, '2026-10-30');
+    } finally { app.close(); }
+});
+
 test('select all includes only requests available for approval on the current page', () => {
     const app = approvalPage();
     try {

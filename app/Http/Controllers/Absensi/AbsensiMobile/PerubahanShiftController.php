@@ -10,6 +10,7 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\Absensi\AbsensiMobile\PerubahanShiftService;
 use App\Services\Absensi\ConfigurationService;
+use App\Support\NotificationFilters;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class PerubahanShiftController extends Controller
     public function index(Request $request, PerubahanShiftService $service, ?PerubahanShiftRequest $perubahanShiftRequest = null): Response
     {
         $filters = $request->validate([
+            ...NotificationFilters::rules(),
             'month' => ['nullable', 'date_format:Y-m', 'after_or_equal:1900-01', 'before_or_equal:2100-12'],
             'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'cancelled'])],
             'scope' => ['nullable', Rule::in(['mine', 'delegation'])],
@@ -32,16 +34,21 @@ class PerubahanShiftController extends Controller
         }
         $scope = $filters['scope'] ?? ($perubahanShiftRequest?->exists && (int) $perubahanShiftRequest->user_id !== (int) $user->id ? 'delegation' : 'mine');
         $month = $filters['month'] ?? ($perubahanShiftRequest?->tanggal_perubahan?->format('Y-m') ?? now()->format('Y-m'));
-        $allPeriods = $scope === 'delegation' && empty($filters['month']) && ! $perubahanShiftRequest?->exists;
+        $notificationFilters = NotificationFilters::values($filters);
+        $hasDateRange = $notificationFilters['date_from'] !== '' || $notificationFilters['date_to'] !== '';
+        $allPeriods = $hasDateRange || ($scope === 'delegation' && empty($filters['month']) && ! $perubahanShiftRequest?->exists);
         $period = CarbonImmutable::createFromFormat('!Y-m', $month);
         $query = $scope === 'delegation' ? PerubahanShiftRequest::query()->awaitingApprovalBy($user)
             : PerubahanShiftRequest::query()->where('user_id', $user->id);
+        $options = NotificationFilters::options([$query]);
+        NotificationFilters::apply($query, $notificationFilters, 'tanggal_perubahan');
         $query->when(! $allPeriods, fn ($query) => $query->whereDate('tanggal_perubahan', '>=', $period)
             ->whereDate('tanggal_perubahan', '<=', $period->endOfMonth()));
         $context = $service->context($user);
         $allowPastDates = (bool) app(ConfigurationService::class)->current()->perubahan_shift_past_date;
 
         return Inertia::render('absensi/absensi-mobile/PerubahanShift', [
+            'filters' => $notificationFilters, 'filterOptions' => $options,
             'month' => $month, 'today' => now()->toDateString(), 'status' => $filters['status'] ?? '',
             'allowPastDates' => $allowPastDates,
             'scope' => $scope, 'allPeriods' => $allPeriods,
@@ -52,7 +59,7 @@ class PerubahanShiftController extends Controller
             'requests' => $query->with('approvals')->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
                 ->latest('tanggal_perubahan')->latest('id')->paginate(10)
                 ->withPath(route('absensi.mobile.perubahan-shift.index', absolute: false))
-                ->appends(['scope' => $scope, 'month' => $allPeriods ? null : $month, 'status' => $filters['status'] ?? null])
+                ->appends([...$notificationFilters, 'scope' => $scope, 'month' => $allPeriods ? null : $month, 'status' => $filters['status'] ?? null])
                 ->through(fn ($item) => $this->serialize($item, $user)),
             'employee' => $context['pegawai'] ? ['name' => $context['pegawai']->nama,
                 'position' => $context['jabatan']?->nama, 'unit' => $context['jabatan']?->unitKerja?->nama] : null,

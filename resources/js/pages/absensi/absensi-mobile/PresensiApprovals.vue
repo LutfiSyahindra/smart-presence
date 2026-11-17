@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import NotificationFilters from '@/components/NotificationFilters.vue';
 import type { PresensiApprovalItem } from '@/components/PresensiApprovalContent.vue';
 import { registerMobileBackHandler } from '@/lib/mobile-navigation';
 import type { SharedData } from '@/types';
+import type { NotificationFilterOptions, NotificationFilterValues } from '@/types/notification-filters';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
@@ -28,10 +30,11 @@ import MobileBackLink from './components/MobileBackLink.vue';
 import PresensiApprovalReview from './components/PresensiApprovalReview.vue';
 import { actionLabel, initials, presensiLabels } from './presensi-approval';
 
-type Filters = { search: string; month: string; sort: 'oldest' | 'newest' };
+type Filters = NotificationFilterValues & { search: string; month: string; sort: 'oldest' | 'newest' };
 const props = defineProps<{
     scope: 'mine' | 'delegation';
     filters: Filters;
+    filterOptions: NotificationFilterOptions;
     totalRequests: number;
     requests: {
         data: PresensiApprovalItem[];
@@ -52,7 +55,17 @@ const selected = ref<PresensiApprovalItem | null>(null);
 const deciding = ref(false);
 const defaultSort = computed(() => (props.scope === 'mine' ? 'newest' : 'oldest'));
 const activeFilterCount = computed(() => Number(Boolean(props.filters.month)) + Number(props.filters.sort !== defaultSort.value));
-const filtered = computed(() => Boolean(props.filters.search || props.filters.month));
+const filtered = computed(() =>
+    Boolean(
+        props.filters.search ||
+            props.filters.month ||
+            props.filters.date_from ||
+            props.filters.date_to ||
+            props.filters.unit ||
+            props.filters.jabatan ||
+            props.filters.employee_name,
+    ),
+);
 const periodLabel = computed(() =>
     props.filters.month
         ? new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(
@@ -68,6 +81,7 @@ function applyFilters(changes: Partial<Filters> = {}, scope = props.scope) {
     filterOpen.value = false;
     selected.value = null;
     const next = { ...props.filters, search: search.value.trim(), ...changes };
+    if (changes.month && (next.date_from || next.date_to)) Object.assign(next, { date_from: '', date_to: '' });
     search.value = next.search;
     router.get(
         base,
@@ -84,6 +98,12 @@ function applyFilters(changes: Partial<Filters> = {}, scope = props.scope) {
 function changeScope(scope: 'mine' | 'delegation') {
     if (scope === props.scope || loading.value) return;
     applyFilters({ sort: scope === 'mine' ? 'newest' : 'oldest' }, scope);
+}
+function applyNotificationFilters(filters: NotificationFilterValues) {
+    applyFilters({ ...filters, month: '' });
+}
+function resetFilters() {
+    applyFilters({ search: '', month: '', sort: defaultSort.value, date_from: '', date_to: '', unit: '', jabatan: '', employee_name: '' });
 }
 function openFilter() {
     draft.month = props.filters.month;
@@ -189,6 +209,13 @@ onBeforeUnmount(() => {
                 </nav>
             </header>
             <div class="approval-content" :aria-busy="loading">
+                <NotificationFilters
+                    mobile
+                    :filters="filters"
+                    :filter-options="filterOptions"
+                    :disabled="deciding || loading"
+                    @apply="applyNotificationFilters"
+                />
                 <div v-if="page.props.flash.success" class="notice success" role="status">
                     <CircleCheck /><span>{{ page.props.flash.success }}</span>
                 </div>
@@ -287,9 +314,7 @@ onBeforeUnmount(() => {
                                   : 'Permintaan persetujuan presensi akan muncul di sini saat membutuhkan keputusan Anda.'
                         }}
                     </p>
-                    <button v-if="filtered" type="button" class="reset-search" @click="applyFilters({ search: '', month: '', sort: defaultSort })">
-                        Tampilkan semua pengajuan<ArrowRight />
-                    </button>
+                    <button v-if="filtered" type="button" class="reset-search" @click="resetFilters">Tampilkan semua pengajuan<ArrowRight /></button>
                     <span v-else class="empty-note"><ShieldCheck />Satu ruang, semua persetujuan.</span>
                 </section>
                 <nav v-if="requests.last_page > 1" class="pagination" aria-label="Halaman persetujuan presensi">

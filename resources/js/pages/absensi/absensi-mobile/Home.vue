@@ -47,6 +47,7 @@ const props = defineProps<{
         is_on_leave: boolean;
         clocked_in_at: string | null;
         clocked_out_at: string | null;
+        can_clock_out: boolean;
         is_day_off: boolean;
     };
 }>();
@@ -252,6 +253,7 @@ const { can } = usePermission();
                                 can('mobile.attendance') &&
                                 can('mobile.clock-in') &&
                                 !todayAttendance.clocked_in_at &&
+                                !todayAttendance.clocked_out_at &&
                                 !todayAttendance.is_day_off &&
                                 !todayAttendance.is_on_leave
                             "
@@ -268,10 +270,18 @@ const { can } = usePermission();
                                 <small>{{
                                     todayAttendance.is_on_leave || todayAttendance.is_day_off
                                         ? 'Tidak perlu presensi'
-                                        : `Tercatat ${todayAttendance.clocked_in_at}`
+                                        : todayAttendance.clocked_in_at
+                                          ? `Tercatat ${todayAttendance.clocked_in_at}`
+                                          : 'Clock-in belum tercatat'
                                 }}</small>
                                 <strong>{{
-                                    todayAttendance.is_on_leave ? 'CUTI' : todayAttendance.is_day_off ? 'Hari Libur' : 'Sudah Clock In'
+                                    todayAttendance.is_on_leave
+                                        ? 'CUTI'
+                                        : todayAttendance.is_day_off
+                                          ? 'Hari Libur'
+                                          : todayAttendance.clocked_in_at
+                                            ? 'Sudah Clock In'
+                                            : 'Clock In'
                                 }}</strong>
                             </span>
                         </button>
@@ -280,7 +290,7 @@ const { can } = usePermission();
                             v-if="
                                 can('mobile.attendance') &&
                                 can('mobile.clock-out') &&
-                                todayAttendance.clocked_in_at &&
+                                todayAttendance.can_clock_out &&
                                 !todayAttendance.clocked_out_at &&
                                 !todayAttendance.is_day_off &&
                                 !todayAttendance.is_on_leave

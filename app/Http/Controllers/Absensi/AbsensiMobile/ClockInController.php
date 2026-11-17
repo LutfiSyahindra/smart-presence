@@ -54,6 +54,9 @@ class ClockInController extends Controller
             return to_route('absensi.mobile.home')
                 ->with('success', 'Anda sudah clock-in hari ini pada '.$existing->clock_in_at->format('H:i').' WIB.');
         }
+        if ($existing?->clock_out_at) {
+            return to_route('absensi.mobile.home')->with('error', 'Clock-out sudah tercatat. Clock-in tidak dapat dilakukan setelah clock-out.');
+        }
 
         $office = $this->office();
         if (! $office) {

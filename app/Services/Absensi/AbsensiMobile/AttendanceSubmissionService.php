@@ -51,6 +51,9 @@ class AttendanceSubmissionService
         if ($existing?->clock_in_at) {
             $this->fail('attendance', 'Clock-in hari ini sudah tercatat dan tidak dapat dikirim ulang.');
         }
+        if ($existing?->clock_out_at) {
+            $this->fail('attendance', 'Clock-out sudah tercatat. Clock-in tidak dapat dilakukan setelah clock-out.');
+        }
 
         $office = $this->office();
         if (! $office) {
@@ -88,6 +91,9 @@ class AttendanceSubmissionService
                 $existing = $this->todayPresensi($pegawai);
                 if ($existing?->clock_in_at) {
                     $this->fail('attendance', 'Anda sudah melakukan clock in. Muat ulang halaman presensi.');
+                }
+                if ($existing?->clock_out_at) {
+                    $this->fail('attendance', 'Clock-out sudah tercatat. Clock-in tidak dapat dilakukan setelah clock-out.');
                 }
                 $this->cutiSchedule->ensureCanAttend($pegawai, $existing);
                 $this->shiftHolidays->ensureCanAttend($pegawai, $existing);
@@ -160,13 +166,13 @@ class AttendanceSubmissionService
         if ($this->shiftHolidays->isDayOff($pegawai, $attendance)) {
             $this->fail('attendance', 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.');
         }
-        if (! $attendance?->clock_in_at) {
+        if (! $attendance?->clock_out_at && ! $this->schedules->canClockOut($attendance)) {
             $this->fail('attendance', 'Lakukan clock-in terlebih dahulu sebelum clock-out.');
         }
         if ($attendance->clock_out_at) {
             $this->fail('attendance', 'Clock-out sudah tercatat dan tidak dapat dikirim ulang.');
         }
-        if (now()->lt($attendance->clock_in_at)) {
+        if ($attendance->clock_in_at && now()->lt($attendance->clock_in_at)) {
             $this->fail('attendance', 'Waktu clock-out tidak boleh lebih awal dari waktu clock-in.');
         }
 
@@ -203,11 +209,24 @@ class AttendanceSubmissionService
         try {
             $attendance = DB::transaction(function () use ($attendance, $distance, $notes, $office, $outsideRadius, $path, $pegawai, $request, $verification, $verifiedLocation): Presensi {
                 Pegawai::query()->lockForUpdate()->findOrFail($pegawai->id);
-                $this->cutiSchedule->ensureCanAttend($pegawai, $attendance);
-
-                $lockedAttendance = Presensi::query()->lockForUpdate()->findOrFail($attendance->id);
+                $lockedAttendance = $this->attendanceForClockOut($pegawai);
+                if ($lockedAttendance?->exists) {
+                    $lockedAttendance = Presensi::query()->lockForUpdate()->findOrFail($lockedAttendance->id);
+                }
+                if ($lockedAttendance && (! $lockedAttendance->tanggal_presensi->isSameDay($attendance->tanggal_presensi)
+                    || (int) $lockedAttendance->shift_id !== (int) $attendance->shift_id)) {
+                    $this->fail('attendance', 'Jadwal presensi telah berubah. Periksa jadwal dan kirim absensi kembali.');
+                }
+                $this->cutiSchedule->ensureCanAttend($pegawai, $lockedAttendance);
+                $this->shiftHolidays->ensureCanAttend($pegawai, $lockedAttendance);
+                if (! $lockedAttendance?->clock_out_at && ! $this->schedules->canClockOut($lockedAttendance)) {
+                    $this->fail('attendance', 'Lakukan clock-in terlebih dahulu sebelum clock-out.');
+                }
                 if ($lockedAttendance->clock_out_at) {
                     $this->fail('attendance', 'Clock-out sudah tercatat dan tidak dapat dikirim ulang.');
+                }
+                if ($lockedAttendance->clock_in_at && now()->lt($lockedAttendance->clock_in_at)) {
+                    $this->fail('attendance', 'Waktu clock-out tidak boleh lebih awal dari waktu clock-in.');
                 }
 
                 $lockedAttendance->fill([

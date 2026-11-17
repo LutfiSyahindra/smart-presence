@@ -123,6 +123,8 @@ class ConfigurationManagementTest extends TestCase
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'perubahan_shift_past_date' => 'yes'])->assertSessionHasErrors('perubahan_shift_past_date');
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'perubahan_shift_without_default' => 'yes'])->assertSessionHasErrors('perubahan_shift_without_default');
         $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'cuti_past_date' => 'yes'])->assertSessionHasErrors('cuti_past_date');
+        $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'clock_out_without_clock_in' => 'yes'])
+            ->assertSessionHasErrors('clock_out_without_clock_in');
         foreach (['all', '', null, ['unit-kerja']] as $scope) {
             $this->put(self::URL, [...AbsensiConfiguration::DEFAULTS, 'mobile_presensi_pegawai_scope' => $scope])
                 ->assertSessionHasErrors('mobile_presensi_pegawai_scope');

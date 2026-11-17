@@ -77,6 +77,8 @@ class AttendanceController extends Controller
                 'is_day_off' => $isDayOff,
                 'is_on_leave' => $isOnCuti,
                 'status' => $status,
+                'can_clock_out' => in_array($status, ['ready_to_clock_in', 'ready_to_clock_out'], true)
+                    && $this->schedules->canClockOut($attendance),
                 'duration' => $this->durationLabel($clockIn, $clockOut),
                 'notes' => $attendance?->notes ?? $dayOffReason,
                 'clock_in' => $clockIn ? [

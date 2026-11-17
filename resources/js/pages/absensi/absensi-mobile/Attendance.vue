@@ -54,6 +54,7 @@ const props = defineProps<{
     attendance: {
         is_day_off: boolean;
         is_on_leave: boolean;
+        can_clock_out: boolean;
         status: 'unavailable' | 'on_leave' | 'day_off' | 'ready_to_clock_in' | 'ready_to_clock_out' | 'complete';
         duration: string | null;
         notes: string | null;
@@ -116,9 +117,11 @@ const statusMeta = computed(() => {
             tone: 'active',
         },
         complete: {
-            eyebrow: 'Presensi lengkap',
+            eyebrow: props.attendance.clock_in ? 'Presensi lengkap' : 'Clock-out tercatat',
             title: 'Terima kasih hari ini',
-            description: 'Clock-in dan clock-out Anda telah tersimpan dengan aman.',
+            description: props.attendance.clock_in
+                ? 'Clock-in dan clock-out Anda telah tersimpan dengan aman.'
+                : 'Clock-out Anda telah tersimpan. Clock-in pada jadwal ini belum tercatat.',
             badge: 'Tugas selesai',
             tone: 'complete',
         },
@@ -137,7 +140,7 @@ const primaryAction = computed(() => {
         };
     }
 
-    if (props.attendance.status === 'ready_to_clock_out' && can('mobile.clock-out')) {
+    if (props.attendance.can_clock_out && can('mobile.clock-out')) {
         return {
             label: 'Clock Out Sekarang',
             caption: 'Akhiri shift dengan aman',
@@ -422,13 +425,27 @@ const { can } = usePermission();
                             >
                             <ArrowLeft />
                         </Link>
+                        <Link
+                            v-if="
+                                attendance.status === 'ready_to_clock_in' &&
+                                attendance.can_clock_out &&
+                                can('mobile.clock-in') &&
+                                can('mobile.clock-out')
+                            "
+                            :href="route('absensi.mobile.clock-out.create')"
+                            class="primary-action"
+                        >
+                            <span><LogOut /></span>
+                            <span><strong>Clock Out Tanpa Clock In</strong><small>Verifikasi lokasi &amp; wajah</small></span>
+                            <ArrowLeft />
+                        </Link>
                         <p class="security-note"><ShieldCheck /> Lokasi dan wajah akan diverifikasi untuk menjaga keamanan data.</p>
                     </template>
                     <template v-else-if="attendance.status === 'complete'">
                         <span class="complete-icon"><Check /></span>
                         <div>
-                            <small>Presensi hari ini</small><strong>Sudah lengkap</strong>
-                            <p>Semua rekaman telah tersimpan.</p>
+                            <small>Presensi hari ini</small><strong>{{ attendance.clock_in ? 'Sudah lengkap' : 'Clock-out tersimpan' }}</strong>
+                            <p>{{ attendance.clock_in ? 'Semua rekaman telah tersimpan.' : 'Clock-in pada jadwal ini belum tercatat.' }}</p>
                         </div>
                     </template>
                     <template v-else-if="attendance.status === 'on_leave'">

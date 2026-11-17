@@ -51,8 +51,23 @@ class AttendanceScheduleService
     public function clockOutRecord(Pegawai $pegawai): ?Presensi
     {
         $today = $pegawai->presensis()->with('shift')->whereDate('tanggal_presensi', now()->toDateString())->first();
+        $record = $this->continuingOvernightRecord($pegawai, $today);
+        if (! $record && $this->canClockOut(null)) {
+            $record = new Presensi([
+                'pegawai_id' => $pegawai->id,
+                'shift_id' => $pegawai->shift_id,
+                'tanggal_presensi' => now()->toDateString(),
+            ]);
+            $record->setRelation('shift', $pegawai->shift);
+        }
 
-        return $this->continuingOvernightRecord($pegawai, $today);
+        return $record;
+    }
+
+    public function canClockOut(?Presensi $attendance): bool
+    {
+        return ! $attendance?->clock_out_at && ($attendance?->clock_in_at
+            || app(ConfigurationService::class)->current()->clock_out_without_clock_in);
     }
 
     /** Yesterday's night shift stops accepting clock-out when the next working shift starts. */

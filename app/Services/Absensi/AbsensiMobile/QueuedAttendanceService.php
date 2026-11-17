@@ -64,10 +64,13 @@ class QueuedAttendanceService
                 if ($action === 'clock-in' && $attendance?->clock_in_at) {
                     $this->fail('attendance', 'Clock-in hari ini sudah tercatat dan tidak dapat dikirim ulang.');
                 }
-                if ($action === 'clock-out' && (! $attendance?->clock_in_at || $attendance->clock_out_at)) {
+                if ($action === 'clock-in' && $attendance?->clock_out_at) {
+                    $this->fail('attendance', 'Clock-out sudah tercatat. Clock-in tidak dapat dilakukan setelah clock-out.');
+                }
+                if ($action === 'clock-out' && ! $this->schedules->canClockOut($attendance)) {
                     $this->fail('attendance', $attendance?->clock_out_at ? 'Clock-out sudah tercatat dan tidak dapat dikirim ulang.' : 'Lakukan clock-in terlebih dahulu sebelum clock-out.');
                 }
-                if ($action === 'clock-out' && $receivedAt->lt($attendance->clock_in_at)) {
+                if ($action === 'clock-out' && $attendance?->clock_in_at && $receivedAt->lt($attendance->clock_in_at)) {
                     $this->fail('attendance', 'Waktu clock-out tidak boleh lebih awal dari waktu clock-in.');
                 }
                 $office = OfficeLocation::query()->oldest('id')->first();
@@ -208,7 +211,7 @@ class QueuedAttendanceService
                 $attendance = Presensi::query()->where('pegawai_id', $pegawai->id)
                     ->where('tanggal_presensi', $current->attendance_date->toDateString())->lockForUpdate()->first();
                 $in = $current->action === 'clock-in';
-                if (($in && $attendance?->clock_in_at) || (! $in && (! $attendance?->clock_in_at || $attendance->clock_out_at))) {
+                if (($in && ($attendance?->clock_in_at || $attendance?->clock_out_at)) || (! $in && ! $this->schedules->canClockOut($attendance))) {
                     $this->fail('attendance', 'Status presensi telah berubah. Periksa riwayat absensi Anda.');
                 }
                 if ($attendance && (int) $attendance->shift_id !== (int) $current->shift_id) {
@@ -220,7 +223,7 @@ class QueuedAttendanceService
                 $attendance ??= new Presensi(['pegawai_id' => $pegawai->id, 'shift_id' => $current->shift_id, 'tanggal_presensi' => $current->attendance_date]);
                 $this->cuti->ensureCanAttend($pegawai, $attendance, $current->received_at);
                 $this->holidays->ensureCanAttend($pegawai, $attendance);
-                if (! $in && $current->received_at->lt($attendance->clock_in_at)) {
+                if (! $in && $attendance->clock_in_at && $current->received_at->lt($attendance->clock_in_at)) {
                     $this->fail('attendance', 'Waktu clock-out tidak boleh lebih awal dari waktu clock-in.');
                 }
                 $prefix = $in ? 'clock_in' : 'clock_out';

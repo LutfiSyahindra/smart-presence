@@ -45,6 +45,7 @@ class ConfigurationController extends Controller
             'perubahan_shift_past_date' => ['required', 'boolean'],
             'perubahan_shift_without_default' => ['required', 'boolean'],
             'clock_in_tolerance_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
+            'clock_out_without_clock_in' => ['required', 'boolean'],
             'approve_past_requests' => ['required', 'boolean'],
             'allow_self_approval' => ['required', 'boolean'],
             'mobile_presensi_pegawai_scope' => ['required', Rule::in([

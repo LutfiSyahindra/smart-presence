@@ -71,6 +71,7 @@ class HomeController extends Controller
             ],
             'todayAttendance' => [
                 'is_on_leave' => $isOnCuti,
+                'can_clock_out' => ! $isOnCuti && ! $isDayOff && $this->schedules->canClockOut($todayPresensi),
                 'clocked_in_at' => $todayPresensi?->clock_in_at?->format('H:i'),
                 'clocked_out_at' => $todayPresensi?->clock_out_at?->format('H:i'),
                 'is_day_off' => $isDayOff,

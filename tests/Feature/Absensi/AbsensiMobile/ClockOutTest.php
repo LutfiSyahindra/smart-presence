@@ -5,11 +5,13 @@ namespace Tests\Feature\Absensi\AbsensiMobile;
 use App\Contracts\FaceVerifier;
 use App\Jobs\ProcessAttendanceSubmission;
 use App\Models\AttendanceSubmission;
+use App\Models\CutiRequest;
 use App\Models\OfficeLocation;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\Absensi\ConfigurationService;
 use App\ValueObjects\FaceVerificationResult;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -183,6 +185,159 @@ class ClockOutTest extends TestCase
             ->assertSessionHasErrors('attendance');
 
         $this->assertDatabaseCount('presensis', 1);
+    }
+
+    #[DataProvider('clockOutWithoutClockInModes')]
+    public function test_clock_out_without_clock_in_follows_configuration(bool $enabled, bool $dated, bool $api, bool $queued): void
+    {
+        $this->travelTo('2026-09-16 15:00:00');
+        app(ConfigurationService::class)->update(['clock_out_without_clock_in' => $enabled], $this->user->id);
+        config(['attendance.queue_enabled' => $queued]);
+        if ($queued) {
+            Queue::fake();
+        }
+        if ($dated) {
+            $this->pegawai->update(['shift_id' => null]);
+            $this->attendance(['notes' => 'Jadwal khusus hari ini.']);
+        }
+        $this->actingAs($this->user)->get('/absensi/mobile')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('todayAttendance.can_clock_out', $enabled));
+        $this->get('/absensi/mobile/presensi')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('attendance.can_clock_out', $enabled));
+        Sanctum::actingAs($this->user);
+        $this->getJson('/api/mobile/v1/attendance')->assertOk()->assertJsonPath('data.can_clock_out', $enabled);
+        $url = ($api ? '/api/mobile/v1/attendance/' : '/absensi/mobile/').'clock-out';
+        $form = $api ? $this->getJson($url) : $this->get($url);
+        $payload = $this->payload();
+        if (! $enabled) {
+            $api ? $form->assertUnprocessable() : $form->assertRedirect('/absensi/mobile');
+            $response = $api ? $this->postJson($url, $payload) : $this->post($url, $payload);
+            $api ? $response->assertUnprocessable()->assertJsonValidationErrors('attendance') : $response->assertSessionHasErrors('attendance');
+            $this->assertDatabaseCount('presensis', $dated ? 1 : 0);
+            $this->assertDatabaseCount('attendance_submissions', 0);
+            $this->assertSame(0, Presensi::query()->whereNotNull('clock_out_at')->count());
+
+            return;
+        }
+        $form->assertOk();
+        if ($api) {
+            $payload['location_token'] = $form->json('data.location_challenge.token');
+        }
+        $this->assertDatabaseCount('presensis', $dated ? 1 : 0);
+        $response = $api ? $this->postJson($url, $payload) : $this->post($url, $payload);
+        $api ? $response->assertStatus($queued ? 202 : 200) : $response->assertSessionHasNoErrors()->assertRedirect();
+        if ($queued) {
+            $submission = AttendanceSubmission::query()->sole();
+            $this->assertSame('2026-09-16', $submission->attendance_date->toDateString());
+            $this->assertSame($this->shift->id, $submission->shift_id);
+            $this->travelTo('2026-09-16 16:00:00');
+            app()->call([new ProcessAttendanceSubmission($submission->id), 'handle']);
+            $this->assertSame('succeeded', $submission->fresh()->status);
+        }
+        $attendance = Presensi::query()->sole();
+        $this->assertNull($attendance->clock_in_at);
+        $this->assertNull($attendance->clock_in_photo_path);
+        $this->assertSame('2026-09-16 15:00:00', $attendance->clock_out_at?->toDateTimeString());
+        $this->assertSame($this->shift->id, $attendance->shift_id);
+        $this->assertNotNull($attendance->clock_out_face_verified_at);
+        $this->assertNotNull($attendance->clock_out_location_verified_at);
+        if ($dated) {
+            $this->assertSame('Jadwal khusus hari ini.', $attendance->notes);
+        }
+        $this->get('/absensi/mobile/clock-out/berhasil')->assertOk();
+        $this->getJson('/api/mobile/v1/attendance')->assertOk()->assertJsonPath('data.can_clock_out', false)
+            ->assertJsonPath('data.clock_in', null)->assertJsonPath('data.clock_out.time', '15:00');
+        $duplicate = $this->payload();
+        $duplicate['location_token'] = str_repeat('c', 64);
+        $response = $api ? $this->postJson($url, $duplicate) : $this->post($url, $duplicate);
+        $api ? $response->assertUnprocessable()->assertJsonValidationErrors('attendance') : $response->assertSessionHasErrors('attendance');
+        $this->get('/absensi/mobile/clock-in')->assertRedirect('/absensi/mobile');
+        $this->post('/absensi/mobile/clock-in', $this->payload(action: 'clock-in'))->assertSessionHasErrors('attendance');
+        $this->assertNull($attendance->fresh()->clock_in_at);
+        $this->assertDatabaseCount('presensis', 1);
+    }
+
+    public static function clockOutWithoutClockInModes(): iterable
+    {
+        foreach ([false, true] as $enabled) {
+            foreach ([false, true] as $dated) {
+                foreach ([false, true] as $api) {
+                    foreach ([false, true] as $queued) {
+                        yield implode(' ', [$enabled ? 'allowed' : 'blocked', $dated ? 'dated' : 'default', $api ? 'API' : 'web', $queued ? 'queued' : 'direct']) => [$enabled, $dated, $api, $queued];
+                    }
+                }
+            }
+        }
+    }
+
+    #[DataProvider('processingModes')]
+    public function test_clock_out_without_clock_in_keeps_location_holiday_and_cuti_checks(bool $queued): void
+    {
+        $this->travelTo('2026-09-16 15:00:00');
+        app(ConfigurationService::class)->update(['clock_out_without_clock_in' => true], $this->user->id);
+        config(['attendance.queue_enabled' => $queued]);
+        Queue::fake();
+        $this->actingAs($this->user)->post('/absensi/mobile/clock-out', $this->payload([
+            'latitude' => -6.19, 'outside_radius_confirmed' => true,
+        ]))->assertSessionHasErrors('outside_radius_note');
+        $payload = $this->payload();
+        $payload['location_samples'][0]['is_mock'] = true;
+        $this->post('/absensi/mobile/clock-out', $payload)->assertSessionHasErrors('location_proof');
+        $this->shift->update(['is_day_off' => true]);
+        $this->post('/absensi/mobile/clock-out', $this->payload())->assertSessionHasErrors('attendance');
+        $this->shift->update(['is_day_off' => false]);
+        CutiRequest::query()->create([
+            'user_id' => $this->user->id, 'pegawai_id' => $this->pegawai->id,
+            'nama_pegawai' => $this->pegawai->nama, 'nama_jabatan' => 'Perawat', 'nama_unit' => 'IGD',
+            'tanggal_mulai' => '2026-09-16', 'tanggal_selesai' => '2026-09-16',
+            'alasan' => 'Keperluan keluarga', 'status' => 'approved',
+        ]);
+        $this->get('/absensi/mobile')->assertInertia(fn (Assert $page) => $page->where('todayAttendance.can_clock_out', false));
+        $this->get('/absensi/mobile/clock-out')->assertRedirect('/absensi/mobile');
+        $this->post('/absensi/mobile/clock-out', $this->payload())->assertSessionHasErrors('attendance');
+        $this->assertDatabaseCount('presensis', 0);
+        $this->assertDatabaseCount('attendance_submissions', 0);
+    }
+
+    #[DataProvider('processingModes')]
+    public function test_clock_out_without_clock_in_still_requires_a_matching_face(bool $queued): void
+    {
+        $this->travelTo('2026-09-16 15:00:00');
+        app(ConfigurationService::class)->update(['clock_out_without_clock_in' => true], $this->user->id);
+        config(['attendance.queue_enabled' => $queued]);
+        Queue::fake();
+        $this->mock(FaceVerifier::class)->shouldReceive('compare')->once()->andReturn(new FaceVerificationResult(false, 20, 'test'));
+        $response = $this->actingAs($this->user)->post('/absensi/mobile/clock-out', $this->payload());
+        if ($queued) {
+            $response->assertSessionHasNoErrors();
+            $submission = AttendanceSubmission::query()->sole();
+            app()->call([new ProcessAttendanceSubmission($submission->id), 'handle']);
+            $this->assertSame('failed', $submission->fresh()->status);
+            $this->assertSame('photo', $submission->fresh()->error_field);
+        } else {
+            $response->assertSessionHasErrors('photo');
+        }
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_queued_clock_out_rechecks_configuration_before_saving_without_clock_in(): void
+    {
+        $this->travelTo('2026-09-16 15:00:00');
+        $configuration = app(ConfigurationService::class);
+        $configuration->update(['clock_out_without_clock_in' => true], $this->user->id);
+        config(['attendance.queue_enabled' => true]);
+        Queue::fake();
+        $this->actingAs($this->user)->post('/absensi/mobile/clock-out', $this->payload())->assertSessionHasNoErrors();
+        $submission = AttendanceSubmission::query()->sole();
+        $configuration->update(['clock_out_without_clock_in' => false], $this->user->id);
+        app()->call([new ProcessAttendanceSubmission($submission->id), 'handle']);
+        $this->assertSame('failed', $submission->fresh()->status);
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public static function processingModes(): array
+    {
+        return ['direct' => [false], 'queued' => [true]];
     }
 
     public function test_clock_out_outside_radius_requires_a_note_and_preserves_existing_notes(): void

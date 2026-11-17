@@ -33,7 +33,10 @@ const statusCopy = computed(() => {
         case 'ready_to_clock_out':
             return ['Sedang bertugas', `Durasi kerja ${data.value.attendance.duration || 'sedang dihitung'}.`];
         case 'complete':
-            return ['Presensi hari ini lengkap', 'Terima kasih atas kerja keras Anda hari ini.'];
+            return [
+                data.value.attendance.clock_in ? 'Presensi hari ini lengkap' : 'Clock-out tersimpan',
+                'Terima kasih atas kerja keras Anda hari ini.',
+            ];
         case 'day_off':
             return ['Hari libur', 'Tidak ada kewajiban presensi hari ini.'];
         default:
@@ -92,6 +95,20 @@ onMounted(load);
                     <strong>{{ action.label }}</strong>
                 </span>
                 <ArrowRight :size="24" />
+            </RouterLink>
+
+            <RouterLink
+                v-if="
+                    data.attendance.can_clock_out &&
+                    !data.attendance.clock_in &&
+                    !data.attendance_submissions?.some((item) => item.status === 'pending' || item.status === 'processing') &&
+                    can('mobile.attendance') &&
+                    can('mobile.clock-out')
+                "
+                :to="{ name: 'attendance-action', params: { action: 'clock-out' } }"
+                class="button primary full"
+            >
+                Clock-out tanpa clock-in <LogOut :size="19" />
             </RouterLink>
 
             <section class="section-block">

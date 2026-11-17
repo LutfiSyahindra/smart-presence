@@ -50,7 +50,10 @@ class AttendanceActionController extends Controller
         if ($action === 'clock-in' && $attendance?->clock_in_at) {
             $this->fail('Clock-in hari ini sudah tercatat.');
         }
-        if ($action === 'clock-out' && ! $attendance?->clock_in_at) {
+        if ($action === 'clock-in' && $attendance?->clock_out_at) {
+            $this->fail('Clock-out sudah tercatat. Clock-in tidak dapat dilakukan setelah clock-out.');
+        }
+        if ($action === 'clock-out' && ! $attendance?->clock_out_at && ! $this->schedules->canClockOut($attendance)) {
             $this->fail('Lakukan clock-in terlebih dahulu sebelum clock-out.');
         }
         if ($action === 'clock-out' && $attendance?->clock_out_at) {

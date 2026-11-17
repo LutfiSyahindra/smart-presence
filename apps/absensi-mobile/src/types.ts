@@ -27,6 +27,7 @@ export interface Attendance {
     date: string;
     date_label: string;
     status: AttendanceStatus;
+    can_clock_out: boolean;
     is_day_off: boolean;
     is_on_leave: boolean;
     duration: string | null;

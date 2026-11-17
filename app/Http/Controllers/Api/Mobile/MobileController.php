@@ -187,6 +187,8 @@ class MobileController extends Controller
             'date' => $date->toDateString(),
             'date_label' => $date->locale('id')->translatedFormat('l, d F Y'),
             'status' => $status,
+            'can_clock_out' => in_array($status, ['ready_to_clock_in', 'ready_to_clock_out'], true)
+                && $this->schedules->canClockOut($attendance),
             'is_on_leave' => $isOnCuti,
             'is_day_off' => $isDayOff,
             'duration' => $this->durationLabel($clockIn, $clockOut),

@@ -110,6 +110,13 @@ onMounted(load);
             >
                 {{ action === 'clock-in' ? 'Mulai clock-in' : 'Mulai clock-out' }} <ArrowRight :size="19" />
             </RouterLink>
+            <RouterLink
+                v-if="attendance.can_clock_out && !attendance.clock_in && can('mobile.clock-out')"
+                :to="{ name: 'attendance-action', params: { action: 'clock-out' } }"
+                class="button primary full"
+            >
+                Clock-out tanpa clock-in <LogOut :size="19" />
+            </RouterLink>
         </template>
     </MobileShell>
 </template>

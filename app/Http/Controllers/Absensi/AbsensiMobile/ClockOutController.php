@@ -50,7 +50,7 @@ class ClockOutController extends Controller
         if ($this->shiftHolidays->isDayOff($pegawai, $attendance)) {
             return to_route('absensi.mobile.home')->with('error', 'Hari ini tercatat sebagai hari libur. Clock-out tidak diperlukan.');
         }
-        if (! $attendance?->clock_in_at) {
+        if (! $attendance?->clock_out_at && ! $this->schedules->canClockOut($attendance)) {
             return to_route('absensi.mobile.home')->with('error', 'Lakukan clock-in terlebih dahulu sebelum clock-out.');
         }
         if ($attendance->clock_out_at) {

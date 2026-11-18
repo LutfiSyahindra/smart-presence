@@ -36,6 +36,7 @@ class ShiftAssignmentService
             ->whereBetween('tanggal_presensi', [$start->toDateString(), $end->toDateString()])
             ->get(['pegawai_id', 'tanggal_presensi', 'shift_id', 'is_day_off'])
             ->groupBy(fn (Presensi $record) => $record->tanggal_presensi->toDateString());
+        $leaveNames = $this->approvedLeaveNames($employees->modelKeys(), $start->toDateString(), $end->toDateString());
         $shifts = $employees->pluck('shift')->merge($records->flatten(1)->pluck('shift'))->filter()->unique('id');
         $calendar = HariLibur::query()->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])->orderBy('id')->get();
         $holidays = app(ShiftHolidayService::class);
@@ -47,20 +48,22 @@ class ShiftAssignmentService
             $dateString = $date->toDateString();
             $dailyRecords = $records->get($dateString, collect())->keyBy('pegawai_id');
             $dayOffReasons = $shifts->mapWithKeys(fn (Shift $shift) => [$shift->id => $holidays->dayOffDetails($shift, $date, $calendar)['reason'] ?? null]);
-            $day = ['date' => $dateString, 'day' => $date->day, 'working' => 0, 'day_off' => 0, 'unassigned' => 0];
+            $day = ['date' => $dateString, 'day' => $date->day, 'working' => 0, 'day_off' => 0, 'on_leave' => 0, 'unassigned' => 0];
 
             foreach ($employees as $employee) {
                 $record = $dailyRecords->get($employee->id);
                 $shift = $record?->shift ?? $employee->shift;
                 $reason = $shift ? $dayOffReasons->get($shift->id) : null;
                 $isDayOff = (bool) ($record?->is_day_off || $reason !== null);
-                $day[$isDayOff ? 'day_off' : ($shift ? 'working' : 'unassigned')]++;
+                $leaveName = $leaveNames[$employee->id][$dateString] ?? null;
+                $day[$leaveName !== null ? 'on_leave' : ($isDayOff ? 'day_off' : ($shift ? 'working' : 'unassigned'))]++;
                 $schedule = [
                     'date' => $dateString,
                     'source' => $record ? 'scheduled' : 'default',
                     'shift_id' => $shift ? (int) $shift->id : null,
                     'is_day_off' => $isDayOff,
                     'day_off_reason' => $isDayOff ? ($reason ?? 'Hari libur') : null,
+                    'leave_name' => $leaveName,
                 ];
                 if ($view === 'monthly') {
                     $schedules[$employee->id][] = $schedule;
@@ -78,6 +81,7 @@ class ShiftAssignmentService
                         'shift' => $shift ? $this->shiftRow($shift) : null,
                         'is_day_off' => $isDayOff,
                         'day_off_reason' => $isDayOff ? ($reason ?? 'Hari libur') : null,
+                        'leave_name' => $leaveName,
                     ];
                 }
             }
@@ -117,7 +121,8 @@ class ShiftAssignmentService
         $records = Presensi::query()->with('shift')->where('pegawai_id', $pegawai->id)
             ->whereBetween('tanggal_presensi', [$start->toDateString(), $end->toDateString()])
             ->get()->keyBy(fn (Presensi $record) => $record->tanggal_presensi->toDateString());
-        $locks = $this->lockedDates($pegawai->id, $start->toDateString(), $end->toDateString(), $records);
+        $leaveNames = $this->approvedLeaveNames([$pegawai->id], $start->toDateString(), $end->toDateString())[$pegawai->id] ?? [];
+        $locks = $this->lockedDates($pegawai->id, $start->toDateString(), $end->toDateString(), $records, $leaveNames);
         $calendar = HariLibur::query()->whereBetween('tanggal', [$start->toDateString(), $end->toDateString()])->orderBy('id')->get();
         $holidays = app(ShiftHolidayService::class);
         $days = [];
@@ -132,6 +137,7 @@ class ShiftAssignmentService
                 'shift' => $shift ? $this->shiftRow($shift) : null,
                 'is_day_off' => (bool) ($record?->is_day_off || $dayOff !== null),
                 'day_off_reason' => $dayOff['reason'] ?? null,
+                'leave_name' => $leaveNames[$date->toDateString()] ?? null,
                 'locked_reason' => $locks[$date->toDateString()] ?? null,
             ];
         }
@@ -164,7 +170,7 @@ class ShiftAssignmentService
     }
 
     /** @param Collection<int|string, Presensi> $records */
-    private function lockedDates(int $pegawaiId, string $from, string $to, Collection $records): array
+    private function lockedDates(int $pegawaiId, string $from, string $to, Collection $records, ?array $leaveNames = null): array
     {
         $locks = [];
         foreach ($records as $record) {
@@ -172,15 +178,9 @@ class ShiftAssignmentService
                 $locks[$record->tanggal_presensi->toDateString()] = 'Tanggal ini sudah memiliki clock in/out.';
             }
         }
-        $leaves = CutiRequest::query()->where('pegawai_id', $pegawaiId)->where('status', 'approved')
-            ->whereDate('tanggal_mulai', '<=', $to)->whereDate('tanggal_selesai', '>=', $from)
-            ->get(['tanggal_mulai', 'tanggal_selesai']);
-        foreach ($leaves as $leave) {
-            $start = CarbonImmutable::parse(max($from, $leave->tanggal_mulai->toDateString()));
-            $end = min($to, $leave->tanggal_selesai->toDateString());
-            for ($date = $start; $date->toDateString() <= $end; $date = $date->addDay()) {
-                $locks[$date->toDateString()] ??= 'Tanggal ini memiliki cuti yang disetujui.';
-            }
+        $leaveNames ??= $this->approvedLeaveNames([$pegawaiId], $from, $to)[$pegawaiId] ?? [];
+        foreach ($leaveNames as $date => $name) {
+            $locks[$date] ??= 'Tanggal ini memiliki cuti yang disetujui.';
         }
         $overtimes = LemburRequest::query()->where('pegawai_id', $pegawaiId)->whereIn('status', ['pending', 'approved'])
             ->whereDate('tanggal_lembur', '>=', $from)->whereDate('tanggal_lembur', '<=', $to)->get(['tanggal_lembur']);
@@ -194,6 +194,29 @@ class ShiftAssignmentService
         }
 
         return $locks;
+    }
+
+    /** @return array<int, array<string, string>> */
+    private function approvedLeaveNames(array $employeeIds, string $from, string $to): array
+    {
+        if ($employeeIds === []) {
+            return [];
+        }
+
+        $leaves = CutiRequest::query()->whereIn('pegawai_id', $employeeIds)->where('status', 'approved')
+            ->whereDate('tanggal_mulai', '<=', $to)->whereDate('tanggal_selesai', '>=', $from)
+            ->orderBy('id')->get(['pegawai_id', 'tanggal_mulai', 'tanggal_selesai', 'nama_cuti', 'is_tahunan']);
+        $names = [];
+        foreach ($leaves as $leave) {
+            $name = trim($leave->nama_cuti ?? '') ?: ($leave->is_tahunan ? 'Cuti Tahunan' : 'Cuti');
+            $start = CarbonImmutable::parse(max($from, $leave->tanggal_mulai->toDateString()));
+            $end = min($to, $leave->tanggal_selesai->toDateString());
+            for ($date = $start; $date->toDateString() <= $end; $date = $date->addDay()) {
+                $names[$leave->pegawai_id][$date->toDateString()] ??= $name;
+            }
+        }
+
+        return $names;
     }
 
     /** @param array<string, mixed> $filters */

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Absensi\AdminWeb\MasterData;
 
+use App\Models\CutiRequest;
 use App\Models\HariLibur;
 use App\Models\Pegawai;
 use App\Models\Presensi;
@@ -218,6 +219,92 @@ class ShiftCalendarTest extends TestCase
         }
         $this->getJson(self::URL.'?month=2026-11&date=2026-12-01')->assertUnprocessable()->assertJsonValidationErrors('date');
         $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_approved_annual_leave_overrides_default_and_scheduled_shift_display_and_totals(): void
+    {
+        $employee = $this->employee('Aminah', $this->morning);
+        $this->employee('Budi', $this->night);
+        $leave = $this->leave($employee, '2026-10-30', '2026-11-11');
+        Presensi::query()->create(['pegawai_id' => $employee->id, 'tanggal_presensi' => '2026-11-10', 'shift_id' => $this->night->id]);
+
+        $this->actingAs($this->viewer)->getJson(self::URL.'?view=monthly')->assertOk()
+            ->assertJsonPath('employees.0.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('employees.0.schedule.0.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('employees.0.schedule.9.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('employees.0.schedule.9.shift_id', $this->night->id)
+            ->assertJsonPath('employees.0.schedule.10.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('employees.0.schedule.11.leave_name', null)
+            ->assertJsonPath('employees.1.leave_name', null)
+            ->assertJsonPath('days.9.on_leave', 1)->assertJsonPath('days.9.working', 1)
+            ->assertJsonPath('days.9.day_off', 0)->assertJsonPath('days.9.unassigned', 0)
+            ->assertJsonPath('days.11.on_leave', 0)->assertJsonPath('days.11.working', 2);
+        $this->getJson(self::URL.'?date=2026-11-10')->assertOk()
+            ->assertJsonPath('employees.0.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('days.9.on_leave', 1)->assertJsonPath('days.9.working', 1);
+        $this->getJson('/absensi/admin-web/master-data/shift/assign/'.$employee->id.'/schedule?month=2026-11')->assertOk()
+            ->assertJsonPath('days.9.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('days.9.locked_reason', 'Tanggal ini memiliki cuti yang disetujui.')
+            ->assertJsonPath('days.11.leave_name', null)
+            ->assertJsonPath('days.11.locked_reason', null);
+
+        $leave->update(['status' => 'cancelled']);
+        $this->getJson(self::URL.'?view=monthly')->assertOk()
+            ->assertJsonPath('employees.0.leave_name', null)
+            ->assertJsonPath('employees.0.schedule.9.leave_name', null)
+            ->assertJsonPath('days.9.on_leave', 0)->assertJsonPath('days.9.working', 2);
+        $this->assertSame($this->morning->id, $employee->refresh()->shift_id);
+        $this->assertDatabaseHas('presensis', ['pegawai_id' => $employee->id, 'tanggal_presensi' => '2026-11-10', 'shift_id' => $this->night->id]);
+        $this->assertDatabaseCount('presensis', 1);
+    }
+
+    public function test_pending_rejected_and_cancelled_leave_do_not_replace_shifts(): void
+    {
+        foreach (['pending', 'rejected', 'cancelled'] as $status) {
+            $this->leave($this->employee($status, $this->morning), '2026-11-10', '2026-11-10', ['status' => $status]);
+        }
+        $response = $this->actingAs($this->viewer)->getJson(self::URL.'?view=monthly')->assertOk()
+            ->assertJsonPath('days.9.on_leave', 0)->assertJsonPath('days.9.working', 3);
+        foreach ($response->json('employees') as $employee) {
+            $this->assertNull($employee['leave_name']);
+            $this->assertNull($employee['schedule'][9]['leave_name']);
+            $this->assertSame($this->morning->id, $employee['schedule'][9]['shift_id']);
+        }
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    public function test_leave_counts_respect_unit_month_boundaries_and_employees_without_a_shift(): void
+    {
+        $unit = UnitKerja::query()->create(['kode' => 'CUTI', 'nama' => 'Unit cuti']);
+        $employee = $this->employee('Aminah');
+        $employee->update(['unit_kerja_id' => $unit->id]);
+        $this->leave($employee, '2026-11-30', '2026-12-02', ['nama_cuti' => null]);
+        $this->leave($this->employee('Budi', $this->night), '2026-11-30', '2026-12-02', ['nama_cuti' => 'Cuti Khusus', 'is_tahunan' => false]);
+
+        $this->actingAs($this->viewer)->getJson(self::URL.'?view=monthly&month=2026-11&unit_kerja_id='.$unit->id)->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('days.29.on_leave', 1)
+            ->assertJsonPath('days.29.unassigned', 0)->assertJsonPath('days.29.working', 0)
+            ->assertJsonPath('employees.0.schedule.29.leave_name', 'Cuti Tahunan');
+        $this->getJson(self::URL.'?view=monthly&month=2026-12&unit_kerja_id='.$unit->id)->assertOk()
+            ->assertJsonPath('days.0.on_leave', 1)->assertJsonPath('days.1.on_leave', 1)
+            ->assertJsonPath('days.2.on_leave', 0)->assertJsonPath('days.2.unassigned', 1)
+            ->assertJsonPath('employees.0.schedule.0.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('employees.0.schedule.1.leave_name', 'Cuti Tahunan')
+            ->assertJsonPath('employees.0.schedule.2.leave_name', null);
+        $this->getJson(self::URL.'?view=monthly&month=2026-12&unit_kerja_id=unassigned')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('employees.0.schedule.0.leave_name', 'Cuti Khusus');
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    private function leave(Pegawai $employee, string $from, string $to, array $attributes = []): CutiRequest
+    {
+        return CutiRequest::query()->create([
+            'pegawai_id' => $employee->id, 'user_id' => $employee->user_id,
+            'nama_pegawai' => $employee->nama, 'nama_jabatan' => 'Staff', 'nama_unit' => 'SIRS', 'alasan' => 'Keperluan',
+            'tanggal_mulai' => $from, 'tanggal_selesai' => $to,
+            'nama_cuti' => 'Cuti Tahunan', 'is_tahunan' => true, 'status' => 'approved',
+            ...$attributes,
+        ]);
     }
 
     private function employee(string $name, ?Shift $shift = null): Pegawai

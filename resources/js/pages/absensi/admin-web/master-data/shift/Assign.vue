@@ -90,11 +90,17 @@ const savingBulk = ref(false);
 const filtering = ref(false);
 const rowErrors = reactive<Record<number, string>>({});
 const batchOpen = ref(false);
-const scheduleEmployee = ref<AssignmentRow | null>(null);
+const scheduleEmployee = ref<Pick<AssignmentRow, 'id' | 'nama' | 'nik'> | null>(null);
+const scheduleDate = ref('');
 const shiftCalendar = ref<InstanceType<typeof ShiftCalendar> | null>(null);
+const openSchedule = (employee: NonNullable<typeof scheduleEmployee.value>, date = '') => {
+    scheduleDate.value = date;
+    scheduleEmployee.value = employee;
+};
+const refreshSchedules = () => router.reload({ only: ['assignments'] });
 const closeSchedule = () => {
     scheduleEmployee.value = null;
-    router.reload({ only: ['assignments'] });
+    scheduleDate.value = '';
 };
 const rowShifts = reactive<Record<number, number | string>>({});
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -305,7 +311,7 @@ const saveBulk = () => {
                 </article>
             </section>
 
-            <ShiftCalendar ref="shiftCalendar" />
+            <ShiftCalendar ref="shiftCalendar" :can-edit="can.assign" @edit-schedule="openSchedule" />
 
             <section class="assign-directory" aria-labelledby="assign-directory-title" :aria-busy="filtering">
                 <header class="assign-directory-header">
@@ -497,7 +503,7 @@ const saveBulk = () => {
                                                 type="button"
                                                 class="view-schedule"
                                                 :aria-label="`Lihat jadwal ${pegawai.nama}`"
-                                                @click="scheduleEmployee = pegawai"
+                                                @click="openSchedule(pegawai)"
                                             >
                                                 <CalendarDays /> Lihat jadwal
                                             </button>
@@ -594,7 +600,7 @@ const saveBulk = () => {
                                     type="button"
                                     class="view-schedule"
                                     :aria-label="`Lihat jadwal ${pegawai.nama}`"
-                                    @click="scheduleEmployee = pegawai"
+                                    @click="openSchedule(pegawai)"
                                 >
                                     <CalendarDays /> Lihat jadwal
                                 </button>
@@ -634,11 +640,13 @@ const saveBulk = () => {
             <BulkShiftAssignment v-if="can.assign && bulkOptions" :open="batchOpen" :options="bulkOptions" @close="batchOpen = false" />
             <EmployeeShiftSchedule
                 v-if="scheduleEmployee"
-                :key="scheduleEmployee.id"
+                :key="`${scheduleEmployee.id}-${scheduleDate}`"
                 :employee="scheduleEmployee"
                 :can-edit="can.assign"
                 :shifts="shifts"
+                :initial-date="scheduleDate"
                 @close="closeSchedule"
+                @saved="refreshSchedules"
             />
         </div>
     </AppLayout>

@@ -69,11 +69,12 @@ function fixture(overrides = {}) {
     };
 }
 
-function calendar(fetcher = async () => response(fixture())) {
+function calendar(fetcher = async () => response(fixture()), props = {}) {
     const exports = {};
     const cleanup = [];
     const mounted = [];
     const requests = [];
+    const events = [];
     const context = {
         exports,
         URLSearchParams,
@@ -85,20 +86,22 @@ function calendar(fetcher = async () => response(fixture())) {
         require(name) {
             if (name === 'vue') return { ...vue, onMounted: (handler) => mounted.push(handler), onBeforeUnmount: (handler) => cleanup.push(handler) };
             if (name === 'lucide-vue-next') return new Proxy({}, { get: () => () => null });
+            if (name.endsWith('.vue')) return { default: () => null };
             return {};
         },
     };
     vm.runInNewContext(transpile(script.content), context);
     const component = exports.default;
     const scope = vue.effectScope();
-    const state = scope.run(() => component.setup({}, { expose() {} }));
+    const state = scope.run(() => component.setup(props, { expose() {}, emit: (...event) => events.push(event) }));
     const rendered = {};
     vm.runInNewContext(transpile(template.code), { exports: rendered, require: () => vue });
     return {
         state,
         requests,
         mounted,
-        render: () => renderToString(vue.createSSRApp({ setup: () => state, render: rendered.render })),
+        events,
+        render: () => renderToString(vue.createSSRApp({ props: Object.keys(props), setup: () => state, render: rendered.render }, props)),
         close() {
             cleanup.forEach((handler) => handler());
             scope.stop();
@@ -108,6 +111,39 @@ function calendar(fetcher = async () => response(fixture())) {
 function response(data, status = 200) {
     return { ok: status === 200, status, redirected: false, headers: { get: () => 'application/json' }, json: async () => data };
 }
+
+test('an editable monthly cell opens the exact employee and date without changing the roster or filters', async () => {
+    const app = calendar(undefined, { canEdit: true });
+    try {
+        await app.state.load();
+        app.state.unitFilter.value = '2';
+        app.state.search.value = 'Ayu';
+        const employee = app.state.data.value.employees[0];
+        app.state.openSchedule(employee, employee.schedule[10].date);
+        assert.deepEqual(JSON.parse(JSON.stringify(app.events)), [['edit-schedule', { id: 1, nama: 'Ayu', nik: 'EMP-1' }, '2026-11-11']]);
+        assert.equal(app.state.view.value, 'monthly');
+        assert.equal(app.state.unitFilter.value, '2');
+        assert.equal(app.state.search.value, 'Ayu');
+        assert.equal(app.requests.length, 1);
+    } finally {
+        app.close();
+    }
+});
+
+test('a viewer still opens daily details from a monthly cell without requesting an edit', async () => {
+    const app = calendar();
+    try {
+        await app.state.load();
+        const employee = app.state.data.value.employees[0];
+        app.state.openSchedule(employee, '2026-11-11');
+        assert.equal(app.state.view.value, 'daily');
+        assert.match(app.requests.at(-1)[0], /date=2026-11-11&view=daily/);
+        assert.deepEqual(app.events, []);
+        await vue.nextTick();
+    } finally {
+        app.close();
+    }
+});
 
 test('monthly roster renders every date and groups all matching employees by unit', async () => {
     const app = calendar();
@@ -137,6 +173,67 @@ test('monthly roster renders every date and groups all matching employees by uni
         assert.equal(app.state.unitGroups.value[0].nama, 'Tanpa unit kerja');
         app.state.search.value = 'tidak ditemukan';
         assert.match(await app.render(), /Tidak ada pegawai yang sesuai/);
+    } finally {
+        app.close();
+    }
+});
+
+test('approved annual leave replaces the shift label, hours, and source in monthly cells and is searchable', async () => {
+    const data = fixture();
+    data.employees[0].leave_name = 'Cuti Tahunan';
+    data.employees[0].schedule[9].leave_name = 'Cuti Tahunan';
+    const app = calendar(async () => response(data));
+    try {
+        await app.state.load();
+        const schedule = app.state.data.value.employees[0].schedule[9];
+        assert.equal(app.state.scheduleLabel(schedule), 'Cuti Tahunan');
+        assert.equal(app.state.scheduleDetails(schedule), 'Cuti disetujui');
+        const html = await app.render();
+        const cell = html.match(/<button[^>]*class="schedule-cell leave"[^>]*>(.*?)<\/button>/s)?.[1];
+        assert.ok(cell);
+        assert.match(cell, /Cuti Tahunan/);
+        assert.match(cell, /Cuti disetujui/);
+        assert.doesNotMatch(cell, /Pagi|07:00|15:00|Default/);
+        app.state.search.value = 'cuti tahunan';
+        assert.deepEqual(
+            Array.from(app.state.matchingEmployees.value, (employee) => employee.nama),
+            ['Ayu'],
+        );
+    } finally {
+        app.close();
+    }
+});
+
+test('daily leave appears as its own status and is excluded from working, off, and unassigned filters', async () => {
+    const data = fixture({ view: 'daily' });
+    data.employees[0].leave_name = 'Cuti Tahunan';
+    data.employees[3].is_day_off = true;
+    Object.assign(data.days[9], { working: 1, day_off: 1, on_leave: 1, unassigned: 1 });
+    const app = calendar(async () => response(data));
+    try {
+        app.state.view.value = 'daily';
+        await app.state.load();
+        assert.equal(app.state.statusOptions.value.find((option) => option.value === 'leave').count, 1);
+        app.state.status.value = 'leave';
+        assert.deepEqual(
+            Array.from(app.state.employees.value, (employee) => employee.nama),
+            ['Ayu'],
+        );
+        const html = await app.render();
+        assert.match(html, /Cuti Tahunan/);
+        assert.match(html, /Cuti disetujui/);
+        assert.doesNotMatch(html, /07:00–15:00/);
+        for (const [status, name] of [
+            ['working', 'Budi'],
+            ['off', 'Dewi'],
+            ['unassigned', 'Citra'],
+        ]) {
+            app.state.status.value = status;
+            assert.deepEqual(
+                Array.from(app.state.employees.value, (employee) => employee.nama),
+                [name],
+            );
+        }
     } finally {
         app.close();
     }

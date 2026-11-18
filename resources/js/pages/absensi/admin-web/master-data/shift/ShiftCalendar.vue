@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, LoaderCircle, RefreshCw, Search, UsersRound } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import SearchableSelect from '../../presensi/components/SearchableSelect.vue';
 
 interface CalendarDay {
     date: string;
     day: number;
     working: number;
     day_off: number;
+    on_leave?: number;
     unassigned: number;
 }
 interface Employee {
@@ -20,6 +22,7 @@ interface Employee {
     shift: { id: number; nama: string; jam_masuk: string; jam_keluar: string } | null;
     is_day_off: boolean;
     day_off_reason: string | null;
+    leave_name?: string | null;
     schedule?: Schedule[];
 }
 interface Schedule {
@@ -28,6 +31,7 @@ interface Schedule {
     shift_id: number | null;
     is_day_off: boolean;
     day_off_reason: string | null;
+    leave_name?: string | null;
 }
 interface Calendar {
     month: string;
@@ -42,6 +46,8 @@ interface Calendar {
     shifts: NonNullable<Employee['shift']>[];
 }
 
+const props = defineProps<{ canEdit?: boolean }>();
+const emit = defineEmits<{ 'edit-schedule': [employee: Pick<Employee, 'id' | 'nama' | 'nik'>, date: string] }>();
 const data = ref<Calendar | null>(null);
 const month = ref('');
 const selectedDate = ref('');
@@ -66,6 +72,10 @@ const monthLabel = computed(() =>
 const dateLabel = (date: string) => dateLabels.value.get(date) ?? fullDateFormatter.format(new Date(`${date}T00:00:00`));
 const offset = computed(() => (month.value ? (new Date(`${month.value}-01T00:00:00`).getDay() + 6) % 7 : 0));
 const selectedDay = computed(() => data.value?.days.find((day) => day.date === selectedDate.value));
+const unitOptions = computed(() => [
+    ...(data.value?.units ?? []).map((unit) => ({ value: String(unit.id), label: unit.nama })),
+    { value: 'unassigned', label: 'Tanpa unit kerja' },
+]);
 const unitLabel = computed(() =>
     unitFilter.value === 'unassigned'
         ? 'Tanpa unit kerja'
@@ -73,8 +83,10 @@ const unitLabel = computed(() =>
 );
 const shiftsById = computed(() => new Map(data.value?.shifts.map((shift) => [shift.id, shift]) ?? []));
 const scheduleShift = (schedule: Schedule) => (schedule.shift_id === null ? undefined : shiftsById.value.get(schedule.shift_id));
-const scheduleLabel = (schedule: Schedule) => (schedule.is_day_off ? 'OFF / Libur' : (scheduleShift(schedule)?.nama ?? 'Belum diatur'));
+const scheduleLabel = (schedule: Schedule) =>
+    schedule.leave_name || (schedule.is_day_off ? 'OFF / Libur' : (scheduleShift(schedule)?.nama ?? 'Belum diatur'));
 const scheduleDetails = (schedule: Schedule) => {
+    if (schedule.leave_name) return 'Cuti disetujui';
     const shift = scheduleShift(schedule);
     return schedule.is_day_off
         ? (schedule.day_off_reason ?? 'Hari libur')
@@ -83,12 +95,13 @@ const scheduleDetails = (schedule: Schedule) => {
           : 'Belum memiliki jadwal shift';
 };
 const scheduleTitle = (employee: Employee, schedule: Schedule) =>
-    `${employee.nama}, ${dateLabel(schedule.date)}: ${scheduleLabel(schedule)}, ${scheduleDetails(schedule)}. ${schedule.source === 'scheduled' ? 'Per tanggal' : 'Default'}`;
+    `${employee.nama}, ${dateLabel(schedule.date)}: ${scheduleLabel(schedule)}, ${scheduleDetails(schedule)}${schedule.leave_name ? '' : `. ${schedule.source === 'scheduled' ? 'Per tanggal' : 'Default'}`}`;
 const weekdayLabel = (date: string) => weekdayFormatter.format(new Date(`${date}T00:00:00`));
 const statusOptions = computed(() => [
     { value: 'all', label: 'Semua', count: data.value?.total ?? 0 },
     { value: 'working', label: 'Bertugas', count: selectedDay.value?.working ?? 0 },
     { value: 'off', label: 'OFF / Libur', count: selectedDay.value?.day_off ?? 0 },
+    { value: 'leave', label: 'Cuti', count: selectedDay.value?.on_leave ?? 0 },
     { value: 'unassigned', label: 'Belum diatur', count: selectedDay.value?.unassigned ?? 0 },
 ]);
 const matchingEmployees = computed(() => {
@@ -102,6 +115,7 @@ const matchingEmployees = computed(() => {
                 employee.unit,
                 employee.jabatan,
                 employee.shift?.nama,
+                employee.leave_name,
                 ...(view.value === 'monthly'
                     ? (employee.schedule ?? []).flatMap((schedule) => [scheduleLabel(schedule), scheduleShift(schedule)?.nama])
                     : []),
@@ -111,9 +125,10 @@ const matchingEmployees = computed(() => {
 });
 const employees = computed(() =>
     matchingEmployees.value.filter((employee) => {
-        if (status.value === 'working') return !employee.is_day_off && !!employee.shift;
-        if (status.value === 'off') return employee.is_day_off;
-        if (status.value === 'unassigned') return !employee.shift && !employee.is_day_off;
+        if (status.value === 'leave') return !!employee.leave_name;
+        if (status.value === 'working') return !employee.leave_name && !employee.is_day_off && !!employee.shift;
+        if (status.value === 'off') return !employee.leave_name && employee.is_day_off;
+        if (status.value === 'unassigned') return !employee.leave_name && !employee.shift && !employee.is_day_off;
         return true;
     }),
 );
@@ -194,6 +209,10 @@ const openDate = (date: string) => {
     status.value = 'all';
     void load(month.value, date);
 };
+const openSchedule = (employee: Employee, date: string) => {
+    if (props.canEdit) emit('edit-schedule', { id: employee.id, nama: employee.nama, nik: employee.nik }, date);
+    else openDate(date);
+};
 const refresh = () => void load();
 defineExpose({ refresh });
 onMounted(refresh);
@@ -231,14 +250,19 @@ onBeforeUnmount(() => request?.abort());
         </div>
 
         <div class="calendar-filters">
-            <label class="unit-filter" for="shift-calendar-unit">
+            <div class="unit-filter">
                 <span>Unit kerja</span>
-                <select id="shift-calendar-unit" v-model="unitFilter" :disabled="loading" @change="load()">
-                    <option value="">Semua unit kerja</option>
-                    <option v-for="unit in data?.units ?? []" :key="unit.id" :value="String(unit.id)">{{ unit.nama }}</option>
-                    <option value="unassigned">Tanpa unit kerja</option>
-                </select>
-            </label>
+                <SearchableSelect
+                    v-model="unitFilter"
+                    label="Unit kerja"
+                    :options="unitOptions"
+                    placeholder="Semua unit kerja"
+                    search-placeholder="Cari unit kerja..."
+                    :search-threshold="0"
+                    :disabled="loading"
+                    @change="load()"
+                />
+            </div>
             <label class="roster-search calendar-search">
                 <Search aria-hidden="true" />
                 <span class="sr-only">Cari nama, NIK, unit, jabatan, atau shift</span>
@@ -290,6 +314,7 @@ onBeforeUnmount(() => request?.abort());
                     <span><i class="scheduled-key"></i> Per tanggal</span>
                     <span><i class="default-key"></i> Default</span>
                     <span><i class="off-key"></i> OFF / Libur</span>
+                    <span><i class="leave-key"></i> Cuti</span>
                     <span>— Belum diatur</span>
                 </div>
             </header>
@@ -301,7 +326,10 @@ onBeforeUnmount(() => request?.abort());
             <div v-else class="monthly-scroll" role="region" :aria-label="`Jadwal shift sebulan: ${unitLabel}, ${monthLabel}`" tabindex="0">
                 <table class="monthly-table">
                     <caption class="sr-only">
-                        Jadwal shift seluruh pegawai per unit. Pilih sel jadwal untuk melihat rincian tanggal tersebut.
+                        Jadwal shift seluruh pegawai per unit. Pilih sel jadwal untuk
+                        {{
+                            canEdit ? 'mengubah shift pegawai pada tanggal tersebut.' : 'melihat rincian tanggal tersebut.'
+                        }}
                     </caption>
                     <thead>
                         <tr>
@@ -340,16 +368,20 @@ onBeforeUnmount(() => request?.abort());
                                     type="button"
                                     class="schedule-cell"
                                     :class="{
-                                        scheduled: schedule.source === 'scheduled',
-                                        off: schedule.is_day_off,
-                                        unassigned: !schedule.shift_id && !schedule.is_day_off,
+                                        scheduled: !schedule.leave_name && schedule.source === 'scheduled',
+                                        off: !schedule.leave_name && schedule.is_day_off,
+                                        leave: !!schedule.leave_name,
+                                        unassigned: !schedule.leave_name && !schedule.shift_id && !schedule.is_day_off,
                                     }"
                                     :title="scheduleTitle(employee, schedule)"
-                                    :aria-label="scheduleTitle(employee, schedule)"
-                                    @click="openDate(schedule.date)"
+                                    :aria-label="`${scheduleTitle(employee, schedule)}. ${canEdit ? (schedule.leave_name ? 'Lihat keterangan cuti' : 'Ubah shift') : 'Lihat rincian tanggal'}`"
+                                    @click="openSchedule(employee, schedule.date)"
                                 >
-                                    <strong>{{ schedule.shift_id || schedule.is_day_off ? scheduleLabel(schedule) : '—' }}</strong>
-                                    <small v-if="schedule.is_day_off">{{ scheduleShift(schedule)?.nama ?? 'Libur' }}</small>
+                                    <strong>{{
+                                        schedule.leave_name || schedule.shift_id || schedule.is_day_off ? scheduleLabel(schedule) : '—'
+                                    }}</strong>
+                                    <small v-if="schedule.leave_name">Cuti disetujui</small>
+                                    <small v-else-if="schedule.is_day_off">{{ scheduleShift(schedule)?.nama ?? 'Libur' }}</small>
                                     <small v-else-if="scheduleShift(schedule)">{{ scheduleDetails(schedule) }}</small>
                                     <small v-else>Belum diatur</small>
                                 </button>
@@ -359,13 +391,16 @@ onBeforeUnmount(() => request?.abort());
                 </table>
             </div>
             <p class="calendar-note">
-                Geser tabel untuk melihat semua tanggal. Pilih sel jadwal untuk membuka rincian per tanggal. Jadwal per tanggal diprioritaskan;
+                Geser tabel untuk melihat semua tanggal. Pilih sel jadwal untuk
+                {{ canEdit ? 'mengubah shift pegawai pada tanggal tersebut.' : 'membuka rincian per tanggal.' }} Jadwal per tanggal diprioritaskan;
                 tanggal lainnya mengikuti shift default dan aturan hari libur.
             </p>
         </div>
         <div v-else class="calendar-body">
             <div class="month-panel">
-                <div class="calendar-legend"><span class="working-dot"></span> Jumlah pegawai bertugas <small>OFF/libur tidak dihitung</small></div>
+                <div class="calendar-legend">
+                    <span class="working-dot"></span> Jumlah pegawai bertugas <small>OFF/libur dan cuti tidak dihitung</small>
+                </div>
                 <div class="weekdays" aria-hidden="true">
                     <span v-for="day in ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']" :key="day">{{ day }}</span>
                 </div>
@@ -379,13 +414,14 @@ onBeforeUnmount(() => request?.abort());
                         :class="{ selected: day.date === selectedDate, today: day.date === data.today }"
                         :aria-pressed="day.date === selectedDate"
                         :aria-current="day.date === data.today ? 'date' : undefined"
-                        :aria-label="`${dateLabel(day.date)}: ${day.working} bertugas, ${day.day_off} libur, ${day.unassigned} belum diatur`"
+                        :aria-label="`${dateLabel(day.date)}: ${day.working} bertugas, ${day.day_off} libur, ${day.on_leave ?? 0} cuti, ${day.unassigned} belum diatur`"
                         :disabled="loading"
                         @click="load(month, day.date)"
                     >
                         <span class="day-number">{{ day.day }}<i v-if="day.date === data.today" aria-hidden="true"></i></span>
                         <strong>{{ day.working }} <span>bertugas</span></strong>
                         <small>{{ day.day_off }} libur</small>
+                        <small v-if="day.on_leave">{{ day.on_leave }} cuti</small>
                     </button>
                 </div>
                 <p class="calendar-note">Jadwal per tanggal diprioritaskan. Tanggal lainnya mengikuti shift default dan aturan hari libur.</p>
@@ -425,10 +461,17 @@ onBeforeUnmount(() => request?.abort());
                                 }}</small>
                             </div>
                             <div class="employee-shift">
-                                <strong :class="{ off: employee.is_day_off, unassigned: !employee.shift && !employee.is_day_off }">
-                                    {{ employee.is_day_off ? 'OFF / Libur' : employee.shift?.nama || 'Belum diatur' }}
+                                <strong
+                                    :class="{
+                                        leave: !!employee.leave_name,
+                                        off: !employee.leave_name && employee.is_day_off,
+                                        unassigned: !employee.leave_name && !employee.shift && !employee.is_day_off,
+                                    }"
+                                >
+                                    {{ employee.leave_name || (employee.is_day_off ? 'OFF / Libur' : employee.shift?.nama || 'Belum diatur') }}
                                 </strong>
-                                <small v-if="employee.is_day_off"
+                                <small v-if="employee.leave_name">Cuti disetujui</small>
+                                <small v-else-if="employee.is_day_off"
                                     >{{ employee.day_off_reason
                                     }}<template v-if="employee.shift && employee.shift.nama !== employee.day_off_reason">
                                         · {{ employee.shift.nama }}</template
@@ -436,7 +479,7 @@ onBeforeUnmount(() => request?.abort());
                                 >
                                 <small v-else-if="employee.shift"><Clock3 /> {{ employee.shift.jam_masuk }}–{{ employee.shift.jam_keluar }}</small>
                                 <small v-else>Belum memiliki jadwal shift</small>
-                                <span v-if="employee.shift || employee.is_day_off" class="schedule-source">{{
+                                <span v-if="!employee.leave_name && (employee.shift || employee.is_day_off)" class="schedule-source">{{
                                     employee.source === 'scheduled' ? 'Per tanggal' : 'Default'
                                 }}</span>
                             </div>
@@ -450,7 +493,8 @@ onBeforeUnmount(() => request?.abort());
 
 <style scoped>
 .shift-calendar {
-    overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
     border: 1px solid var(--rs-border);
     border-radius: 18px;
     background: white;
@@ -518,7 +562,7 @@ h2 {
 }
 .unit-filter {
     display: flex;
-    flex: 1 1 210px;
+    flex: 0 1 240px;
     flex-direction: column;
     gap: 6px;
     min-width: 0;
@@ -526,15 +570,10 @@ h2 {
     font-size: 11px;
     font-weight: 650;
 }
-.unit-filter select {
-    width: 100%;
-    min-width: 0;
-    min-height: 39px;
-    padding: 8px 32px 8px 10px;
-    border: 1px solid var(--rs-border);
-    border-radius: 9px;
+.unit-filter :deep(.searchable-select-trigger),
+.unit-filter :deep(.searchable-select-native) {
+    height: 39px;
     color: var(--rs-ink);
-    background-color: white;
     font-size: 12px;
 }
 .calendar-search {
@@ -608,6 +647,10 @@ h2 {
 .monthly-legend .off-key {
     border-color: #fcd34d;
     background: #fffbeb;
+}
+.monthly-legend .leave-key {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
 }
 .monthly-scroll {
     max-height: 620px;
@@ -730,6 +773,11 @@ h2 {
 .schedule-cell.off {
     color: #a16207;
     background: #fffbeb;
+}
+.schedule-cell.leave {
+    border-color: #c4b5fd;
+    color: #6d28d9;
+    background: #f5f3ff;
 }
 .schedule-cell.unassigned {
     color: var(--rs-muted);
@@ -1043,6 +1091,9 @@ select:focus-visible,
 }
 .employee-shift strong.off {
     color: #a16207;
+}
+.employee-shift strong.leave {
+    color: #6d28d9;
 }
 .employee-shift strong.unassigned {
     color: var(--rs-muted);

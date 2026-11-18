@@ -18,6 +18,7 @@ interface ScheduleDay {
     shift: Shift | null;
     is_day_off: boolean;
     day_off_reason: string | null;
+    leave_name?: string | null;
     locked_reason: string | null;
 }
 interface Schedule {
@@ -27,11 +28,16 @@ interface Schedule {
     days: ScheduleDay[];
 }
 
-const props = defineProps<{ employee: { id: number; nama: string; nik: string | null }; canEdit: boolean; shifts: Shift[] }>();
-const emit = defineEmits<{ close: [] }>();
+const props = defineProps<{
+    employee: { id: number; nama: string; nik: string | null };
+    canEdit: boolean;
+    shifts: Shift[];
+    initialDate?: string;
+}>();
+const emit = defineEmits<{ close: []; saved: [] }>();
 const closeButton = ref<HTMLButtonElement | null>(null);
 const schedule = ref<Schedule | null>(null);
-const month = ref('');
+const month = ref(props.initialDate?.slice(0, 7) ?? '');
 const loading = ref(true);
 const error = ref('');
 const selectedDate = ref('');
@@ -50,8 +56,10 @@ const monthLabel = computed(() =>
         : 'Memuat jadwal',
 );
 const offset = computed(() => (schedule.value ? (new Date(`${schedule.value.month}-01T00:00:00`).getDay() + 6) % 7 : 0));
-const scheduledCount = computed(() => schedule.value?.days.filter((day) => day.source === 'scheduled').length ?? 0);
-const dayOffCount = computed(() => schedule.value?.days.filter((day) => day.is_day_off).length ?? 0);
+const scheduledCount = computed(() => schedule.value?.days.filter((day) => !day.leave_name && day.source === 'scheduled').length ?? 0);
+const defaultCount = computed(() => schedule.value?.days.filter((day) => !day.leave_name && day.source === 'default').length ?? 0);
+const dayOffCount = computed(() => schedule.value?.days.filter((day) => !day.leave_name && day.is_day_off).length ?? 0);
+const leaveCount = computed(() => schedule.value?.days.filter((day) => !!day.leave_name).length ?? 0);
 const dateLabel = (date: string) =>
     new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T00:00:00`));
 const weekday = (date: string) => new Intl.DateTimeFormat('id-ID', { weekday: 'short' }).format(new Date(`${date}T00:00:00`));
@@ -76,7 +84,7 @@ const close = () => {
     if (!saving.value) emit('close');
 };
 const selectDay = async (day: ScheduleDay) => {
-    if (!props.canEdit || saving.value || day.locked_reason) return;
+    if (!props.canEdit || saving.value) return;
     selectedDate.value = day.date;
     selectedShift.value = day.shift?.id ?? '';
     saveError.value = '';
@@ -124,6 +132,7 @@ const save = async () => {
         success.value = data.message;
         saving.value = false;
         await clearEditor();
+        emit('saved');
     } catch (cause) {
         saveError.value = cause instanceof Error ? cause.message : 'Jadwal belum dapat disimpan.';
     } finally {
@@ -131,7 +140,7 @@ const save = async () => {
     }
 };
 
-const load = async (targetMonth?: string) => {
+const load = async (targetMonth?: string, targetDate?: string) => {
     if (saving.value) return;
     request?.abort();
     const current = new AbortController();
@@ -156,6 +165,8 @@ const load = async (targetMonth?: string) => {
         if (request !== current) return;
         schedule.value = data;
         month.value = data.month;
+        const day = data.days.find((day) => day.date === targetDate);
+        if (day) await selectDay(day);
     } catch (cause) {
         if (current.signal.aborted) return;
         error.value = cause instanceof Error ? cause.message : 'Jadwal belum dapat dimuat.';
@@ -176,7 +187,7 @@ const moveMonth = (direction: number) => {
     void load(month.value);
 };
 
-onMounted(() => void load());
+onMounted(() => load(props.initialDate?.slice(0, 7), props.initialDate));
 onBeforeUnmount(() => request?.abort());
 </script>
 
@@ -246,7 +257,7 @@ onBeforeUnmount(() => request?.abort());
                     <div v-else-if="error" class="schedule-state error-state" role="alert">
                         <AlertCircle />
                         <p>{{ error }}</p>
-                        <button type="button" class="retry-button" @click="load(month || undefined)">Coba kembali</button>
+                        <button type="button" class="retry-button" @click="load(month || undefined, initialDate)">Coba kembali</button>
                     </div>
                     <template v-else-if="schedule">
                         <p v-if="success" class="schedule-success" role="status">{{ success }}</p>
@@ -258,14 +269,18 @@ onBeforeUnmount(() => request?.abort());
                                 ><i class="scheduled-dot"></i><strong>{{ scheduledCount }}</strong> hari terjadwal</span
                             >
                             <span
-                                ><i class="default-dot"></i><strong>{{ schedule.days.length - scheduledCount }}</strong> hari mengikuti default</span
+                                ><i class="default-dot"></i><strong>{{ defaultCount }}</strong> hari mengikuti default</span
                             >
                             <span
                                 ><i class="off-dot"></i><strong>{{ dayOffCount }}</strong> hari libur</span
                             >
+                            <span v-if="leaveCount"
+                                ><i class="leave-dot"></i><strong>{{ leaveCount }}</strong> hari cuti</span
+                            >
                         </div>
                         <p v-if="!scheduledCount" class="schedule-note">
-                            Belum ada jadwal per tanggal pada bulan ini. Kalender menampilkan shift default pegawai.
+                            Belum ada jadwal per tanggal pada bulan ini.
+                            {{ leaveCount ? 'Tanggal di luar cuti mengikuti shift default pegawai.' : 'Kalender menampilkan shift default pegawai.' }}
                         </p>
                         <div class="calendar-weekdays" aria-hidden="true">
                             <span v-for="day in ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']" :key="day">{{ day }}</span>
@@ -282,12 +297,13 @@ onBeforeUnmount(() => request?.abort());
                                 :aria-pressed="canEdit ? selectedDate === day.date : undefined"
                                 class="calendar-day"
                                 :class="{
-                                    scheduled: day.source === 'scheduled',
-                                    'day-off': day.is_day_off,
+                                    scheduled: !day.leave_name && day.source === 'scheduled',
+                                    'day-off': !day.leave_name && day.is_day_off,
+                                    'on-leave': !!day.leave_name,
                                     today: day.date === schedule.today,
                                     selected: selectedDate === day.date,
                                 }"
-                                :aria-label="`${dateLabel(day.date)}: ${day.shift?.nama || 'Tanpa shift'}${day.is_day_off ? ', libur' : ''}${canEdit ? (day.locked_reason ? `. Terkunci: ${day.locked_reason}` : '. Ubah shift') : ''}`"
+                                :aria-label="`${dateLabel(day.date)}: ${day.leave_name || day.shift?.nama || 'Tanpa shift'}${day.leave_name ? ', cuti disetujui' : day.is_day_off ? ', libur' : ''}${canEdit ? (day.locked_reason ? `. Terkunci: ${day.locked_reason}` : '. Ubah shift') : ''}`"
                                 :title="canEdit ? day.locked_reason || 'Ubah shift pada tanggal ini' : undefined"
                                 @click="selectDay(day)"
                             >
@@ -297,18 +313,21 @@ onBeforeUnmount(() => request?.abort());
                                     ><small v-if="day.date === schedule.today" class="today-label">Hari ini</small>
                                 </div>
                                 <div class="day-shift">
-                                    <strong>{{ day.shift?.nama || (day.is_day_off ? 'Libur' : 'Tanpa shift') }}</strong>
-                                    <span v-if="day.is_day_off" class="shift-time">OFF / Libur</span>
+                                    <strong>{{ day.leave_name || day.shift?.nama || (day.is_day_off ? 'Libur' : 'Tanpa shift') }}</strong>
+                                    <span v-if="day.leave_name" class="shift-time">Cuti disetujui</span>
+                                    <span v-else-if="day.is_day_off" class="shift-time">OFF / Libur</span>
                                     <span v-else-if="day.shift" class="shift-time"
                                         ><Clock3 />{{ day.shift.jam_masuk }}–{{ day.shift.jam_keluar }}</span
                                     >
                                     <span v-else class="shift-time">Belum diatur</span>
-                                    <small v-if="day.day_off_reason && day.day_off_reason !== day.shift?.nama" class="holiday-reason">{{
-                                        day.day_off_reason
-                                    }}</small>
+                                    <small
+                                        v-if="!day.leave_name && day.day_off_reason && day.day_off_reason !== day.shift?.nama"
+                                        class="holiday-reason"
+                                        >{{ day.day_off_reason }}</small
+                                    >
                                 </div>
                                 <span class="day-source"
-                                    ><span>{{ day.source === 'scheduled' ? 'Per tanggal' : 'Default' }}</span
+                                    ><span>{{ day.leave_name ? 'Cuti disetujui' : day.source === 'scheduled' ? 'Per tanggal' : 'Default' }}</span
                                     ><span v-if="canEdit && day.locked_reason" class="day-locked"><LockKeyhole /> Terkunci</span></span
                                 >
                             </component>
@@ -319,7 +338,10 @@ onBeforeUnmount(() => request?.abort());
                 <form v-if="canEdit && selectedDay" class="schedule-editor" @submit.prevent="save">
                     <div class="editor-heading">
                         <span><Pencil /> Ubah shift pada</span><strong>{{ dateLabel(selectedDate) }}</strong
-                        ><small>Shift saat ini: {{ selectedDay.shift?.nama || 'Tanpa shift' }}</small>
+                        ><small
+                            >{{ selectedDay.leave_name ? 'Status' : 'Shift' }} saat ini:
+                            {{ selectedDay.leave_name || selectedDay.shift?.nama || 'Tanpa shift' }}</small
+                        >
                     </div>
                     <div ref="editorField" class="editor-field">
                         <span>Shift baru</span
@@ -330,7 +352,7 @@ onBeforeUnmount(() => request?.abort());
                             placeholder="Pilih shift"
                             placeholder-disabled
                             :search-threshold="0"
-                            :disabled="saving"
+                            :disabled="saving || !!selectedDay.locked_reason"
                             search-placeholder="Cari nama atau jam shift..."
                         />
                     </div>
@@ -340,6 +362,7 @@ onBeforeUnmount(() => request?.abort());
                             <LoaderCircle v-if="saving" class="spinner" /><Save v-else />{{ saving ? 'Menyimpan...' : 'Simpan shift' }}
                         </button>
                     </div>
+                    <p v-if="selectedDay.locked_reason" class="editor-error" role="alert"><LockKeyhole />{{ selectedDay.locked_reason }}</p>
                     <p v-if="saveError" class="editor-error" role="alert"><AlertCircle />{{ saveError }}</p>
                     <p class="editor-note">Perubahan hanya berlaku pada tanggal ini. Shift default pegawai tetap.</p>
                 </form>
@@ -560,6 +583,9 @@ input:focus-visible {
 .off-dot {
     background: #bf8a32;
 }
+.leave-dot {
+    background: #8b5cf6;
+}
 .schedule-note {
     margin: 0 0 16px;
     padding: 12px;
@@ -619,6 +645,10 @@ button.calendar-day:disabled {
 .calendar-day.day-off {
     border-color: #e9d6b2;
     background: #fff8eb;
+}
+.calendar-day.on-leave {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
 }
 .calendar-day.today {
     outline: 2px solid var(--rs-primary);

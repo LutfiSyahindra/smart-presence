@@ -16,6 +16,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -70,12 +71,22 @@ class ShiftAssignmentController extends Controller
         $data = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
             'date' => ['nullable', 'date_format:Y-m-d'],
+            'view' => ['nullable', Rule::in(['daily', 'monthly'])],
+            'unit_kerja_id' => [
+                'nullable',
+                Rule::when($request->input('unit_kerja_id') !== 'unassigned', ['integer', 'exists:unit_kerjas,id']),
+            ],
         ]);
         if (isset($data['month'], $data['date']) && ! str_starts_with($data['date'], $data['month'].'-')) {
             throw ValidationException::withMessages(['date' => 'Tanggal harus berada dalam bulan yang dipilih.']);
         }
 
-        return response()->json($this->service->calendar($data['month'] ?? null, $data['date'] ?? null))
+        return response()->json($this->service->calendar(
+            $data['month'] ?? null,
+            $data['date'] ?? null,
+            isset($data['unit_kerja_id']) ? ($data['unit_kerja_id'] === 'unassigned' ? 'unassigned' : (int) $data['unit_kerja_id']) : null,
+            $data['view'] ?? 'daily',
+        ))
             ->header('Cache-Control', 'private, no-store');
     }
 

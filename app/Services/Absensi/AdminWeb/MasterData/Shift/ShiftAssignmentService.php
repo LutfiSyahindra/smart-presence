@@ -9,6 +9,7 @@ use App\Models\Pegawai;
 use App\Models\PerubahanShiftRequest;
 use App\Models\Presensi;
 use App\Models\Shift;
+use App\Models\UnitKerja;
 use App\Services\Absensi\ShiftHolidayService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class ShiftAssignmentService
 {
-    public function calendar(?string $month = null, ?string $selectedDate = null): array
+    public function calendar(?string $month = null, ?string $selectedDate = null, int|string|null $unitId = null, string $view = 'daily'): array
     {
         $today = now()->toDateString();
         $month ??= substr($selectedDate ?? $today, 0, 7);
@@ -26,10 +27,12 @@ class ShiftAssignmentService
         $end = $start->endOfMonth();
         $selectedDate ??= str_starts_with($today, $month.'-') ? $today : $start->toDateString();
         $employees = Pegawai::query()->whereHas('user')
+            ->when($unitId === 'unassigned', fn ($query) => $query->whereNull('unit_kerja_id'))
+            ->when(is_int($unitId), fn ($query) => $query->where('unit_kerja_id', $unitId))
             ->with(['shift', 'unitKerja:id,nama', 'jabatan:id,nama'])
             ->orderBy('nama')->orderBy('nik')->orderBy('id')
             ->get(['id', 'nama', 'nik', 'shift_id', 'unit_kerja_id', 'jabatan_id']);
-        $records = Presensi::query()->whereHas('pegawai.user')->with('shift')
+        $records = Presensi::query()->whereIn('pegawai_id', $employees->modelKeys())->with('shift')
             ->whereBetween('tanggal_presensi', [$start->toDateString(), $end->toDateString()])
             ->get(['pegawai_id', 'tanggal_presensi', 'shift_id', 'is_day_off'])
             ->groupBy(fn (Presensi $record) => $record->tanggal_presensi->toDateString());
@@ -38,6 +41,7 @@ class ShiftAssignmentService
         $holidays = app(ShiftHolidayService::class);
         $days = [];
         $roster = [];
+        $schedules = [];
 
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
             $dateString = $date->toDateString();
@@ -51,12 +55,23 @@ class ShiftAssignmentService
                 $reason = $shift ? $dayOffReasons->get($shift->id) : null;
                 $isDayOff = (bool) ($record?->is_day_off || $reason !== null);
                 $day[$isDayOff ? 'day_off' : ($shift ? 'working' : 'unassigned')]++;
+                $schedule = [
+                    'date' => $dateString,
+                    'source' => $record ? 'scheduled' : 'default',
+                    'shift_id' => $shift ? (int) $shift->id : null,
+                    'is_day_off' => $isDayOff,
+                    'day_off_reason' => $isDayOff ? ($reason ?? 'Hari libur') : null,
+                ];
+                if ($view === 'monthly') {
+                    $schedules[$employee->id][] = $schedule;
+                }
 
                 if ($dateString === $selectedDate) {
                     $roster[] = [
                         'id' => (int) $employee->id,
                         'nama' => $employee->nama,
                         'nik' => $employee->nik,
+                        'unit_kerja_id' => $employee->unit_kerja_id,
                         'unit' => $employee->unitKerja?->nama,
                         'jabatan' => $employee->jabatan?->nama,
                         'source' => $record ? 'scheduled' : 'default',
@@ -73,9 +88,19 @@ class ShiftAssignmentService
             'month' => $month,
             'today' => $today,
             'selected_date' => $selectedDate,
+            'view' => $view,
+            'unit_kerja_id' => $unitId,
+            'units' => UnitKerja::query()->orderBy('nama')->get(['id', 'nama'])->all(),
             'total' => $employees->count(),
             'days' => $days,
-            'employees' => $roster,
+            'employees' => array_map(function (array $employee) use ($schedules, $view) {
+                if ($view === 'monthly') {
+                    $employee['schedule'] = $schedules[$employee['id']];
+                }
+
+                return $employee;
+            }, $roster),
+            'shifts' => $shifts->map(fn (Shift $shift) => $this->shiftRow($shift))->values()->all(),
         ];
     }
 

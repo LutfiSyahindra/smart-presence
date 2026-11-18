@@ -14,9 +14,18 @@ interface Employee {
     nama: string;
     nik: string | null;
     unit: string | null;
+    unit_kerja_id: number | null;
     jabatan: string | null;
     source: 'scheduled' | 'default';
     shift: { id: number; nama: string; jam_masuk: string; jam_keluar: string } | null;
+    is_day_off: boolean;
+    day_off_reason: string | null;
+    schedule?: Schedule[];
+}
+interface Schedule {
+    date: string;
+    source: 'scheduled' | 'default';
+    shift_id: number | null;
     is_day_off: boolean;
     day_off_reason: string | null;
 }
@@ -24,9 +33,13 @@ interface Calendar {
     month: string;
     today: string;
     selected_date: string;
+    view: 'daily' | 'monthly';
+    unit_kerja_id: number | 'unassigned' | null;
+    units: { id: number; nama: string }[];
     total: number;
     days: CalendarDay[];
     employees: Employee[];
+    shifts: NonNullable<Employee['shift']>[];
 }
 
 const data = ref<Calendar | null>(null);
@@ -36,36 +49,84 @@ const loading = ref(true);
 const error = ref('');
 const search = ref('');
 const status = ref('all');
+const view = ref<'daily' | 'monthly'>('monthly');
+const unitFilter = ref('');
 let request: AbortController | null = null;
+const fullDateFormatter = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const weekdayFormatter = new Intl.DateTimeFormat('id-ID', { weekday: 'short' });
+const dateLabels = computed(
+    () => new Map(data.value?.days.map((day) => [day.date, fullDateFormatter.format(new Date(`${day.date}T00:00:00`))]) ?? []),
+);
 
 const monthLabel = computed(() =>
     month.value
         ? new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(`${month.value}-01T00:00:00`))
         : 'Memuat kalender',
 );
-const dateLabel = (date: string) =>
-    new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T00:00:00`));
+const dateLabel = (date: string) => dateLabels.value.get(date) ?? fullDateFormatter.format(new Date(`${date}T00:00:00`));
 const offset = computed(() => (month.value ? (new Date(`${month.value}-01T00:00:00`).getDay() + 6) % 7 : 0));
 const selectedDay = computed(() => data.value?.days.find((day) => day.date === selectedDate.value));
+const unitLabel = computed(() =>
+    unitFilter.value === 'unassigned'
+        ? 'Tanpa unit kerja'
+        : (data.value?.units.find((unit) => String(unit.id) === unitFilter.value)?.nama ?? 'Semua unit kerja'),
+);
+const shiftsById = computed(() => new Map(data.value?.shifts.map((shift) => [shift.id, shift]) ?? []));
+const scheduleShift = (schedule: Schedule) => (schedule.shift_id === null ? undefined : shiftsById.value.get(schedule.shift_id));
+const scheduleLabel = (schedule: Schedule) => (schedule.is_day_off ? 'OFF / Libur' : (scheduleShift(schedule)?.nama ?? 'Belum diatur'));
+const scheduleDetails = (schedule: Schedule) => {
+    const shift = scheduleShift(schedule);
+    return schedule.is_day_off
+        ? (schedule.day_off_reason ?? 'Hari libur')
+        : shift
+          ? `${shift.jam_masuk}–${shift.jam_keluar}`
+          : 'Belum memiliki jadwal shift';
+};
+const scheduleTitle = (employee: Employee, schedule: Schedule) =>
+    `${employee.nama}, ${dateLabel(schedule.date)}: ${scheduleLabel(schedule)}, ${scheduleDetails(schedule)}. ${schedule.source === 'scheduled' ? 'Per tanggal' : 'Default'}`;
+const weekdayLabel = (date: string) => weekdayFormatter.format(new Date(`${date}T00:00:00`));
 const statusOptions = computed(() => [
     { value: 'all', label: 'Semua', count: data.value?.total ?? 0 },
     { value: 'working', label: 'Bertugas', count: selectedDay.value?.working ?? 0 },
     { value: 'off', label: 'OFF / Libur', count: selectedDay.value?.day_off ?? 0 },
     { value: 'unassigned', label: 'Belum diatur', count: selectedDay.value?.unassigned ?? 0 },
 ]);
-const employees = computed(() => {
+const matchingEmployees = computed(() => {
     const query = search.value.trim().toLocaleLowerCase('id-ID');
     return (data.value?.employees ?? []).filter((employee) => {
-        if (status.value === 'working' && (employee.is_day_off || !employee.shift)) return false;
-        if (status.value === 'off' && !employee.is_day_off) return false;
-        if (status.value === 'unassigned' && (employee.shift || employee.is_day_off)) return false;
         return (
             !query ||
-            [employee.nama, employee.nik, employee.unit, employee.jabatan, employee.shift?.nama].some((value) =>
-                value?.toLocaleLowerCase('id-ID').includes(query),
-            )
+            [
+                employee.nama,
+                employee.nik,
+                employee.unit,
+                employee.jabatan,
+                employee.shift?.nama,
+                ...(view.value === 'monthly'
+                    ? (employee.schedule ?? []).flatMap((schedule) => [scheduleLabel(schedule), scheduleShift(schedule)?.nama])
+                    : []),
+            ].some((value) => value?.toLocaleLowerCase('id-ID').includes(query))
         );
     });
+});
+const employees = computed(() =>
+    matchingEmployees.value.filter((employee) => {
+        if (status.value === 'working') return !employee.is_day_off && !!employee.shift;
+        if (status.value === 'off') return employee.is_day_off;
+        if (status.value === 'unassigned') return !employee.shift && !employee.is_day_off;
+        return true;
+    }),
+);
+const unitGroups = computed(() => {
+    const groups = new Map<number | null, { id: number | null; nama: string; employees: Employee[] }>();
+    for (const employee of matchingEmployees.value) {
+        const group = groups.get(employee.unit_kerja_id) ?? { id: employee.unit_kerja_id, nama: employee.unit ?? 'Tanpa unit kerja', employees: [] };
+        group.employees.push(employee);
+        groups.set(group.id, group);
+    }
+    return [...groups.values()].sort((first, second) =>
+        first.id === null ? 1 : second.id === null ? -1 : first.nama.localeCompare(second.nama, 'id-ID'),
+    );
 });
 
 const load = async (targetMonth = month.value, targetDate = selectedDate.value) => {
@@ -80,6 +141,8 @@ const load = async (targetMonth = month.value, targetDate = selectedDate.value) 
         const params = new URLSearchParams();
         if (targetMonth) params.set('month', targetMonth);
         if (targetDate) params.set('date', targetDate);
+        params.set('view', view.value);
+        if (unitFilter.value) params.set('unit_kerja_id', unitFilter.value);
         const response = await fetch(`/absensi/admin-web/master-data/shift/assign/calendar?${params}`, {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
@@ -120,6 +183,17 @@ const moveMonth = (direction: number) => {
 const today = () => {
     if (data.value) void load(data.value.today.slice(0, 7), data.value.today);
 };
+const changeView = (target: 'daily' | 'monthly') => {
+    if (target === view.value) return;
+    view.value = target;
+    void load();
+};
+const openDate = (date: string) => {
+    view.value = 'daily';
+    search.value = '';
+    status.value = 'all';
+    void load(month.value, date);
+};
 const refresh = () => void load();
 defineExpose({ refresh });
 onMounted(refresh);
@@ -132,8 +206,8 @@ onBeforeUnmount(() => request?.abort());
             <div class="calendar-title">
                 <span class="calendar-icon"><CalendarDays /></span>
                 <div>
-                    <h2 id="shift-calendar-title">Kalender shift pegawai</h2>
-                    <p>Pilih tanggal untuk melihat siapa saja yang bertugas beserta shiftnya.</p>
+                    <h2 id="shift-calendar-title">Kalender shift per unit</h2>
+                    <p>Lihat jadwal seluruh pegawai per unit dalam satu bulan, atau periksa rincian per tanggal.</p>
                 </div>
             </div>
             <button type="button" class="calendar-button" :disabled="loading" @click="refresh"><RefreshCw /> Muat ulang</button>
@@ -156,12 +230,138 @@ onBeforeUnmount(() => request?.abort());
             </div>
         </div>
 
+        <div class="calendar-filters">
+            <label class="unit-filter" for="shift-calendar-unit">
+                <span>Unit kerja</span>
+                <select id="shift-calendar-unit" v-model="unitFilter" :disabled="loading" @change="load()">
+                    <option value="">Semua unit kerja</option>
+                    <option v-for="unit in data?.units ?? []" :key="unit.id" :value="String(unit.id)">{{ unit.nama }}</option>
+                    <option value="unassigned">Tanpa unit kerja</option>
+                </select>
+            </label>
+            <label class="roster-search calendar-search">
+                <Search aria-hidden="true" />
+                <span class="sr-only">Cari nama, NIK, unit, jabatan, atau shift</span>
+                <input v-model="search" type="search" placeholder="Cari pegawai, NIK, atau shift..." />
+            </label>
+            <div class="view-switch" role="group" aria-label="Tampilan kalender shift">
+                <button
+                    type="button"
+                    :class="{ active: view === 'monthly' }"
+                    :aria-pressed="view === 'monthly'"
+                    :disabled="loading"
+                    @click="changeView('monthly')"
+                >
+                    Jadwal sebulan
+                </button>
+                <button
+                    type="button"
+                    :class="{ active: view === 'daily' }"
+                    :aria-pressed="view === 'daily'"
+                    :disabled="loading"
+                    @click="changeView('daily')"
+                >
+                    Per tanggal
+                </button>
+            </div>
+        </div>
+
         <div v-if="error" class="calendar-message" role="alert">
             <p>{{ error }}</p>
             <button type="button" class="calendar-button" @click="refresh">Coba kembali</button>
         </div>
-        <div v-else-if="!data || data.month !== month" class="calendar-message" role="status">
+        <div
+            v-else-if="!data || data.month !== month || data.view !== view || String(data.unit_kerja_id ?? '') !== unitFilter"
+            class="calendar-message"
+            role="status"
+        >
             <LoaderCircle class="spinning" /> Memuat kalender shift...
+        </div>
+        <div v-else-if="view === 'monthly'" class="monthly-panel">
+            <header class="monthly-heading">
+                <div>
+                    <h3>{{ unitLabel }}</h3>
+                    <p role="status">
+                        {{ matchingEmployees.length.toLocaleString('id-ID') }} dari {{ data.total.toLocaleString('id-ID') }} pegawai ·
+                        {{ monthLabel }}
+                    </p>
+                </div>
+                <div class="monthly-legend" aria-label="Keterangan jadwal">
+                    <span><i class="scheduled-key"></i> Per tanggal</span>
+                    <span><i class="default-key"></i> Default</span>
+                    <span><i class="off-key"></i> OFF / Libur</span>
+                    <span>— Belum diatur</span>
+                </div>
+            </header>
+            <div v-if="loading" class="calendar-message" role="status"><LoaderCircle class="spinning" /> Memuat jadwal pegawai...</div>
+            <div v-else-if="!matchingEmployees.length" class="calendar-message" role="status">
+                <UsersRound />
+                <p>{{ !data.total ? 'Belum ada pegawai berakun pada unit ini.' : 'Tidak ada pegawai yang sesuai dengan pencarian ini.' }}</p>
+            </div>
+            <div v-else class="monthly-scroll" role="region" :aria-label="`Jadwal shift sebulan: ${unitLabel}, ${monthLabel}`" tabindex="0">
+                <table class="monthly-table">
+                    <caption class="sr-only">
+                        Jadwal shift seluruh pegawai per unit. Pilih sel jadwal untuk melihat rincian tanggal tersebut.
+                    </caption>
+                    <thead>
+                        <tr>
+                            <th scope="col" class="employee-column">Pegawai</th>
+                            <th
+                                v-for="day in data.days"
+                                :key="day.date"
+                                scope="col"
+                                :class="{ 'today-column': day.date === data.today }"
+                                :aria-current="day.date === data.today ? 'date' : undefined"
+                            >
+                                <span>{{ weekdayLabel(day.date) }}</span
+                                ><strong>{{ day.day }}</strong>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody v-for="group in unitGroups" :key="group.id ?? 'unassigned'">
+                        <tr class="unit-group-row">
+                            <th scope="rowgroup" :colspan="data.days.length + 1">
+                                <span
+                                    >{{ group.nama }} <small>{{ group.employees.length }} pegawai</small></span
+                                >
+                            </th>
+                        </tr>
+                        <tr v-for="employee in group.employees" :key="employee.id">
+                            <th scope="row" class="employee-column">
+                                <strong>{{ employee.nama }}</strong
+                                ><small>{{ [employee.nik, employee.jabatan].filter(Boolean).join(' · ') || 'NIK belum diisi' }}</small>
+                            </th>
+                            <td
+                                v-for="schedule in employee.schedule ?? []"
+                                :key="schedule.date"
+                                :class="{ 'today-column': schedule.date === data.today }"
+                            >
+                                <button
+                                    type="button"
+                                    class="schedule-cell"
+                                    :class="{
+                                        scheduled: schedule.source === 'scheduled',
+                                        off: schedule.is_day_off,
+                                        unassigned: !schedule.shift_id && !schedule.is_day_off,
+                                    }"
+                                    :title="scheduleTitle(employee, schedule)"
+                                    :aria-label="scheduleTitle(employee, schedule)"
+                                    @click="openDate(schedule.date)"
+                                >
+                                    <strong>{{ schedule.shift_id || schedule.is_day_off ? scheduleLabel(schedule) : '—' }}</strong>
+                                    <small v-if="schedule.is_day_off">{{ scheduleShift(schedule)?.nama ?? 'Libur' }}</small>
+                                    <small v-else-if="scheduleShift(schedule)">{{ scheduleDetails(schedule) }}</small>
+                                    <small v-else>Belum diatur</small>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="calendar-note">
+                Geser tabel untuk melihat semua tanggal. Pilih sel jadwal untuk membuka rincian per tanggal. Jadwal per tanggal diprioritaskan;
+                tanggal lainnya mengikuti shift default dan aturan hari libur.
+            </p>
         </div>
         <div v-else class="calendar-body">
             <div class="month-panel">
@@ -195,7 +395,7 @@ onBeforeUnmount(() => request?.abort());
                 <header class="roster-heading">
                     <span>Jadwal pada tanggal</span>
                     <h3>{{ dateLabel(selectedDate) }}</h3>
-                    <p>{{ data.total.toLocaleString('id-ID') }} pegawai berakun</p>
+                    <p>{{ data.total.toLocaleString('id-ID') }} pegawai berakun · {{ unitLabel }}</p>
                 </header>
                 <div class="roster-filters" role="group" aria-label="Filter status jadwal">
                     <button
@@ -209,11 +409,6 @@ onBeforeUnmount(() => request?.abort());
                         {{ option.label }} <span>{{ option.count }}</span>
                     </button>
                 </div>
-                <label class="roster-search">
-                    <Search aria-hidden="true" />
-                    <span class="sr-only">Cari nama, NIK, unit, jabatan, atau shift</span>
-                    <input v-model="search" type="search" placeholder="Cari pegawai, unit, atau shift..." />
-                </label>
                 <div v-if="loading" class="calendar-message" role="status"><LoaderCircle class="spinning" /> Memuat jadwal pegawai...</div>
                 <div v-else-if="!employees.length" class="calendar-message" role="status">
                     <UsersRound />
@@ -313,6 +508,236 @@ h2 {
     background: var(--rs-surface);
     border-bottom: 1px solid var(--rs-border);
 }
+.calendar-filters {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 18px 26px;
+    border-bottom: 1px solid var(--rs-border);
+}
+.unit-filter {
+    display: flex;
+    flex: 1 1 210px;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: var(--rs-muted);
+    font-size: 11px;
+    font-weight: 650;
+}
+.unit-filter select {
+    width: 100%;
+    min-width: 0;
+    min-height: 39px;
+    padding: 8px 32px 8px 10px;
+    border: 1px solid var(--rs-border);
+    border-radius: 9px;
+    color: var(--rs-ink);
+    background-color: white;
+    font-size: 12px;
+}
+.calendar-search {
+    flex: 1 1 220px;
+}
+.view-switch {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--rs-border);
+    border-radius: 10px;
+    background: var(--rs-surface);
+}
+.view-switch button {
+    min-height: 32px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    color: var(--rs-muted);
+    font-size: 11px;
+    font-weight: 650;
+}
+.view-switch button.active {
+    color: white;
+    background: var(--rs-primary);
+}
+.monthly-panel {
+    min-width: 0;
+    padding: 22px 24px;
+}
+.monthly-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+.monthly-heading h3 {
+    color: var(--rs-primary-deep);
+    font-size: 16px;
+    font-weight: 750;
+}
+.monthly-heading p {
+    margin-top: 5px;
+    color: var(--rs-muted);
+    font-size: 11px;
+}
+.monthly-legend,
+.monthly-legend span {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    color: var(--rs-muted);
+    font-size: 10px;
+}
+.monthly-legend {
+    gap: 12px;
+}
+.monthly-legend i {
+    width: 9px;
+    height: 9px;
+    border: 1px solid var(--rs-border);
+    border-radius: 3px;
+    background: var(--rs-surface);
+}
+.monthly-legend .scheduled-key {
+    border-color: var(--rs-primary);
+    background: var(--rs-primary-soft);
+}
+.monthly-legend .off-key {
+    border-color: #fcd34d;
+    background: #fffbeb;
+}
+.monthly-scroll {
+    max-height: 620px;
+    overflow: auto;
+    isolation: isolate;
+    overscroll-behavior: contain;
+    border: 1px solid var(--rs-border);
+    border-radius: 12px;
+}
+.monthly-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    text-align: left;
+}
+.monthly-table th,
+.monthly-table td {
+    border-right: 1px solid var(--rs-border);
+    border-bottom: 1px solid var(--rs-border);
+}
+.monthly-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    min-width: 100px;
+    padding: 10px 6px;
+    text-align: center;
+    color: var(--rs-muted);
+    background: var(--rs-surface);
+    font-size: 10px;
+}
+.monthly-table thead th strong {
+    display: block;
+    margin-top: 3px;
+    color: var(--rs-primary-deep);
+    font-size: 15px;
+}
+.monthly-table .employee-column {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 200px;
+    min-width: 200px;
+    max-width: 200px;
+    padding: 12px;
+    text-align: left;
+    background: white;
+    overflow-wrap: anywhere;
+}
+.monthly-table thead .employee-column {
+    z-index: 3;
+    background: var(--rs-surface);
+}
+.monthly-table tbody .employee-column strong {
+    display: block;
+    color: var(--rs-ink);
+    font-size: 12px;
+    font-weight: 650;
+}
+.monthly-table .employee-column small {
+    display: block;
+    margin-top: 5px;
+    color: var(--rs-muted);
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.6;
+}
+.monthly-table .unit-group-row th {
+    padding: 9px 12px;
+    color: var(--rs-primary-deep);
+    background: var(--rs-primary-soft);
+    font-size: 11px;
+}
+.unit-group-row th > span {
+    position: sticky;
+    left: 12px;
+}
+.unit-group-row small {
+    margin-left: 8px;
+    font-size: 10px;
+    font-weight: 400;
+}
+.monthly-table td {
+    padding: 4px;
+}
+.monthly-table .today-column {
+    background: var(--rs-primary-soft);
+}
+.schedule-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
+    min-height: 51px;
+    padding: 7px 5px;
+    border: 1px solid var(--rs-border);
+    border-radius: 7px;
+    color: var(--rs-primary-deep);
+    background: var(--rs-surface);
+    text-align: center;
+}
+.schedule-cell strong {
+    display: block;
+    width: 82px;
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.schedule-cell small {
+    font-size: 9px;
+    white-space: nowrap;
+}
+.schedule-cell.scheduled {
+    border-color: var(--rs-primary);
+    background: var(--rs-primary-soft);
+}
+.schedule-cell.off {
+    color: #a16207;
+    background: #fffbeb;
+}
+.schedule-cell.unassigned {
+    color: var(--rs-muted);
+    background: white;
+}
+.schedule-cell:hover {
+    outline: 1px solid var(--rs-primary);
+}
 .month-navigation h3 {
     min-width: 155px;
     text-align: center;
@@ -356,6 +781,8 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
+.monthly-scroll:focus-visible,
 .roster-list:focus-visible {
     outline: 2px solid var(--rs-primary);
     outline-offset: 3px;
@@ -696,6 +1123,26 @@ input:focus-visible,
     .calendar-toolbar {
         gap: 14px;
         padding: 14px 16px;
+    }
+    .calendar-filters {
+        gap: 12px;
+        padding: 14px 16px;
+    }
+    .calendar-search,
+    .unit-filter,
+    .view-switch {
+        flex: 1 1 100%;
+    }
+    .view-switch button {
+        flex: 1;
+    }
+    .monthly-panel {
+        padding: 18px 14px;
+    }
+    .monthly-table .employee-column {
+        width: 150px;
+        min-width: 150px;
+        max-width: 150px;
     }
     .month-navigation,
     .month-actions {

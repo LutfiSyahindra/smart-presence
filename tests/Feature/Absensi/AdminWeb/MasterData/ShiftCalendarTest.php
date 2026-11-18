@@ -6,6 +6,7 @@ use App\Models\HariLibur;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
+use App\Models\UnitKerja;
 use App\Models\User;
 use App\Support\AccessPermission;
 use Database\Seeders\AuthorizationSeeder;
@@ -123,6 +124,85 @@ class ShiftCalendarTest extends TestCase
         $this->getJson(self::URL.'?date=2028-02-29')->assertOk()
             ->assertJsonPath('month', '2028-02')
             ->assertJsonPath('selected_date', '2028-02-29');
+    }
+
+    public function test_monthly_calendar_filters_all_employees_and_daily_totals_by_unit_without_writing(): void
+    {
+        $icu = UnitKerja::query()->create(['kode' => 'ICU', 'nama' => 'ICU']);
+        $igd = UnitKerja::query()->create(['kode' => 'IGD', 'nama' => 'IGD']);
+        $off = Shift::query()->create(['nama' => 'DAYOFF', 'is_day_off' => true]);
+        $employee = $this->employee('Aminah', $this->morning);
+        $employee->update(['unit_kerja_id' => $icu->id]);
+        $unassigned = $this->employee('Budi');
+        $unassigned->update(['unit_kerja_id' => $icu->id]);
+        for ($index = 0; $index < 10; $index++) {
+            $this->employee('Pegawai '.$index, $this->morning)->update(['unit_kerja_id' => $icu->id]);
+        }
+        $outside = $this->employee('Unit lain', $this->night);
+        $outside->update(['unit_kerja_id' => $igd->id]);
+        $this->employee('Tanpa unit', $this->night);
+        Pegawai::query()->create(['nama' => 'Tanpa akun', 'unit_kerja_id' => $icu->id, 'shift_id' => $this->morning->id]);
+        Presensi::query()->create(['pegawai_id' => $employee->id, 'tanggal_presensi' => '2026-11-10', 'shift_id' => $this->night->id]);
+        Presensi::query()->create(['pegawai_id' => $employee->id, 'tanggal_presensi' => '2026-11-11', 'shift_id' => $off->id, 'is_day_off' => true]);
+        Presensi::query()->create(['pegawai_id' => $outside->id, 'tanggal_presensi' => '2026-11-10', 'shift_id' => $off->id, 'is_day_off' => true]);
+
+        $response = $this->actingAs($this->viewer)->getJson(self::URL.'?view=monthly&unit_kerja_id='.$icu->id.'&search=missing&page=2')
+            ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('view', 'monthly')->assertJsonPath('unit_kerja_id', $icu->id)
+            ->assertJsonCount(2, 'units')->assertJsonPath('units.0.nama', 'ICU')->assertJsonPath('units.1.nama', 'IGD')
+            ->assertJsonPath('total', 12)->assertJsonCount(12, 'employees')
+            ->assertJsonPath('days.9.working', 11)->assertJsonPath('days.9.day_off', 0)->assertJsonPath('days.9.unassigned', 1)
+            ->assertJsonPath('days.10.working', 10)->assertJsonPath('days.10.day_off', 1)
+            ->assertJsonPath('employees.0.unit_kerja_id', $icu->id)
+            ->assertJsonCount(30, 'employees.0.schedule')
+            ->assertJsonPath('employees.0.schedule.0.date', '2026-11-01')
+            ->assertJsonPath('employees.0.schedule.0.shift_id', $this->morning->id)
+            ->assertJsonPath('employees.0.schedule.0.source', 'default')
+            ->assertJsonPath('employees.0.schedule.9.shift_id', $this->night->id)
+            ->assertJsonPath('employees.0.schedule.9.source', 'scheduled')
+            ->assertJsonPath('employees.0.schedule.10.shift_id', $off->id)
+            ->assertJsonPath('employees.0.schedule.10.is_day_off', true)
+            ->assertJsonPath('employees.0.schedule.10.day_off_reason', 'DAYOFF')
+            ->assertJsonPath('employees.1.schedule.0.shift_id', null)
+            ->assertJsonPath('employees.1.schedule.0.is_day_off', false);
+        $this->assertCount(12, array_unique(array_column($response->json('employees'), 'id')));
+        $this->assertEqualsCanonicalizing([$this->morning->id, $this->night->id, $off->id], array_column($response->json('shifts'), 'id'));
+        $this->getJson(self::URL.'?unit_kerja_id='.$igd->id)->assertOk()
+            ->assertJsonPath('view', 'daily')->assertJsonPath('total', 1)
+            ->assertJsonPath('days.9.day_off', 1)->assertJsonPath('employees.0.nama', 'Unit lain')
+            ->assertJsonMissingPath('employees.0.schedule');
+        $this->assertSame($this->morning->id, $employee->refresh()->shift_id);
+        $this->assertDatabaseCount('presensis', 3);
+    }
+
+    public function test_monthly_calendar_supports_all_units_missing_units_empty_units_and_holiday_rules(): void
+    {
+        $unit = UnitKerja::query()->create(['kode' => 'EMPTY', 'nama' => 'Unit kosong']);
+        $this->morning->update(['libur_minggu' => true, 'libur_nasional' => true]);
+        $employee = $this->employee('Aminah', $this->morning);
+        HariLibur::query()->create(['tanggal' => '2028-02-03', 'nama' => 'Libur pengujian', 'jenis' => HariLibur::NASIONAL]);
+        Presensi::query()->create(['pegawai_id' => $employee->id, 'tanggal_presensi' => '2028-02-06', 'shift_id' => $this->night->id]);
+
+        $this->actingAs($this->viewer)->getJson(self::URL.'?view=monthly&month=2028-02')
+            ->assertOk()->assertJsonPath('unit_kerja_id', null)->assertJsonPath('total', 1)
+            ->assertJsonCount(29, 'employees.0.schedule')
+            ->assertJsonPath('employees.0.schedule.2.is_day_off', true)
+            ->assertJsonPath('employees.0.schedule.2.day_off_reason', 'Libur pengujian')
+            ->assertJsonPath('employees.0.schedule.5.is_day_off', false)
+            ->assertJsonPath('employees.0.schedule.5.source', 'scheduled')
+            ->assertJsonPath('employees.0.schedule.12.is_day_off', true)
+            ->assertJsonPath('employees.0.schedule.28.date', '2028-02-29');
+        $this->getJson(self::URL.'?view=monthly&unit_kerja_id=unassigned')->assertOk()
+            ->assertJsonPath('unit_kerja_id', 'unassigned')->assertJsonPath('total', 1)
+            ->assertJsonPath('employees.0.unit_kerja_id', null);
+        $this->getJson(self::URL.'?view=monthly&unit_kerja_id='.$unit->id)->assertOk()
+            ->assertJsonPath('total', 0)->assertJsonCount(0, 'employees')->assertJsonCount(30, 'days')
+            ->assertJsonPath('days.9.working', 0)->assertJsonPath('days.9.day_off', 0)->assertJsonPath('days.9.unassigned', 0);
+        foreach (['missing', '-1', '1.5', '999999', 'unassigned-extra'] as $unitId) {
+            $this->getJson(self::URL.'?unit_kerja_id='.$unitId)->assertUnprocessable()->assertJsonValidationErrors('unit_kerja_id');
+        }
+        $this->getJson(self::URL.'?view=invalid')->assertUnprocessable()->assertJsonValidationErrors('view');
+        $this->assertDatabaseCount('presensis', 1);
     }
 
     public function test_calendar_requires_view_permission_and_valid_month_and_date(): void

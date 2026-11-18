@@ -1,5 +1,9 @@
 # Assign shift massal melalui Excel
 
+Di bagian **Kalender shift per unit** pada menu **Assign Shift**, gunakan tampilan **Jadwal sebulan** untuk melihat seluruh jadwal pegawai berakun dalam tabel: satu baris per pegawai dan satu kolom per tanggal. Pilih **Unit kerja** untuk membatasi jadwal ke satu unit, **Semua unit kerja** untuk melihat pegawai dikelompokkan berdasarkan unit, atau **Tanpa unit kerja** untuk pegawai yang belum ditempatkan. Semua pegawai yang sesuai ditampilkan, termasuk pegawai di halaman direktori lainnya. Pencarian dapat digunakan untuk nama, NIK, jabatan, unit, atau nama shift dalam bulan tersebut.
+
+Gunakan panah, pemilih bulan, atau **Hari ini** untuk berpindah periode. Geser tabel secara horizontal untuk melihat seluruh tanggal; kolom identitas pegawai tetap terlihat. Setiap sel menampilkan nama dan jam shift, **OFF / Libur**, atau **Belum diatur**. Jadwal **Per tanggal** memiliki penanda batas hijau dan diprioritaskan terhadap **Default**; aturan libur shift juga diperhitungkan. Arahkan kursor atau fokus ke sel untuk membaca rincian lengkap. Klik sel atau pilih **Per tanggal** untuk membuka kalender harian dan daftar pegawai; ringkasan bertugas, libur, dan belum diatur mengikuti unit yang dipilih. Fitur ini memerlukan izin melihat shift (`SHIFT_VIEW`) dan hanya membaca jadwal.
+
 Di **Admin Web → Master Data → Shift → Assign Shift**, klik tombol **Assign Batch** di header direktori pegawai. Modal memandu empat langkah berikut:
 
 1. Pilih bulan serta tanggal awal dan akhir dalam bulan tersebut.

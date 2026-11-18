@@ -76,6 +76,16 @@ test('image ranking favours visible detail over blur and clipped exposure', () =
     }
 });
 
+test('camera requests a portrait front view with flexible constraints', () => {
+    const { attendanceCameraConstraints } = runtime();
+    const constraints = attendanceCameraConstraints();
+    assert.equal(constraints.audio, false);
+    assert.equal(constraints.video.facingMode.ideal, 'user');
+    assert.equal(constraints.video.width.ideal / constraints.video.height.ideal, 3 / 4);
+    assert.equal(constraints.video.aspectRatio.ideal, 3 / 4);
+    assert.ok(Object.values(constraints.video).every((value) => !('exact' in value)));
+});
+
 test('one press uploads the clearest full frame rather than the initial blurred frame', async () => {
     const state = runtime();
     const file = await state.capture();

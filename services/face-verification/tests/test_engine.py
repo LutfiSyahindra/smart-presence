@@ -565,3 +565,34 @@ def test_anti_spoof_rejections_log_the_score_before_matching(
     assert caplog.records[-1].face_verification["anti_spoof_score"] == 0.72
     assert not fake.represent_calls
     assert not fake.verify_calls
+
+
+@pytest.mark.parametrize("is_real", [False, True])
+def test_a_large_face_gets_distance_guidance_only_if_anti_spoofing_rejects(
+    caplog: pytest.LogCaptureFixture, is_real: bool,
+) -> None:
+    fake = FakeDeepFace()
+    fake.detections = [[{
+        "face": np.zeros((160, 160, 3), dtype=np.float32),
+        "facial_area": {"x": 200, "y": 100, "w": 736, "h": 1056},
+        "is_real": is_real, "antispoof_score": 0.9784639477729797,
+    }]]
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+    engine._deepface = fake
+    photo = image_bytes(1280, 1280)
+
+    if is_real:
+        assert engine.verify(photo, photo, minimum_similarity=5.0)["verified"] is True
+        assert len(fake.verify_calls) == 1
+    else:
+        with pytest.raises(FaceServiceError, match="kepala dan sebagian bahu") as caught:
+            engine.verify(photo, photo, minimum_similarity=5.0)
+        assert caught.value.code == "face_too_close"
+        assert caught.value.status_code == 422
+        assert len(fake.extract_calls) == 1
+        assert not fake.represent_calls
+        assert not fake.verify_calls
+        diagnostics = caplog.records[-1].face_verification
+        assert diagnostics["reason"] == "face_too_close"
+        assert diagnostics["available_context_scale"] == pytest.approx(1279 / 1056)
+        assert diagnostics["anti_spoof_score"] == 0.9784639477729797

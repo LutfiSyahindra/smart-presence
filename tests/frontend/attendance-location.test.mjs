@@ -114,6 +114,7 @@ function load({
             },
         },
         '@/lib/attendance-camera': {
+            attendanceCameraConstraints: () => ({ audio: false, video: true }),
             captureAttendancePhoto: async (_video, filename) => new File(['photo'], filename, { type: 'image/jpeg' }),
         },
         '@/lib/mobile-navigation': {

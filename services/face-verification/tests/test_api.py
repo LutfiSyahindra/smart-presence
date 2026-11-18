@@ -91,6 +91,20 @@ def test_verify_returns_a_stable_spoof_error() -> None:
         "error": {"code": "spoof_detected", "message": "Spoof terdeteksi."}
     }
 
+def test_verify_returns_a_retake_error_for_a_face_that_is_too_close() -> None:
+    class CloseFaceEngine(FakeEngine):
+        def verify(self, _: bytes, __: bytes, *, minimum_similarity: float | None = None) -> dict[str, Any]:
+            raise FaceServiceError("face_too_close", "Jauhkan HP sampai kepala dan sebagian bahu terlihat.")
+
+    with TestClient(create_app(settings(), CloseFaceEngine())) as client:
+        response = client.post(
+            "/api/v1/verify", headers={"Authorization": f"Bearer {TOKEN}"},
+            files=files(), data={"minimum_similarity": "5"},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "face_too_close"
+
 
 def test_verify_passes_each_requests_similarity_to_the_engine() -> None:
     engine = FakeEngine()

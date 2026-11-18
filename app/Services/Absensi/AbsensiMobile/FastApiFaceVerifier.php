@@ -125,6 +125,10 @@ final class FastApiFaceVerifier implements FaceVerifier, ProfilePhotoValidator
                 FaceVerificationException::FACE_NOT_FOUND,
                 is_string($message) ? $message : 'Wajah tidak ditemukan pada foto clock-in.',
             ),
+            FaceVerificationException::FACE_TOO_CLOSE => new FaceVerificationException(
+                FaceVerificationException::FACE_TOO_CLOSE,
+                'Wajah terlalu dekat untuk pemeriksaan keaslian. Jauhkan HP sampai kepala dan sebagian bahu terlihat, lalu coba kembali.',
+            ),
             FaceVerificationException::MULTIPLE_FACES => new FaceVerificationException(
                 FaceVerificationException::MULTIPLE_FACES,
                 is_string($message) ? $message : 'Foto clock-in memuat lebih dari satu wajah.',

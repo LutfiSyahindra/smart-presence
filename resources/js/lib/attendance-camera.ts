@@ -2,6 +2,18 @@ const MAXIMUM_SIDE = 1280;
 const SAMPLE_COUNT = 4;
 const SAMPLE_INTERVAL_MS = 150;
 
+export function attendanceCameraConstraints(): MediaStreamConstraints {
+    return {
+        audio: false,
+        video: {
+            facingMode: { ideal: 'user' },
+            width: { ideal: 960 },
+            height: { ideal: 1280 },
+            aspectRatio: { ideal: 3 / 4 },
+        },
+    };
+}
+
 // Rank image quality only. This is not face detection or a liveness decision.
 export function cameraFrameScore(pixels: Uint8ClampedArray, width: number, height: number): number {
     const gray = new Float32Array(width * height);

@@ -11,6 +11,8 @@ class FaceVerificationException extends RuntimeException
 
     public const FACE_NOT_FOUND = 'face_not_found';
 
+    public const FACE_TOO_CLOSE = 'face_too_close';
+
     public const MULTIPLE_FACES = 'multiple_faces';
 
     public const SPOOF_DETECTED = 'spoof_detected';

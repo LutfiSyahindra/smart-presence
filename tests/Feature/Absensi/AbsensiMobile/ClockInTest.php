@@ -374,6 +374,20 @@ class ClockInTest extends TestCase
         $this->assertDatabaseCount('presensis', 0);
     }
 
+    public function test_clock_in_explains_when_the_face_is_too_close(): void
+    {
+        $this->mock(FaceVerifier::class)->shouldReceive('compare')->once()
+            ->andThrow(new FaceVerificationException(FaceVerificationException::FACE_TOO_CLOSE, 'Too close'));
+
+        $this->actingAs($this->user)
+            ->post('/absensi/mobile/clock-in', $this->payload())
+            ->assertSessionHasErrors([
+                'photo' => 'Wajah terlalu dekat untuk pemeriksaan keaslian. Jauhkan HP sampai kepala dan sebagian bahu terlihat, lalu coba kembali.',
+            ]);
+
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
     public function test_clock_in_fails_closed_when_face_service_is_unavailable(): void
     {
         $this->mock(FaceVerifier::class, function (MockInterface $mock): void {

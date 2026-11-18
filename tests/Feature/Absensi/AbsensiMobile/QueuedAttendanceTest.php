@@ -236,6 +236,20 @@ class QueuedAttendanceTest extends TestCase
         $this->assertStringContainsString('Pemeriksaan keaslian wajah belum berhasil', $submission->fresh()->error_message);
     }
 
+    public function test_a_close_face_gets_distance_guidance_without_creating_attendance(): void
+    {
+        $submission = $this->submit();
+        $this->mock(FaceVerifier::class)->shouldReceive('compare')->once()
+            ->andThrow(new FaceVerificationException(FaceVerificationException::FACE_TOO_CLOSE, 'Too close'));
+
+        $this->process($submission);
+
+        $this->assertSame('failed', $submission->fresh()->status);
+        $this->assertSame(1, $submission->fresh()->attempts);
+        $this->assertStringContainsString('Jauhkan HP sampai kepala dan sebagian bahu terlihat', $submission->fresh()->error_message);
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
     public function test_repeated_post_with_consumed_proof_returns_the_existing_submission(): void
     {
         $payload = $this->payload();

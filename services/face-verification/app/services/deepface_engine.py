@@ -285,11 +285,18 @@ class DeepFaceEngine:
                 is_real = faces[0].get("is_real")
                 if is_real is not True:
                     reason = "spoof_detected" if is_real is False else "incomplete_anti_spoofing"
+                    context_scale = self._face_context_scale(image, faces[0])
+                    if is_real is False and context_scale is not None and context_scale < 1.5:
+                        reason = "face_too_close"
                     self._log_rejection(reason, image, backend=backend, detection=faces[0])
                     if is_real is False:
                         raise FaceServiceError(
-                            "spoof_detected",
-                            "Pemeriksaan keaslian wajah belum berhasil. Gunakan cahaya merata dan tahan HP tetap stabil.",
+                            reason,
+                            (
+                                "Wajah terlalu dekat untuk pemeriksaan keaslian. Jauhkan HP sampai kepala dan sebagian bahu terlihat, lalu coba kembali."
+                                if reason == "face_too_close"
+                                else "Pemeriksaan keaslian wajah belum berhasil. Gunakan cahaya merata dan tahan HP tetap stabil."
+                            ),
                         )
                     raise FaceServiceError(
                         "service_unavailable", "Hasil pemeriksaan keaslian wajah tidak lengkap.", status_code=503,
@@ -299,6 +306,23 @@ class DeepFaceEngine:
             return faces[0]
 
         return None
+
+    def _face_context_scale(
+        self, image: NDArray[np.uint8], detection: dict[str, Any],
+    ) -> float | None:
+        area = detection.get("facial_area")
+        if not isinstance(area, dict):
+            return None
+
+        width = self._optional_float(area.get("w"))
+        height = self._optional_float(area.get("h"))
+        if width is None or height is None or width <= 0 or height <= 0:
+            return None
+
+        # FasNet clips its 2.7x and 4x context crops to these image bounds.
+        # A scale under 1.5 identifies a very tight frame for retry guidance;
+        # it never overrides a liveness result or rejects a passing face.
+        return min((image.shape[1] - 1) / width, (image.shape[0] - 1) / height)
 
     @staticmethod
     def _correct_lighting(image: NDArray[np.uint8]) -> NDArray[np.uint8] | None:
@@ -328,6 +352,7 @@ class DeepFaceEngine:
         if detection is not None:
             diagnostics["preprocessing"] = detection.get("_preprocessing", "original")
             diagnostics["anti_spoof_score"] = self._optional_float(detection.get("antispoof_score"))
+            diagnostics["available_context_scale"] = self._face_context_scale(image, detection)
             area = detection.get("facial_area")
             if not isinstance(area, dict):
                 area = {}

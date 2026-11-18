@@ -178,6 +178,20 @@ class FastApiFaceVerifierTest extends TestCase
         $this->verifier()->compare($this->jpeg(), $this->jpeg());
     }
 
+    public function test_it_maps_a_close_face_to_actionable_distance_guidance(): void
+    {
+        Http::fake(['*' => Http::response([
+            'error' => ['code' => 'face_too_close', 'message' => 'Too close'],
+        ], 422)]);
+
+        $this->expectExceptionObject(new FaceVerificationException(
+            FaceVerificationException::FACE_TOO_CLOSE,
+            'Wajah terlalu dekat untuk pemeriksaan keaslian. Jauhkan HP sampai kepala dan sebagian bahu terlihat, lalu coba kembali.',
+        ));
+
+        $this->verifier()->compare($this->jpeg(), $this->jpeg());
+    }
+
     public function test_it_fails_closed_when_the_service_returns_an_invalid_payload(): void
     {
         Http::fake(['*' => Http::response(['status' => 'ok'])]);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { cancelAndroidAttendanceLocation, getAndroidAttendanceLocation, isAndroidAttendance } from '@/lib/android-attendance-location';
-import { captureAttendancePhoto } from '@/lib/attendance-camera';
+import { attendanceCameraConstraints, captureAttendancePhoto } from '@/lib/attendance-camera';
 import { mobileGoBack, registerMobileBackHandler } from '@/lib/mobile-navigation';
 import { registerMobileRefreshGuard, resumeMobileRefresh } from '@/lib/mobile-refresh';
 import type { SharedData } from '@/types';
@@ -573,14 +573,7 @@ const startCamera = async () => {
     cameraStarting.value = true;
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-                facingMode: { ideal: 'user' },
-                width: { ideal: 1280 },
-                height: { ideal: 1280 },
-            },
-        });
+        const stream = await navigator.mediaDevices.getUserMedia(attendanceCameraConstraints());
 
         if (requestId !== cameraRequestId || currentStep.value !== 2) {
             stream.getTracks().forEach((track) => track.stop());
@@ -917,7 +910,7 @@ onUnmounted(() => {
                         <div>
                             <small>LANGKAH TERAKHIR</small>
                             <h2>Pastikan wajah terlihat jelas</h2>
-                            <p>Foto akan diambil otomatis saat Anda menekan tombol Verifikasi & {{ actionTitle }}.</p>
+                            <p>Jauhkan HP sampai kepala dan sebagian bahu terlihat. Jangan memenuhi layar dengan wajah.</p>
                         </div>
                     </div>
 
@@ -945,7 +938,7 @@ onUnmounted(() => {
                             ><i class="corner bottom-right"></i>
                         </div>
                         <span v-if="cameraActive" class="camera-live-status"
-                            ><i></i> {{ cameraStarting ? 'Menyiapkan kamera' : 'Posisikan wajah di tengah' }}</span
+                            ><i></i> {{ cameraStarting ? 'Menyiapkan kamera' : 'Wajah di tengah, bahu tetap terlihat' }}</span
                         >
                         <div v-if="form.processing || capturingPhoto || checkingLocation" class="verification-overlay" aria-live="polite">
                             <span><LoaderCircle class="spin" /></span>
@@ -1815,7 +1808,7 @@ onUnmounted(() => {
     height: 100%;
     position: absolute;
     inset: 0;
-    object-fit: cover;
+    object-fit: contain;
     transform: scaleX(-1);
 }
 

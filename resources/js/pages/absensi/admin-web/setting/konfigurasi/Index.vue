@@ -529,9 +529,9 @@ const save = () =>
                                 <details class="configuration-details">
                                     <summary>Detail verifikasi <ChevronDown :size="13" /></summary>
                                     <p>
-                                        Wajah juga wajib lolos pencocokan model dan pemeriksaan keaslian. Skor di atas batas ini belum tentu diterima
-                                        jika pemeriksaan tersebut gagal. Persentase ini adalah skor kecocokan, bukan tingkat akurasi sistem. Perubahan
-                                        tidak menghitung ulang presensi yang sudah tersimpan.
+                                        Batas ini menentukan kecocokan wajah. Nilai rendah lebih longgar dan meningkatkan kemungkinan wajah orang
+                                        berbeda diterima. Foto tetap harus memuat satu wajah dan lolos pemeriksaan keaslian. Persentase ini adalah
+                                        skor kecocokan, bukan tingkat akurasi sistem. Perubahan tidak menghitung ulang presensi yang sudah tersimpan.
                                     </p>
                                 </details>
                                 <p

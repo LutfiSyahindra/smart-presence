@@ -116,6 +116,23 @@ class FastApiFaceVerifierTest extends TestCase
         $this->assertFalse($verifier->compare($this->jpeg(), $this->jpeg())->matched);
     }
 
+    public function test_a_configured_minimum_of_5_enforces_the_saved_boundary(): void
+    {
+        foreach ([4.99, 5.0, 5.01] as $similarity) {
+            Http::swap(new Factory);
+            Http::fake(['*' => Http::response([
+                'verified' => true,
+                'similarity' => $similarity,
+                'distance' => 0.7,
+                'threshold' => 0.3,
+            ])]);
+            $verifier = new FastApiFaceVerifier('http://127.0.0.1:8001', self::TOKEN, minimumSimilarity: 5.0);
+
+            $this->assertSame($similarity >= 5.0, $verifier->compare($this->jpeg(), $this->jpeg())->matched);
+            Http::assertSent(fn (Request $request): bool => $request->hasFile('minimum_similarity', '5'));
+        }
+    }
+
     public function test_it_respects_an_explicitly_configured_minimum(): void
     {
         Http::fake(['*' => Http::response(['verified' => true, 'similarity' => 63.0])]);

@@ -132,8 +132,8 @@ class DeepFaceEngine:
                     distance_metric=self.settings.distance_metric,
                     enforce_detection=False,
                     align=False,
-                    # Always retain the model's pre-tuned distance decision.
-                    # A configured distance limit is an additional restriction below.
+                    # Preserve the pre-tuned threshold for score calculation and
+                    # diagnostics. Acceptance uses the configured similarity below.
                     threshold=None,
                     anti_spoofing=False,
                     silent=True,
@@ -165,19 +165,10 @@ class DeepFaceEngine:
                 1.0, self.settings.min_similarity if minimum_similarity is None else minimum_similarity
             )
             matched = (
-                result.get("verified") is True
-                and distance is not None
-                and threshold is not None
-                and 0 <= distance <= threshold
+                distance is not None
+                and distance >= 0
                 and normalized_similarity is not None
                 and normalized_similarity >= minimum_similarity
-                and (
-                    self.settings.distance_threshold is None
-                    or (
-                        distance is not None
-                        and distance <= self.settings.distance_threshold
-                    )
-                )
             )
 
             if not matched:
@@ -186,7 +177,7 @@ class DeepFaceEngine:
                     backend=clock_in_detection.get("_detector_backend"),
                     detection=clock_in_detection,
                     distance=distance, threshold=threshold,
-                    configured_distance_threshold=self.settings.distance_threshold,
+                    matching_policy="similarity",
                     confidence=normalized_similarity, minimum_confidence=minimum_similarity,
                     model_verified=result.get("verified") is True,
                     reference_cached=profile_cache_hit,
@@ -220,6 +211,34 @@ class DeepFaceEngine:
         *,
         profile_photo: bool,
     ) -> dict[str, Any]:
+        detection = self._try_detect_single_face(deepface, image, profile_photo=profile_photo)
+        if detection is not None:
+            return detection
+
+        # Only retry a missing face. Local contrast correction can reveal a face
+        # in uneven lighting; it must still pass detection and anti-spoofing.
+        corrected = self._correct_lighting(image)
+        if corrected is not None:
+            detection = self._try_detect_single_face(
+                deepface, corrected, profile_photo=profile_photo,
+            )
+            if detection is not None:
+                detection["_preprocessing"] = "lighting_corrected"
+                return detection
+
+        self._log_rejection(
+            "face_not_found", image, profile_photo=profile_photo,
+            detectors=self._detector_backends(), lighting_retry=corrected is not None,
+        )
+        raise self._face_detection_error(profile_photo)
+
+    def _try_detect_single_face(
+        self,
+        deepface: Any,
+        image: NDArray[np.uint8],
+        *,
+        profile_photo: bool,
+    ) -> dict[str, Any] | None:
         for backend in self._detector_backends():
             try:
                 faces = deepface.extract_faces(
@@ -279,8 +298,20 @@ class DeepFaceEngine:
             faces[0]["_detector_backend"] = backend
             return faces[0]
 
-        self._log_rejection("face_not_found", image, profile_photo=profile_photo, detectors=self._detector_backends())
-        raise self._face_detection_error(profile_photo)
+        return None
+
+    @staticmethod
+    def _correct_lighting(image: NDArray[np.uint8]) -> NDArray[np.uint8] | None:
+        lightness, channel_a, channel_b = cv2.split(cv2.cvtColor(image, cv2.COLOR_BGR2LAB))
+        # Flat frames have no detail to recover, so do not retry a blank photo.
+        if float(lightness.std()) < 1.0:
+            return None
+
+        corrected = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(lightness)
+        if np.array_equal(corrected, lightness):
+            return None
+
+        return cv2.cvtColor(cv2.merge((corrected, channel_a, channel_b)), cv2.COLOR_LAB2BGR)
 
     def _log_rejection(
         self, reason: str, image: NDArray[np.uint8], *,
@@ -295,6 +326,7 @@ class DeepFaceEngine:
             **details,
         }
         if detection is not None:
+            diagnostics["preprocessing"] = detection.get("_preprocessing", "original")
             diagnostics["anti_spoof_score"] = self._optional_float(detection.get("antispoof_score"))
             area = detection.get("facial_area")
             if not isinstance(area, dict):

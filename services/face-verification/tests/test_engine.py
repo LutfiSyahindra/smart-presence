@@ -15,13 +15,17 @@ TOKEN = "test-token-with-at-least-32-characters"
 
 
 class FakeDeepFace:
-    def __init__(self, *, verified: bool = True, confidence: float | None = 91.5) -> None:
+    def __init__(
+        self, *, verified: bool = True, confidence: float | None = 91.5,
+        distance: float | None = 0.1,
+    ) -> None:
         self.extract_calls: list[dict[str, Any]] = []
         self.represent_calls: list[dict[str, Any]] = []
         self.verify_calls: list[dict[str, Any]] = []
         self.detections: list[list[dict[str, Any]] | Exception] = []
         self.verified = verified
         self.confidence = confidence
+        self.distance = distance
 
     def extract_faces(self, **kwargs: Any) -> list[dict[str, Any]]:
         self.extract_calls.append(kwargs)
@@ -52,7 +56,7 @@ class FakeDeepFace:
         return {
             "verified": self.verified,
             "confidence": self.confidence,
-            "distance": 0.1,
+            "distance": self.distance,
             "threshold": 0.3,
         }
 
@@ -132,28 +136,44 @@ def test_model_match_without_valid_similarity_is_rejected(confidence: float | No
     assert result["similarity"] is None
 
 
-@pytest.mark.parametrize("confidence", [40.0, 49.0, 63.0, 99.0])
-def test_similarity_never_overrides_a_model_rejection(confidence: float) -> None:
-    fake = FakeDeepFace(verified=False, confidence=confidence)
+@pytest.mark.parametrize("confidence,accepted", [
+    (4.99, False), (5.0, True), (5.01, True), (39.99, True), (49.0, True),
+])
+def test_configured_similarity_determines_acceptance_even_when_the_model_rejects(
+    confidence: float, accepted: bool,
+) -> None:
+    fake = FakeDeepFace(verified=False, confidence=confidence, distance=0.7)
     engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=40.0))
     engine._deepface = fake
 
-    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600), minimum_similarity=5.0)
 
-    assert result["verified"] is False
+    assert result["verified"] is accepted
     assert result["similarity"] == confidence
-    assert result["minimum_similarity"] == 40.0
+    assert result["minimum_similarity"] == 5.0
+    assert result["distance"] > result["threshold"]
     assert fake.verify_calls[0]["threshold"] is None
 
 
-def test_explicit_distance_limit_is_still_enforced() -> None:
-    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, distance_threshold=0.05))
+def test_legacy_environment_distance_limit_no_longer_restricts_similarity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FACE_SERVICE_DISTANCE_THRESHOLD", "0.05")
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
     engine._deepface = FakeDeepFace()
 
     result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
 
-    assert result["verified"] is False
+    assert result["verified"] is True
     assert result["similarity"] == 91.5
+
+
+@pytest.mark.parametrize("distance", [None, -0.1, float("nan"), float("inf")])
+def test_an_invalid_comparison_is_rejected_even_with_a_high_similarity(distance: float | None) -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+    engine._deepface = FakeDeepFace(confidence=99.0, distance=distance)
+
+    result = engine.verify(image_bytes(800, 600), image_bytes(800, 600), minimum_similarity=5.0)
+
+    assert result["verified"] is False
 
 
 def test_explicit_higher_similarity_limit_is_still_enforced() -> None:
@@ -208,16 +228,14 @@ def test_environment_similarity_can_start_at_1_percent() -> None:
     assert result["minimum_similarity"] == 1.0
 
 
-def test_request_similarity_still_requires_model_and_distance_checks() -> None:
-    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, distance_threshold=0.05))
-    fake = FakeDeepFace(confidence=99.0)
+def test_request_similarity_can_be_raised_and_lowered_after_a_model_rejection() -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=90.0))
+    fake = FakeDeepFace(verified=False, confidence=5.0, distance=0.7)
     engine._deepface = fake
     photo = image_bytes(800, 600)
-    assert engine.verify(photo, photo, minimum_similarity=1.0)["verified"] is False
-
-    engine.settings.distance_threshold = None
-    fake.verified = False
-    assert engine.verify(photo, photo, minimum_similarity=1.0)["verified"] is False
+    for minimum, accepted in [(5.0, True), (5.01, False), (1.0, True), (40.0, False)]:
+        assert engine.verify(photo, photo, minimum_similarity=minimum)["verified"] is accepted
+        assert engine.settings.min_similarity == 90.0
 
 
 @pytest.mark.parametrize("missing", [[], FaceNotDetected("Face could not be detected")])
@@ -252,6 +270,82 @@ def test_missing_face_after_both_detectors_is_rejected(profile_photo: bool, code
     assert not fake.represent_calls
 
 
+def unevenly_lit_image() -> np.ndarray:
+    gradient = np.linspace(15, 100, 800, dtype=np.uint8)
+    return np.tile(gradient[None, :, None], (600, 1, 3))
+
+
+@pytest.mark.parametrize("profile_photo", [False, True])
+def test_missing_face_retries_with_corrected_lighting_and_required_checks(profile_photo: bool) -> None:
+    fake = FakeDeepFace()
+    fake.detections = [[], FaceNotDetected("No face")]
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+    image = unevenly_lit_image()
+    original = image.copy()
+
+    detection = engine._detect_single_face(fake, image, profile_photo=profile_photo)
+
+    assert detection["_preprocessing"] == "lighting_corrected"
+    assert detection["_detector_backend"] == "yunet"
+    assert [call["detector_backend"] for call in fake.extract_calls] == ["yunet", "opencv", "yunet"]
+    assert all(call["enforce_detection"] and call["align"] for call in fake.extract_calls)
+    assert all(call["anti_spoofing"] is (not profile_photo) for call in fake.extract_calls)
+    np.testing.assert_array_equal(image, original)
+    corrected = fake.extract_calls[-1]["img_path"]
+    assert corrected.shape == image.shape
+    assert corrected.dtype == image.dtype
+    assert not np.array_equal(corrected, original)
+
+
+def test_a_detected_face_does_not_need_a_lighting_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeDeepFace()
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+
+    def unexpected_correction(_: np.ndarray) -> None:
+        pytest.fail("A detected face must not be corrected and retried")
+
+    monkeypatch.setattr(engine, "_correct_lighting", unexpected_correction)
+    assert engine._detect_single_face(fake, unevenly_lit_image(), profile_photo=False)["is_real"] is True
+    assert len(fake.extract_calls) == 1
+
+
+@pytest.mark.parametrize("profile_photo,code", [(False, "face_not_found"), (True, "invalid_profile_photo")])
+def test_lighting_correction_never_accepts_a_photo_without_a_face(profile_photo: bool, code: str) -> None:
+    fake = FakeDeepFace()
+    fake.detections = [[], [], [], []]
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+
+    with pytest.raises(FaceServiceError) as caught:
+        engine._detect_single_face(fake, unevenly_lit_image(), profile_photo=profile_photo)
+
+    assert caught.value.code == code
+    assert len(fake.extract_calls) == 4
+    assert not fake.represent_calls
+
+
+@pytest.mark.parametrize("after_correction", [False, True])
+@pytest.mark.parametrize("detection,code", [
+    ([{"is_real": True}, {"is_real": True}], "multiple_faces"),
+    ([{"is_real": False}], "spoof_detected"),
+    ([{}], "service_unavailable"),
+    (SpoofDetected("Spoof detected"), "spoof_detected"),
+    (ValueError("Detector model is invalid"), "service_unavailable"),
+])
+def test_lighting_retry_stops_on_multiple_faces_spoofs_and_service_errors(
+    after_correction: bool, detection: Any, code: str,
+) -> None:
+    fake = FakeDeepFace()
+    fake.detections = ([[], []] if after_correction else []) + [detection]
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+
+    with pytest.raises(FaceServiceError) as caught:
+        engine._detect_single_face(fake, unevenly_lit_image(), profile_photo=False)
+
+    assert caught.value.code == code
+    assert len(fake.extract_calls) == (3 if after_correction else 1)
+    assert not fake.represent_calls
+
+
 @pytest.mark.parametrize("detection,code,status", [
     ([{"is_real": True}, {"is_real": True}], "multiple_faces", 422),
     ([{"is_real": False}], "spoof_detected", 422),
@@ -266,7 +360,7 @@ def test_detection_failures_never_retry_to_bypass_a_rejection(detection: Any, co
     engine._deepface = fake
 
     with pytest.raises(FaceServiceError) as caught:
-        engine.verify(image_bytes(800, 600), image_bytes(800, 600))
+        engine.verify(image_bytes(800, 600), image_bytes(800, 600), minimum_similarity=5.0)
 
     assert caught.value.code == code
     assert caught.value.status_code == status
@@ -382,12 +476,12 @@ def test_profile_upload_rejects_low_original_resolution_before_detection() -> No
     assert not fake.extract_calls
 
 
-def test_a_looser_explicit_distance_limit_cannot_relax_the_model_decision() -> None:
-    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, distance_threshold=1.0))
-    fake = FakeDeepFace(verified=False, confidence=99.0)
+def test_environment_similarity_also_determines_acceptance_after_a_model_rejection() -> None:
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=5.0))
+    fake = FakeDeepFace(verified=False, confidence=5.0, distance=0.7)
     engine._deepface = fake
 
-    assert engine.verify(image_bytes(800, 600), image_bytes(800, 600))["verified"] is False
+    assert engine.verify(image_bytes(800, 600), image_bytes(800, 600))["verified"] is True
     assert fake.verify_calls[0]["threshold"] is None
 
 
@@ -427,7 +521,7 @@ def test_mismatch_logs_scores_and_actual_fallback_without_biometric_payloads(cap
         "facial_area": {"x": 100, "y": 100, "w": 240, "h": 240},
         "is_real": True, "antispoof_score": 0.83,
     }]]
-    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False))
+    engine = DeepFaceEngine(Settings(token=TOKEN, warmup=False, min_similarity=45.0))
     engine._deepface = fake
 
     result = engine.verify(image_bytes(800, 600), image_bytes(800, 600))
@@ -440,6 +534,9 @@ def test_mismatch_logs_scores_and_actual_fallback_without_biometric_payloads(cap
     assert diagnostics["distance"] == 0.1
     assert diagnostics["threshold"] == 0.3
     assert diagnostics["confidence"] == 42
+    assert diagnostics["minimum_confidence"] == 45.0
+    assert diagnostics["model_verified"] is False
+    assert diagnostics["matching_policy"] == "similarity"
     assert diagnostics["anti_spoof_score"] == 0.83
     assert diagnostics["face_width"] == 240
     assert diagnostics["face_brightness"] == 255

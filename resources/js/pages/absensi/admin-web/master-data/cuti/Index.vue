@@ -18,6 +18,7 @@ interface Master {
     nama: string;
     jenis: 'tahunan' | null;
     durasi_hari: number;
+    tanpa_kuota: boolean;
     deskripsi: string | null;
     aktif: boolean;
     penerima_count: number;
@@ -57,7 +58,7 @@ const allocating = ref<Master | null>(null);
 const annualOpen = ref(false);
 const deleting = ref<Master | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
-const masterForm = useForm({ kode: '', nama: '', jenis: '', durasi_hari: 12, deskripsi: '', aktif: true });
+const masterForm = useForm({ kode: '', nama: '', jenis: '', durasi_hari: 12, tanpa_kuota: false, deskripsi: '', aktif: true });
 const allocationForm = useForm({ scope: 'selected', pegawai_ids: [] as number[], tahun: props.filters.tahun });
 const annualForm = useForm({ scope: 'selected', pegawai_ids: [] as number[], tahun: props.filters.tahun, jumlah_hari: 12 });
 const importForm = useForm({ tahun: props.filters.tahun, file: null as File | null });
@@ -67,6 +68,12 @@ const allocationErrors = computed(() => Object.values(allocationForm.errors));
 const annualErrors = computed(() => Object.values(annualForm.errors));
 const importErrors = computed(() => Object.values(importForm.errors));
 const annualMaster = computed(() => props.masters.find((master) => master.id === props.annualId));
+watch(
+    () => masterForm.jenis,
+    (jenis) => {
+        if (jenis === 'tahunan') masterForm.tanpa_kuota = false;
+    },
+);
 const filter = () =>
     router.get(base, { tahun: year.value, search: search.value.trim() || undefined }, { preserveState: true, preserveScroll: true, replace: true });
 watch(
@@ -86,7 +93,8 @@ const openMaster = (master: Master | null = null) => {
             kode: master.kode,
             nama: master.nama,
             jenis: master.jenis ?? '',
-            durasi_hari: master.durasi_hari,
+            durasi_hari: master.tanpa_kuota ? 12 : master.durasi_hari,
+            tanpa_kuota: master.tanpa_kuota,
             deskripsi: master.deskripsi ?? '',
             aktif: master.aktif,
         });
@@ -180,7 +188,7 @@ const remove = () => {
                 <header class="al-panel-header">
                     <div>
                         <h2>Jenis & durasi cuti</h2>
-                        <p>Durasi cuti biasa adalah batas per pengajuan. Durasi cuti tahunan menjadi kuota awal per tahun.</p>
+                        <p>Cuti biasa dapat dibatasi per pengajuan atau tanpa kuota hari. Cuti tahunan memakai kuota awal per tahun.</p>
                     </div>
                 </header>
                 <div v-if="masters.length" class="mc-types">
@@ -193,8 +201,17 @@ const remove = () => {
                         </div>
                         <h3>{{ master.nama }}</h3>
                         <p class="mc-duration">
-                            <strong>{{ master.durasi_hari }}</strong> hari
-                            <small>{{ master.jenis === 'tahunan' ? 'kuota awal / tahun' : 'maksimal / pengajuan' }}</small>
+                            <strong v-if="master.tanpa_kuota">Tanpa kuota hari</strong>
+                            <template v-else
+                                ><strong>{{ master.durasi_hari }}</strong> hari</template
+                            >
+                            <small>{{
+                                master.tanpa_kuota
+                                    ? 'durasi pengajuan tidak dibatasi'
+                                    : master.jenis === 'tahunan'
+                                      ? 'kuota awal / tahun'
+                                      : 'maksimal / pengajuan'
+                            }}</small>
                         </p>
                         <p class="mc-description">{{ master.deskripsi || 'Belum ada keterangan tambahan.' }}</p>
                         <div class="mc-type-meta">
@@ -354,7 +371,7 @@ const remove = () => {
         <CrudModal
             :open="masterOpen"
             :title="editing ? 'Edit jenis cuti' : 'Tambah jenis cuti'"
-            description="Tentukan durasi hari dan kategori cuti."
+            description="Tentukan kategori cuti dan batas hari, atau pilih tanpa kuota hari."
             @close="!masterForm.processing && (masterOpen = false)"
         >
             <form class="al-form" @submit.prevent="saveMaster">
@@ -376,7 +393,13 @@ const remove = () => {
                             <option value="tahunan">Cuti Tahunan</option>
                         </select></label
                     >
-                    <label class="al-field"
+                    <label v-if="masterForm.jenis !== 'tahunan'" class="mc-checkbox">
+                        <input v-model="masterForm.tanpa_kuota" type="checkbox" /> Tanpa kuota hari
+                    </label>
+                    <p v-if="masterForm.tanpa_kuota" class="al-info">
+                        Durasi pengajuan tidak dibatasi dan tidak mengurangi saldo cuti tahunan. Jenis cuti tetap perlu diberikan kepada pegawai.
+                    </p>
+                    <label v-else class="al-field"
                         ><span>{{ masterForm.jenis === 'tahunan' ? 'Kuota awal per tahun' : 'Durasi maksimal per pengajuan' }} <b>*</b></span
                         ><input v-model="masterForm.durasi_hari" type="number" min="1" max="366" required /><small class="al-help"
                             >Dihitung dalam hari kalender, termasuk tanggal mulai dan selesai.</small
@@ -407,11 +430,14 @@ const remove = () => {
                 <div class="al-form-body">
                     <p v-for="error in allocationErrors" :key="error" class="al-error" role="alert">{{ error }}</p>
                     <div class="al-info">
-                        {{ allocating?.durasi_hari }} hari{{
-                            allocating?.jenis === 'tahunan'
-                                ? ` kuota awal untuk tahun ${allocationForm.tahun}. Kuota manual yang sudah ada tetap dipertahankan.`
-                                : ' maksimal per pengajuan.'
-                        }}
+                        <template v-if="allocating?.tanpa_kuota">Tanpa kuota hari. Durasi pengajuan tidak dibatasi.</template>
+                        <template v-else
+                            >{{ allocating?.durasi_hari }} hari{{
+                                allocating?.jenis === 'tahunan'
+                                    ? ` kuota awal untuk tahun ${allocationForm.tahun}. Kuota manual yang sudah ada tetap dipertahankan.`
+                                    : ' maksimal per pengajuan.'
+                            }}</template
+                        >
                     </div>
                     <label class="al-field"
                         ><span>Penerima cuti</span

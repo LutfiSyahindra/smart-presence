@@ -6,6 +6,10 @@ Menu **Master data → Master Cuti** tersedia di `/absensi/admin-web/master-data
 
 Tambahkan kode, nama, durasi hari, kategori, keterangan, dan status aktif. Kategori **Cuti biasa** membatasi durasi setiap pengajuan; kategori **Cuti Tahunan** memakai durasi sebagai kuota awal per tahun. Hanya satu master berkategori Cuti Tahunan yang dapat dibuat. Durasi dihitung berdasarkan hari kalender, termasuk tanggal mulai dan selesai.
 
+Pada kategori **Cuti biasa**, centang **Tanpa kuota hari** untuk membuat jenis cuti tanpa batas durasi per pengajuan. Kolom durasi tidak perlu diisi. Pilihan ini tersedia saat menambah maupun mengedit jenis cuti. Cuti tanpa kuota tidak mengurangi saldo tahunan, tetap harus diberikan melalui **Berikan cuti**, dan tetap mengikuti approval line serta validasi tanggal dan benturan pengajuan. Halaman pengajuan web dan mobile menampilkan label **Tanpa kuota hari**. Kategori **Cuti Tahunan** tetap wajib memakai kuota.
+
+Mengaktifkan atau menonaktifkan pilihan tanpa kuota memperbarui batas bagi seluruh penerima cuti biasa. Saat pilihan dinonaktifkan, durasi maksimal wajib diisi kembali. Riwayat jumlah hari pengajuan yang sudah tersimpan tetap dipertahankan.
+
 Tombol **Berikan cuti** menerapkan hak cuti kepada semua pegawai dengan akun user atau pegawai yang dipilih. Semua akun pegawai dapat menerima alokasi tanpa bergantung pada role atau verifikasi email. Pilihan “seluruh” mencakup pegawai di luar hasil pencarian. Pemberian ulang tidak menggandakan alokasi dan tidak mengganti kuota tahunan yang sudah diset manual. Akun yang dibuat kemudian perlu diberi alokasi melalui menu ini.
 
 Mengubah durasi cuti biasa memperbarui batas bagi penerima. Mengubah kuota awal cuti tahunan mempertahankan kuota penerima yang sudah ada. Jenis cuti yang pernah digunakan dalam pengajuan tidak dapat dihapus; nonaktifkan agar tidak dapat diajukan lagi. Nama jenis cuti dan durasi pengajuan disimpan sebagai riwayat saat diajukan.

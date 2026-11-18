@@ -25,14 +25,13 @@ import {
 } from 'lucide-vue-next';
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { date, days, labels } from '../admin-web/cuti/formatters';
-import type { CutiRow } from '../admin-web/cuti/types';
+import type { CutiRow, LeaveOption } from '../admin-web/cuti/types';
 import CutiSheet from './components/CutiSheet.vue';
 import CutiTypePicker from './components/CutiTypePicker.vue';
 import MobileBackLink from './components/MobileBackLink.vue';
 import MobileNotificationBell from './components/MobileNotificationBell.vue';
 
 type Scope = 'mine' | 'delegation';
-type LeaveOption = { id: number; nama: string; is_tahunan: boolean; tahun: number; jumlah_hari: number; sisa: number };
 const props = defineProps<{
     filters: { scope: Scope; month: string; status: string };
     requests: { data: CutiRow[]; current_page: number; last_page: number; total: number; prev_page_url: string | null; next_page_url: string | null };
@@ -388,9 +387,16 @@ if (props.initialCreate && !props.initialRequest && can('mobile.cuti.create')) c
                     <span class="soft-icon"><CalendarDays /></span>
                     <div>
                         <strong>{{ option.nama }}</strong
-                        ><small>{{ option.is_tahunan ? `Tahun ${option.tahun}` : 'Batas per pengajuan' }}</small>
+                        ><small>{{
+                            option.tanpa_kuota
+                                ? 'Durasi pengajuan tidak dibatasi'
+                                : option.is_tahunan
+                                  ? `Tahun ${option.tahun}`
+                                  : 'Batas per pengajuan'
+                        }}</small>
                     </div>
-                    <b>{{ option.is_tahunan ? option.sisa : option.jumlah_hari }} <small>hari</small></b>
+                    <b v-if="option.tanpa_kuota">Tanpa kuota</b>
+                    <b v-else>{{ option.is_tahunan ? option.sisa : option.jumlah_hari }} <small>hari</small></b>
                 </div>
                 <p v-if="!balanceOptions.length" class="sheet-note">
                     Belum ada hak cuti untuk periode ini. Hubungi administrator untuk pemberian kuota.
@@ -468,9 +474,11 @@ if (props.initialCreate && !props.initialRequest && can('mobile.cuti.create')) c
                         ><strong>{{ duration }} hari kalender</strong
                         ><small>{{
                             selectedType
-                                ? selectedType.is_tahunan
-                                    ? `Saldo tersedia ${selectedType.sisa} hari pada ${optionYear}`
-                                    : `Maksimal ${selectedType.jumlah_hari} hari per pengajuan`
+                                ? selectedType.tanpa_kuota
+                                    ? 'Tanpa kuota hari'
+                                    : selectedType.is_tahunan
+                                      ? `Saldo tersedia ${selectedType.sisa} hari pada ${optionYear}`
+                                      : `Maksimal ${selectedType.jumlah_hari} hari per pengajuan`
                                 : 'Termasuk tanggal mulai dan selesai'
                         }}</small></span
                     >

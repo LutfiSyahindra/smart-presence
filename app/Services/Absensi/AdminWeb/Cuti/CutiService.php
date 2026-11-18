@@ -72,7 +72,7 @@ class CutiService
             $used = $annual ? (int) CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('master_cuti_id', $master->id)
                 ->where('tahun_cuti', $start->year)->whereIn('status', ['pending', 'approved'])->sum('jumlah_hari') : 0;
             $available = $annual ? $allocation->jumlah_hari - $used : $master->durasi_hari;
-            if ($days > $available) {
+            if (($annual || ! $master->tanpa_kuota) && $days > $available) {
                 throw ValidationException::withMessages(['tanggal_selesai' => $annual
                     ? 'Sisa cuti tahunan tidak mencukupi. Tersedia '.max(0, $available).' hari (pengajuan menunggu sudah diperhitungkan).'
                     : "Durasi jenis cuti ini maksimal {$available} hari kalender per pengajuan."]);

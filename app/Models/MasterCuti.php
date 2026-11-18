@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MasterCuti extends Model
 {
-    protected $fillable = ['kode', 'nama', 'jenis', 'durasi_hari', 'deskripsi', 'aktif'];
+    protected $fillable = ['kode', 'nama', 'jenis', 'durasi_hari', 'tanpa_kuota', 'deskripsi', 'aktif'];
 
     protected function casts(): array
     {
-        return ['durasi_hari' => 'integer', 'aktif' => 'boolean'];
+        return ['durasi_hari' => 'integer', 'tanpa_kuota' => 'boolean', 'aktif' => 'boolean'];
     }
 
     public function allocations(): HasMany

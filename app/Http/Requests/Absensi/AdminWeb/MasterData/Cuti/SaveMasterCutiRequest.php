@@ -18,6 +18,7 @@ class SaveMasterCutiRequest extends FormRequest
             'kode' => is_string($this->kode) ? strtoupper(trim($this->kode)) : $this->kode,
             'nama' => is_string($this->nama) ? trim($this->nama) : $this->nama,
             'jenis' => $this->jenis ?: null,
+            'tanpa_kuota' => $this->input('tanpa_kuota', false),
         ]);
     }
 
@@ -29,7 +30,8 @@ class SaveMasterCutiRequest extends FormRequest
             'kode' => ['required', 'string', 'max:30', 'regex:/^[A-Z0-9_-]+$/', Rule::unique('master_cutis', 'kode')->ignore($id)],
             'nama' => ['required', 'string', 'max:150'],
             'jenis' => ['nullable', Rule::in(['tahunan']), Rule::unique('master_cutis', 'jenis')->ignore($id)],
-            'durasi_hari' => ['required', 'integer', 'between:1,366'],
+            'tanpa_kuota' => ['required', 'boolean', Rule::when($this->input('jenis') === 'tahunan', ['declined'])],
+            'durasi_hari' => ['exclude_if:tanpa_kuota,true', 'required', 'integer', 'between:1,366'],
             'deskripsi' => ['nullable', 'string', 'max:2000'],
             'aktif' => ['required', 'boolean'],
         ];
@@ -43,6 +45,7 @@ class SaveMasterCutiRequest extends FormRequest
             'nama.required' => 'Nama jenis cuti wajib diisi.',
             'jenis.unique' => 'Master cuti tahunan sudah tersedia. Gunakan master tersebut untuk mengatur saldo tahunan.',
             'kode.unique' => 'Kode cuti sudah digunakan.',
+            'tanpa_kuota.declined' => 'Cuti tahunan harus memiliki kuota hari. Pilih kategori Cuti biasa untuk cuti tanpa kuota.',
             'durasi_hari.required' => 'Durasi cuti wajib diisi.',
             'durasi_hari.integer' => 'Durasi cuti harus berupa bilangan bulat.',
             'durasi_hari.between' => 'Durasi harus antara 1 sampai 366 hari.',

@@ -158,6 +158,69 @@ class MasterCutiManagementTest extends TestCase
         $this->assertDatabaseCount('pegawai_cutis', 0);
     }
 
+    public function test_unlimited_types_can_be_created_without_days_and_existing_allocations_can_switch_limits(): void
+    {
+        $data = ['kode' => 'KHUSUS', 'nama' => 'Cuti Khusus', 'jenis' => null, 'tanpa_kuota' => true, 'aktif' => true];
+        $this->post(self::URL, $data)->assertSessionHasNoErrors();
+        $master = MasterCuti::query()->where('kode', 'KHUSUS')->sole();
+        $this->assertTrue($master->tanpa_kuota);
+        $this->assertSame(0, $master->durasi_hari);
+        $this->post(self::URL."/{$master->id}/allocate", $this->allocation(['scope' => 'all']))->assertSessionHasNoErrors();
+        $this->post(self::URL."/{$master->id}/allocate", $this->allocation(['scope' => 'all']))->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('pegawai_cutis', 2);
+        $this->assertSame([0, 0], $master->allocations()->pluck('jumlah_hari')->all());
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('masters.0.tanpa_kuota', true)->where('masters.0.penerima_count', 2));
+
+        $limited = array_replace($data, ['tanpa_kuota' => false, 'durasi_hari' => 4]);
+        $this->put(self::URL."/{$master->id}", $limited)->assertSessionHasNoErrors();
+        $this->assertFalse($master->fresh()->tanpa_kuota);
+        $this->assertSame([4, 4], $master->allocations()->pluck('jumlah_hari')->all());
+        $this->put(self::URL."/{$master->id}", array_replace($data, ['durasi_hari' => '']))->assertSessionHasNoErrors();
+        $this->assertTrue($master->fresh()->tanpa_kuota);
+        $this->assertSame([0, 0], $master->allocations()->pluck('jumlah_hari')->all());
+        $this->put(self::URL."/{$master->id}", array_replace($data, ['tanpa_kuota' => false]))->assertSessionHasErrors('durasi_hari');
+        $this->assertTrue($master->fresh()->tanpa_kuota);
+    }
+
+    public function test_annual_leave_cannot_disable_quota_and_unlimited_flag_must_be_boolean(): void
+    {
+        $data = $this->annual->only(['kode', 'nama', 'jenis', 'durasi_hari', 'aktif']);
+        $this->put(self::URL."/{$this->annual->id}", array_replace($data, ['tanpa_kuota' => true]))->assertSessionHasErrors('tanpa_kuota');
+        $this->assertFalse($this->annual->fresh()->tanpa_kuota);
+        $this->assertSame(12, $this->annual->fresh()->durasi_hari);
+        $this->post(self::URL, ['kode' => 'INVALID', 'nama' => 'Invalid', 'tanpa_kuota' => 'unlimited', 'durasi_hari' => 3, 'aktif' => true])
+            ->assertSessionHasErrors('tanpa_kuota');
+    }
+
+    public function test_unlimited_requests_require_active_allocation_follow_approval_and_preserve_annual_balance(): void
+    {
+        $this->post(self::URL, ['kode' => 'KHUSUS', 'nama' => 'Cuti Khusus', 'tanpa_kuota' => true, 'aktif' => true])->assertSessionHasNoErrors();
+        $master = MasterCuti::query()->where('kode', 'KHUSUS')->sole();
+        $this->grant();
+        $dates = ['master_cuti_id' => $master->id, 'tanggal_mulai' => '2026-10-20', 'tanggal_selesai' => '2028-01-01'];
+        $this->actingAs($this->employee->user)->post('/absensi/admin-web/cuti', $this->payload($dates))->assertSessionHasErrors('master_cuti_id');
+        $this->actingAs($this->admin)->post(self::URL."/{$master->id}/allocate", $this->allocation())->assertSessionHasNoErrors();
+
+        $request = $this->submit($dates);
+        $this->assertGreaterThan(366, $request->jumlah_hari);
+        $this->assertFalse($request->is_tahunan);
+        $this->assertNull($request->tahun_cuti);
+        $this->assertSame('pending', $request->status);
+        $this->assertSame($this->approver->id, $request->approvals->sole()->user_id);
+        $this->get('/absensi/admin-web/cuti')->assertInertia(fn (Assert $page) => $page
+            ->where('leaveOptions.0.tanpa_kuota', true)->where('leaveOptions.1.sisa', 12));
+        $this->post('/absensi/admin-web/cuti', $this->payload($dates))->assertSessionHasErrors('tanggal_mulai');
+
+        $this->actingAs($this->approver)->post("/absensi/admin-web/cuti/{$request->id}/decision", ['decision' => 'approved'])->assertSessionHasNoErrors();
+        $this->assertSame('approved', $request->fresh()->status);
+        $this->submit(['master_cuti_id' => $master->id, 'tanggal_mulai' => '2028-02-01', 'tanggal_selesai' => '2028-03-01']);
+        $this->get('/absensi/admin-web/cuti')->assertInertia(fn (Assert $page) => $page->where('leaveOptions.1.sisa', 12));
+        $master->update(['aktif' => false]);
+        $this->post('/absensi/admin-web/cuti', $this->payload(['master_cuti_id' => $master->id, 'tanggal_mulai' => '2029-01-01', 'tanggal_selesai' => '2029-01-02']))
+            ->assertSessionHasErrors('master_cuti_id');
+    }
+
     public function test_selected_and_all_allocations_are_idempotent_and_preserve_annual_overrides(): void
     {
         $unlinked = Pegawai::query()->create(['nama' => 'Tanpa akun']);

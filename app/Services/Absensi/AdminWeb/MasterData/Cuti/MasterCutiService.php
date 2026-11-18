@@ -14,6 +14,12 @@ class MasterCutiService
 {
     public function save(array $data, ?MasterCuti $master = null): MasterCuti
     {
+        $data['tanpa_kuota'] = (bool) ($data['tanpa_kuota'] ?? false);
+        if ($data['tanpa_kuota']) {
+            // Allocations still grant access; their day count is unused for unlimited types.
+            $data['durasi_hari'] = 0;
+        }
+
         return DB::transaction(function () use ($data, $master) {
             if ($master) {
                 $master = MasterCuti::query()->lockForUpdate()->findOrFail($master->id);
@@ -148,6 +154,7 @@ class MasterCutiService
         return $allocations->map(fn ($allocation) => [
             'id' => $allocation->master_cuti_id, 'nama' => $allocation->masterCuti->nama,
             'is_tahunan' => $allocation->masterCuti->jenis === 'tahunan', 'tahun' => $allocation->tahun,
+            'tanpa_kuota' => $allocation->masterCuti->tanpa_kuota,
             'jumlah_hari' => $allocation->jumlah_hari,
             'sisa' => max(0, $allocation->jumlah_hari - (int) ($usage->get($allocation->master_cuti_id.':'.$allocation->tahun)?->days ?? 0)),
         ])->all();

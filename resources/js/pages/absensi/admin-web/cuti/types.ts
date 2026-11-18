@@ -1,3 +1,13 @@
+export interface LeaveOption {
+    id: number;
+    nama: string;
+    is_tahunan: boolean;
+    tanpa_kuota: boolean;
+    tahun: number;
+    jumlah_hari: number;
+    sisa: number;
+}
+
 export interface CutiRow {
     id: number;
     nama_pegawai: string;

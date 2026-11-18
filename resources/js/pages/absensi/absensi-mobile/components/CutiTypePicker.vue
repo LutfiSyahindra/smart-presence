@@ -2,8 +2,7 @@
 import { Dialog, DialogDescription, DialogPanel, DialogTitle } from '@headlessui/vue';
 import { CalendarDays, Check, ChevronDown, Leaf, Search, X } from 'lucide-vue-next';
 import { computed, ref, useId } from 'vue';
-
-type LeaveOption = { id: number; nama: string; is_tahunan: boolean; tahun: number; jumlah_hari: number; sisa: number };
+import type { LeaveOption } from '../../admin-web/cuti/types';
 
 const props = withDefaults(defineProps<{ modelValue: string; options: LeaveOption[]; year: number; error?: string; disabled?: boolean }>(), {
     error: '',
@@ -60,14 +59,17 @@ function clearSearch() {
                 <span class="trigger-title">{{ selectedOption?.nama || 'Pilih jenis cuti' }}</span>
                 <span class="trigger-description">{{
                     selectedOption
-                        ? selectedOption.is_tahunan
-                            ? `Kuota tahunan ${selectedOption.tahun}`
-                            : 'Batas per pengajuan'
+                        ? selectedOption.tanpa_kuota
+                            ? 'Tanpa kuota hari'
+                            : selectedOption.is_tahunan
+                              ? `Kuota tahunan ${selectedOption.tahun}`
+                              : 'Batas per pengajuan'
                         : 'Sesuaikan dengan kebutuhan Anda'
                 }}</span>
             </span>
             <span v-if="selectedOption" class="trigger-quota" :class="{ depleted: selectedOption.is_tahunan && selectedOption.sisa <= 0 }">
-                {{ selectedOption.is_tahunan ? selectedOption.sisa : selectedOption.jumlah_hari }} <small>hari</small>
+                <template v-if="selectedOption.tanpa_kuota">Tanpa kuota</template>
+                <template v-else>{{ selectedOption.is_tahunan ? selectedOption.sisa : selectedOption.jumlah_hari }} <small>hari</small></template>
             </span>
             <ChevronDown class="trigger-chevron" :class="{ rotated: open }" aria-hidden="true" />
         </button>
@@ -105,7 +107,7 @@ function clearSearch() {
                                 class="type-option"
                                 :class="{ 'is-selected': String(option.id) === modelValue }"
                                 :aria-pressed="String(option.id) === modelValue"
-                                :aria-label="`${option.nama}, ${option.is_tahunan ? `tahun ${option.tahun}, sisa ${option.sisa} hari` : `maksimal ${option.jumlah_hari} hari per pengajuan`}`"
+                                :aria-label="`${option.nama}, ${option.tanpa_kuota ? 'tanpa kuota hari' : option.is_tahunan ? `tahun ${option.tahun}, sisa ${option.sisa} hari` : `maksimal ${option.jumlah_hari} hari per pengajuan`}`"
                                 :disabled="disabled"
                                 @click="selectOption(option)"
                             >
@@ -113,13 +115,16 @@ function clearSearch() {
                                     <component :is="option.is_tahunan ? Leaf : CalendarDays" />
                                 </span>
                                 <span class="option-copy">
-                                    <span class="option-category">{{ option.is_tahunan ? `TAHUNAN · ${option.tahun}` : 'PER PENGAJUAN' }}</span>
+                                    <span class="option-category">{{
+                                        option.tanpa_kuota ? 'TANPA KUOTA' : option.is_tahunan ? `TAHUNAN · ${option.tahun}` : 'PER PENGAJUAN'
+                                    }}</span>
                                     <span class="option-name">{{ option.nama }}</span>
                                     <span v-if="option.is_tahunan && option.sisa <= 0" class="quota-empty">Saldo sudah terpakai</span>
                                 </span>
                                 <span class="option-quota" :class="{ depleted: option.is_tahunan && option.sisa <= 0 }">
-                                    <strong>{{ option.is_tahunan ? option.sisa : option.jumlah_hari }} <small>hari</small></strong>
-                                    <span>{{ option.is_tahunan ? 'tersisa' : 'maksimal' }}</span>
+                                    <strong v-if="option.tanpa_kuota">Tanpa kuota</strong>
+                                    <strong v-else>{{ option.is_tahunan ? option.sisa : option.jumlah_hari }} <small>hari</small></strong>
+                                    <span>{{ option.tanpa_kuota ? 'tidak dibatasi' : option.is_tahunan ? 'tersisa' : 'maksimal' }}</span>
                                 </span>
                                 <span class="option-check" aria-hidden="true"><Check v-if="String(option.id) === modelValue" /></span>
                             </button>
@@ -141,9 +146,11 @@ function clearSearch() {
         <p v-else-if="selectedOption && !open" class="selection-note">
             <Check aria-hidden="true" />
             {{
-                selectedOption.is_tahunan
-                    ? `Sisa saldo ${selectedOption.sisa} hari tersedia untuk tahun ${selectedOption.tahun}.`
-                    : `Maksimal ${selectedOption.jumlah_hari} hari untuk setiap pengajuan.`
+                selectedOption.tanpa_kuota
+                    ? 'Durasi pengajuan tidak dibatasi dan tidak mengurangi saldo cuti tahunan.'
+                    : selectedOption.is_tahunan
+                      ? `Sisa saldo ${selectedOption.sisa} hari tersedia untuk tahun ${selectedOption.tahun}.`
+                      : `Maksimal ${selectedOption.jumlah_hari} hari untuk setiap pengajuan.`
             }}
         </p>
     </div>

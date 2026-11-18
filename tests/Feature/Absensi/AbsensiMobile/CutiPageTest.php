@@ -68,6 +68,21 @@ class CutiPageTest extends TestCase
         return CutiRequest::query()->latest('id')->firstOrFail();
     }
 
+    public function test_mobile_can_submit_allocated_unlimited_leave_without_spending_annual_balance(): void
+    {
+        $master = MasterCuti::query()->create(['kode' => 'KHUSUS', 'nama' => 'Cuti Khusus', 'tanpa_kuota' => true, 'durasi_hari' => 0, 'aktif' => true]);
+        PegawaiCuti::query()->create(['master_cuti_id' => $master->id, 'pegawai_id' => $this->pegawai->id, 'tahun' => 0, 'jumlah_hari' => 0]);
+        $this->actingAs($this->employee)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('leaveOptions.0.tanpa_kuota', true)->where('balance.available', 12)->where('unavailableReason', null));
+        $cuti = $this->submit(['master_cuti_id' => $master->id, 'tanggal_mulai' => '2026-10-26', 'tanggal_selesai' => '2028-01-01']);
+        $this->assertGreaterThan(366, $cuti->jumlah_hari);
+        $this->assertFalse($cuti->is_tahunan);
+        $this->assertNull($cuti->tahun_cuti);
+        $this->assertSame('pending', $cuti->status);
+        $this->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('balance.available', 12)->where('balance.pending', 0)->where('requests.data.0.nama_cuti', 'Cuti Khusus'));
+    }
+
     public function test_approved_cuti_cancellation_obeys_configuration_and_returns_the_balance(): void
     {
         $cuti = $this->submit();

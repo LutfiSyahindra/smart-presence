@@ -11,7 +11,7 @@ import Pagination from '../setting/components/Pagination.vue';
 import type { Paginated } from '../setting/types';
 import CutiRequestDetail from './components/CutiRequestDetail.vue';
 import { date, days, labels } from './formatters';
-import type { CutiRow } from './types';
+import type { CutiRow, LeaveOption } from './types';
 
 type Scope = 'mine' | 'inbox' | 'history' | 'all';
 const props = defineProps<{
@@ -25,7 +25,7 @@ const props = defineProps<{
     canSubmit: boolean;
     today: string;
     allowPastDates: boolean;
-    leaveOptions: { id: number; nama: string; is_tahunan: boolean; tahun: number; jumlah_hari: number; sisa: number }[];
+    leaveOptions: LeaveOption[];
 }>();
 const baseUrl = '/absensi/admin-web/cuti';
 const breadcrumbs: BreadcrumbItem[] = [
@@ -259,7 +259,13 @@ const submit = () => form.post(baseUrl, { preserveScroll: true, onSuccess: () =>
                             <option value="" disabled>Pilih jenis cuti</option>
                             <option v-for="option in availableTypes" :key="option.id" :value="String(option.id)">
                                 {{ option.nama }} ·
-                                {{ option.is_tahunan ? `sisa ${option.sisa} hari (${option.tahun})` : `maksimal ${option.jumlah_hari} hari` }}
+                                {{
+                                    option.tanpa_kuota
+                                        ? 'tanpa kuota hari'
+                                        : option.is_tahunan
+                                          ? `sisa ${option.sisa} hari (${option.tahun})`
+                                          : `maksimal ${option.jumlah_hari} hari`
+                                }}
                             </option>
                         </select>
                         <small v-if="form.errors.master_cuti_id" class="al-error">{{ form.errors.master_cuti_id }}</small>
@@ -286,12 +292,13 @@ const submit = () => form.post(baseUrl, { preserveScroll: true, onSuccess: () =>
                     </div>
                     <p v-if="days(form.tanggal_mulai, form.tanggal_selesai)" class="al-help">
                         Durasi: {{ days(form.tanggal_mulai, form.tanggal_selesai) }} hari kalender.
-                        <template v-if="selectedType"
-                            >{{
-                                selectedType.is_tahunan ? `Sisa kuota: ${selectedType.sisa}` : `Batas durasi: ${selectedType.jumlah_hari}`
-                            }}
-                            hari.</template
-                        >
+                        <template v-if="selectedType">{{
+                            selectedType.tanpa_kuota
+                                ? 'Tanpa kuota hari.'
+                                : selectedType.is_tahunan
+                                  ? `Sisa kuota: ${selectedType.sisa} hari.`
+                                  : `Batas durasi: ${selectedType.jumlah_hari} hari.`
+                        }}</template>
                     </p>
                     <label class="al-field"
                         ><span>Alasan cuti <b>*</b></span

@@ -88,6 +88,8 @@ const locationSampleProgress = ref(0);
 const observedAccuracy = ref<number | null>(null);
 const locating = ref(false);
 const locationError = ref('');
+const iosHomeScreen = ref(false);
+const locationPermissionDenied = ref(false);
 const outsideDialogOpen = ref(false);
 const outsideNote = ref('');
 const outsideNoteError = ref('');
@@ -185,7 +187,12 @@ const accuracyState = computed(() => {
     }
 
     const accuracy = currentLocation.value?.accuracy;
-    if (accuracy === undefined) return { label: 'Menunggu lokasi', tone: 'waiting', detail: 'Mengambil lokasi dari perangkat' };
+    if (accuracy === undefined)
+        return {
+            label: iosHomeScreen.value ? 'Izinkan lokasi untuk presensi' : 'Menunggu lokasi',
+            tone: 'waiting',
+            detail: iosHomeScreen.value ? 'Ketuk Temukan lokasi saya, lalu pilih Izinkan jika diminta.' : 'Mengambil lokasi dari perangkat',
+        };
     if (accuracy <= 25) return { label: 'Akurasi sangat baik', tone: 'excellent', detail: `Akurat hingga ±${Math.round(accuracy)} m` };
     if (accuracy <= 75) return { label: 'Akurasi baik', tone: 'good', detail: `Akurat hingga ±${Math.round(accuracy)} m` };
     if (accuracy <= props.locationChallenge.max_accuracy_meters)
@@ -220,7 +227,10 @@ const locationActionLabel = computed(() => {
 });
 
 const locationErrorMessage = (error: GeolocationPositionError) => {
-    if (error.code === error.PERMISSION_DENIED) return 'Izin lokasi ditolak. Aktifkan akses lokasi pada pengaturan browser lalu coba lagi.';
+    if (error.code === error.PERMISSION_DENIED)
+        return iosHomeScreen.value
+            ? 'Akses lokasi dari aplikasi Layar Utama diblokir. Periksa izin lokasi iPhone, lalu muat ulang aplikasi.'
+            : 'Izin lokasi ditolak. Aktifkan akses lokasi pada pengaturan browser lalu coba lagi.';
     if (error.code === error.POSITION_UNAVAILABLE)
         return 'Lokasi belum tersedia. Pastikan layanan lokasi aktif; nyalakan Wi-Fi untuk membantu pencarian.';
     if (error.code === error.TIMEOUT) return 'Lokasi belum ditemukan. Aktifkan lokasi presisi dan Wi-Fi, lalu coba lagi.';
@@ -267,6 +277,7 @@ const requestLocation = (): Promise<boolean> =>
         stopLocationCollection();
         finishLocationCollection = resolve;
         locationError.value = '';
+        locationPermissionDenied.value = false;
         form.clearErrors();
         currentLocation.value = null;
         locationSamples.value = [];
@@ -450,6 +461,7 @@ const requestLocation = (): Promise<boolean> =>
         const receiveError = (error: GeolocationPositionError) => {
             if (requestId !== locationRequestId) return;
             if (error.code === error.PERMISSION_DENIED) {
+                locationPermissionDenied.value = true;
                 failCollection(locationErrorMessage(error));
                 return;
             }
@@ -514,6 +526,12 @@ const refreshLocationChallenge = (): Promise<boolean> =>
 
 const retryLocation = async () => {
     if (locating.value) return;
+    if (iosHomeScreen.value) {
+        // Start geolocation directly from the tap. The preview can use the
+        // current challenge; submission always refreshes it and collects again.
+        await requestLocation();
+        return;
+    }
     locating.value = true;
     if (await refreshLocationChallenge()) {
         await requestLocation();
@@ -522,6 +540,8 @@ const retryLocation = async () => {
         locationError.value = 'Sesi lokasi belum berhasil diperbarui. Periksa koneksi lalu coba kembali.';
     }
 };
+
+const reloadLocationPermission = () => window.location.reload();
 
 const cameraErrorMessage = (error: unknown) => {
     if (!(error instanceof DOMException)) return 'Kamera belum berhasil dibuka. Silakan coba lagi.';
@@ -769,7 +789,14 @@ const submitClockIn = async () => {
     }
 };
 
-onMounted(() => void requestLocation());
+onMounted(() => {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    iosHomeScreen.value =
+        ios && ((navigator as Navigator & { standalone?: boolean }).standalone === true || window.matchMedia('(display-mode: standalone)').matches);
+    // Ask in context from the location button in Home Screen apps. Do not infer
+    // authorization from Safari or the Permissions API before requesting a fix.
+    if (!iosHomeScreen.value) void requestLocation();
+});
 const refreshReady = computed(() => !form.processing && !checkingLocation.value && !capturingPhoto.value && !locating.value);
 const removeRefreshGuard = registerMobileRefreshGuard(() => refreshReady.value);
 watch(refreshReady, (ready) => {
@@ -852,7 +879,8 @@ onUnmounted(() => {
                     <div class="location-banner" :class="[accuracyState.tone, { error: locationError || locationSubmissionError }]">
                         <span class="banner-icon">
                             <CircleAlert v-if="locationError || locationSubmissionError || accuracyState.tone === 'low'" />
-                            <LoaderCircle v-else-if="locating || !currentLocation" class="spin" />
+                            <LoaderCircle v-else-if="locating" class="spin" />
+                            <MapPin v-else-if="!currentLocation" />
                             <BadgeCheck v-else />
                         </span>
                         <div>
@@ -862,6 +890,19 @@ onUnmounted(() => {
                         <button v-if="locationError || locationSubmissionError || accuracyState.tone === 'low'" type="button" @click="retryLocation">
                             Coba lagi
                         </button>
+                    </div>
+
+                    <div v-if="iosHomeScreen && locationPermissionDenied" class="location-permission-help" role="status">
+                        <strong>Periksa akses lokasi di iPhone</strong>
+                        <ol>
+                            <li>
+                                Buka Pengaturan &gt; Privasi &amp; Keamanan &gt; Layanan Lokasi. Pastikan layanan lokasi aktif. Periksa izin aplikasi
+                                atau Safari Websites jika tersedia, lalu aktifkan Lokasi Tepat.
+                            </li>
+                            <li>Buka situs absensi di Safari. Pada menu halaman &gt; Pengaturan Situs Web &gt; Lokasi, pilih Izinkan.</li>
+                            <li>Kembali ke aplikasi ini dan muat ulang, lalu ketuk Temukan lokasi saya.</li>
+                        </ol>
+                        <button type="button" @click="reloadLocationPermission"><RefreshCw /> Muat ulang aplikasi</button>
                     </div>
 
                     <div class="map-card">
@@ -1448,6 +1489,43 @@ onUnmounted(() => {
     background: #f9e9bf;
     font-size: 11px;
     font-weight: 800;
+}
+
+.location-permission-help {
+    margin-top: 11px;
+    padding: 13px;
+    border: 1px solid #eee0bb;
+    border-radius: 16px;
+    color: #765d32;
+    background: #fffaf0;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.location-permission-help ol {
+    margin: 8px 0 12px;
+    padding-left: 20px;
+    list-style: decimal;
+}
+
+.location-permission-help li + li {
+    margin-top: 6px;
+}
+
+.location-permission-help button {
+    padding: 9px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: 9px;
+    color: #765d32;
+    background: #f9e9bf;
+    font-weight: 800;
+}
+
+.location-permission-help button svg {
+    width: 15px;
+    height: 15px;
 }
 
 .map-card {

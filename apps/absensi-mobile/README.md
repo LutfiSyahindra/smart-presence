@@ -328,6 +328,25 @@ belum mengaktifkan SQLite, jalankan PHPUnit langsung dengan
 
 ## Pengambilan lokasi PWA, Android, dan iOS
 
+Pada PWA iPhone/iPad yang dibuka dari Layar Utama, pengambilan lokasi dimulai
+setelah pengguna mengetuk **Temukan lokasi saya** atau **Lokasi saya**. Permintaan
+langsung dimulai dari ketukan tersebut tanpa menunggu pembaruan sesi lewat jaringan.
+Sesi dan bukti lokasi tetap diperbarui sebelum absensi dikirim.
+
+Jika Geolocation mengembalikan penolakan izin, halaman menampilkan panduan untuk
+memeriksa Layanan Lokasi iPhone dan izin lokasi situs di Safari, serta tombol
+**Muat ulang aplikasi**. Muat ulang penuh diperlukan untuk memulihkan halaman
+yang masih menyimpan status penolakan setelah pengaturan diubah; coba lagi lewat
+reload sebagian Inertia tidak mengganti dokumen browser. Aplikasi tidak memakai
+hasil Permissions API atau keberhasilan di Safari sebagai bukti izin PWA.
+Izin yang diblokir iOS tetap harus diubah pengguna melalui pengaturan perangkat.
+
+Uji di iPhone fisik: buka dari Layar Utama, ketuk tombol lokasi, izinkan akses,
+lalu selesaikan Clock In dan Clock Out. Ulangi dengan izin ditolak, ubah pengaturan,
+kembali dan muat ulang aplikasi. Pastikan lokasi yang tidak tersedia/timeout
+tidak dilabeli sebagai penolakan izin, dan Safari biasa tetap mengambil lokasi
+secara otomatis. Tes otomatis tidak menggantikan pengujian prompt izin iOS.
+
 Clock In/Out memakai lokasi baru dengan batas akurasi dari server (default
 ±100 m). PWA, Safari/iOS, dan WKWebView iOS meminta pembaruan presisi dan
 mode biasa secara bersamaan agar hasil berbasis Wi-Fi/jaringan dapat membantu

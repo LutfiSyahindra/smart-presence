@@ -7,7 +7,7 @@ import ts from 'typescript';
 const component = await readFile(new URL('../../resources/js/pages/absensi/absensi-mobile/ClockIn.vue', import.meta.url), 'utf8');
 const source = component.split('<script setup lang="ts">')[1].split('</script>')[0];
 const { outputText } = ts.transpileModule(
-    `${source}\nexport { requestLocation, submitClockIn, goBack, restartCamera, currentLocation, locationSamples, locating, locationError, currentStep, cameraActive, cameraVideo, cameraStream, outsideDialogOpen, checkingLocation, photoError, form };`,
+    `${source}\nexport { requestLocation, retryLocation, continueFromLocation, reloadLocationPermission, submitClockIn, goBack, restartCamera, currentLocation, locationSamples, locating, locationError, locationPermissionDenied, iosHomeScreen, accuracyState, currentStep, cameraActive, cameraVideo, cameraStream, outsideDialogOpen, checkingLocation, photoError, form };`,
     {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     },
@@ -21,6 +21,11 @@ function load({
     reloadSucceeds = true,
     photoRejected = false,
     deferReload = false,
+    userAgent = 'Mozilla/5.0',
+    standalone = false,
+    displayStandalone = false,
+    platform = '',
+    maxTouchPoints = 0,
 } = {}) {
     const exports = {};
     const callbacks = {};
@@ -34,6 +39,7 @@ function load({
     let nativeCalls = 0;
     let reloads = 0;
     let cameraOpens = 0;
+    let pageReloads = 0;
     let elapsed = 0;
     const serverTime = Date.now();
     const posts = [];
@@ -57,7 +63,7 @@ function load({
                 return getter();
             },
         }),
-        onMounted: () => {},
+        onMounted: (callback) => { callbacks.mount = callback; },
         watch: () => {},
         onUnmounted: (callback) => {
             callbacks.unmount = callback;
@@ -151,6 +157,8 @@ function load({
         document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toBlob: (callback) => callback(new Blob(['photo'])) }) },
         window: {
             isSecureContext: true,
+            matchMedia: () => ({ matches: displayStandalone }),
+            location: { reload: () => { pageReloads += 1; } },
             setTimeout: (callback, delay) => {
                 const id = ++nextTimerId;
                 timers.set(id, callback);
@@ -165,6 +173,10 @@ function load({
             clearInterval: () => {},
         },
         navigator: {
+            userAgent,
+            standalone,
+            platform,
+            maxTouchPoints,
             mediaDevices: {
                 getUserMedia: async () => {
                     cameraOpens += 1;
@@ -196,6 +208,7 @@ function load({
         intervalCalls: () => intervalCalls,
         nativeCalls: () => nativeCalls,
         reloads: () => reloads,
+        pageReloads: () => pageReloads,
         cameraOpens: () => cameraOpens,
         deviceNow: () => serverTime + clockSkew + elapsed,
         advance: (milliseconds) => {
@@ -217,6 +230,84 @@ function load({
 }
 
 const fix = (changes = {}) => ({ latitude: -6.2, longitude: 106.8166667, accuracy: 8, captured_at: Date.now(), is_mock: false, ...changes });
+
+test('iPhone Home Screen waits for a tap and starts GPS without a network round trip', async () => {
+    const state = load({ userAgent: 'Mozilla/5.0 (iPhone)', standalone: true, deferReload: true });
+    state.callbacks.mount();
+    assert.equal(state.iosHomeScreen.value, true);
+    assert.equal(state.locating.value, false);
+    assert.equal(state.watches.size, 0);
+    assert.match(state.accuracyState.value.detail, /Ketuk Temukan lokasi saya/);
+
+    state.continueFromLocation();
+    assert.equal(state.watches.size, 2);
+    state.browserFix();
+    assert.ok(state.currentLocation.value);
+
+    const retry = state.retryLocation();
+    assert.equal(state.reloads(), 0);
+    assert.equal(state.locating.value, true);
+    assert.equal(state.watches.size, 2);
+    state.browserFix();
+    await retry;
+    assert.equal(state.locating.value, false);
+    assert.equal(state.locationSamples.value.length, 1);
+});
+
+test('Home Screen detection supports display-mode and iPad desktop identification', () => {
+    for (const options of [
+        { userAgent: 'Mozilla/5.0 (iPhone)', displayStandalone: true },
+        { userAgent: 'Mozilla/5.0 (Macintosh)', platform: 'MacIntel', maxTouchPoints: 5, standalone: true },
+    ]) {
+        const state = load(options);
+        state.callbacks.mount();
+        assert.equal(state.iosHomeScreen.value, true);
+        assert.equal(state.watches.size, 0);
+    }
+    for (const options of [
+        { userAgent: 'Mozilla/5.0 (iPhone)' },
+        { userAgent: 'Mozilla/5.0 (Android)', displayStandalone: true },
+        { userAgent: 'Mozilla/5.0 (Macintosh)', platform: 'MacIntel', standalone: true },
+    ]) {
+        const state = load(options);
+        state.callbacks.mount();
+        assert.equal(state.iosHomeScreen.value, false);
+        assert.equal(state.watches.size, 2);
+        state.callbacks.unmount();
+    }
+});
+
+test('iOS permission recovery distinguishes denial from an unavailable GPS fix', async () => {
+    const state = load({ userAgent: 'Mozilla/5.0 (iPhone)', standalone: true });
+    state.callbacks.mount();
+    const denied = state.retryLocation();
+    const oldError = state.callbacks.error;
+    oldError({ code: 1, PERMISSION_DENIED: 1 });
+    await denied;
+    assert.equal(state.locationPermissionDenied.value, true);
+    assert.match(state.locationError.value, /Layar Utama/);
+    assert.match(state.locationError.value, /muat ulang/);
+    assert.equal(state.watches.size, 0);
+    assert.equal(state.timers.size, 0);
+    state.reloadLocationPermission();
+    assert.equal(state.pageReloads(), 1);
+
+    const unavailable = state.retryLocation();
+    assert.equal(state.locationPermissionDenied.value, false);
+    oldError({ code: 1, PERMISSION_DENIED: 1 });
+    assert.equal(state.locationPermissionDenied.value, false);
+    state.callbacks.error({ code: 2, POSITION_UNAVAILABLE: 2 });
+    state.runTimer(25_000);
+    await unavailable;
+    assert.equal(state.locationPermissionDenied.value, false);
+    assert.match(state.locationError.value, /Lokasi belum tersedia/);
+
+    const granted = state.retryLocation();
+    state.browserFix();
+    await granted;
+    assert.equal(state.locationError.value, '');
+    assert.ok(state.currentLocation.value);
+});
 
 test('retrying the camera releases the previous stream and acquires a fresh one', async () => {
     const state = load();

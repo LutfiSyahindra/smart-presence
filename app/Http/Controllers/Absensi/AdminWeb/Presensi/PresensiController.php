@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Absensi\AdminWeb\Presensi;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Absensi\AdminWeb\Presensi\AssignCutiRequest;
 use App\Http\Requests\Absensi\AdminWeb\Presensi\SavePresensiRequest;
+use App\Models\Pegawai;
 use App\Models\Presensi;
+use App\Services\Absensi\AdminWeb\Cuti\CutiService;
+use App\Services\Absensi\AdminWeb\MasterData\Cuti\MasterCutiService;
 use App\Services\Absensi\AdminWeb\Presensi\PresensiService;
 use App\Support\AccessPermission;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -41,6 +46,21 @@ class PresensiController extends Controller
         $this->service->update($presensi, $request->validated(), (int) $request->user()->id);
 
         return back()->with('success', 'Presensi pegawai berhasil diperbarui.');
+    }
+
+    public function cutiOptions(Request $request, MasterCutiService $service): JsonResponse
+    {
+        $data = $request->validate(['pegawai_id' => ['required', 'integer', 'exists:pegawais,id']]);
+        $pegawai = Pegawai::query()->whereHas('user')->findOrFail($data['pegawai_id']);
+
+        return response()->json(['options' => $service->options($pegawai)]);
+    }
+
+    public function assignCuti(AssignCutiRequest $request, CutiService $service): RedirectResponse
+    {
+        $service->assignDirectly($request->user(), $request->validated());
+
+        return back()->with('success', 'Cuti pegawai berhasil diberikan dan tercatat di aktivitas cuti mobile. Saldo mengikuti jenis cuti yang dipilih.');
     }
 
     public function photo(Request $request, Presensi $presensi, string $type): StreamedResponse|RedirectResponse

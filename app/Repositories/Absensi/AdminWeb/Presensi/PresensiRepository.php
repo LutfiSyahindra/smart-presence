@@ -2,10 +2,12 @@
 
 namespace App\Repositories\Absensi\AdminWeb\Presensi;
 
+use App\Models\CutiRequest;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\JoinClause;
 
 class PresensiRepository implements PresensiRepositoryInterface
@@ -24,13 +26,14 @@ class PresensiRepository implements PresensiRepositoryInterface
     public function overview(array $filters): array
     {
         $query = $this->attendanceQuery(array_merge($filters, ['status' => null]));
+        $working = (clone $query)->whereNotExists($this->approvedCutiQuery('presensis.pegawai_id')->toBase());
 
         return [
             'total' => (clone $query)->count(),
-            'present' => (clone $query)->accepted()->where('is_day_off', false)->whereNotNull('clock_in_at')->count(),
-            'late' => $this->applyStatus((clone $query), 'late')->count(),
-            'overtime' => (clone $query)->where('overtime_minutes', '>', 0)->count(),
-            'day_off' => (clone $query)->where('is_day_off', true)->count(),
+            'present' => (clone $working)->accepted()->where('is_day_off', false)->whereNotNull('clock_in_at')->count(),
+            'late' => $this->applyStatus((clone $working), 'late')->count(),
+            'overtime' => (clone $working)->where('overtime_minutes', '>', 0)->count(),
+            'day_off' => (clone $working)->where('is_day_off', true)->count(),
         ];
     }
 
@@ -68,7 +71,33 @@ class PresensiRepository implements PresensiRepositoryInterface
                 });
             });
 
-        return $this->applyRosterStatus($query, $filters['status'] ?? null);
+        $status = $filters['status'] ?? null;
+        if ($status === 'cuti') {
+            return $query->whereExists($this->approvedCutiQuery('pegawais.id', $filters)->toBase());
+        }
+        if ($status) {
+            $query->whereNotExists($this->approvedCutiQuery('pegawais.id', $filters)->toBase());
+        }
+
+        return $this->applyRosterStatus($query, $status);
+    }
+
+    /** Match leave to the attendance date, or to the period when no attendance exists. */
+    private function approvedCutiQuery(string $pegawaiColumn, ?array $filters = null): Builder
+    {
+        return CutiRequest::query()->selectRaw('1')
+            ->whereColumn('cuti_requests.pegawai_id', $pegawaiColumn)
+            ->where('cuti_requests.status', 'approved')
+            ->where(function (Builder $query) use ($filters) {
+                $query->where(fn (Builder $query) => $query
+                    ->whereDate('cuti_requests.tanggal_mulai', '<=', new Expression('presensis.tanggal_presensi'))
+                    ->whereDate('cuti_requests.tanggal_selesai', '>=', new Expression('presensis.tanggal_presensi')));
+                if ($filters !== null) {
+                    $query->orWhere(fn (Builder $query) => $query->whereNull('presensis.id')
+                        ->whereDate('cuti_requests.tanggal_mulai', '<=', $filters['date_to'])
+                        ->whereDate('cuti_requests.tanggal_selesai', '>=', $filters['date_from']));
+                }
+            });
     }
 
     /** @param array<string, mixed> $filters */

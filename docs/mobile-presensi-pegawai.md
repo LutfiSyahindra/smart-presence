@@ -8,6 +8,15 @@ Ringkasan mengikuti periode dan pencarian serta menghitung semua halaman.
 Pegawai tanpa catatan pada periode tersebut tetap tampil pada daftar semua status
 dan filter **Belum ada presensi**; ketiadaan catatan tidak otomatis berarti alfa.
 
+Cuti yang sudah disetujui ditampilkan dengan status **Cuti**, jenis cuti menggantikan
+nama shift kerja, serta rentang tanggal cuti. Ini berlaku juga untuk jadwal presensi
+yang belum memiliki jam masuk/pulang dan pegawai tanpa catatan presensi. Filter
+**Cuti** mengikuti cakupan akses, pencarian, dan periode; pegawai yang cuti tidak
+masuk ke filter **Belum lengkap** atau **Belum ada presensi**. Ringkasan hadir,
+terlambat, lembur, dan hari libur mengecualikan tanggal cuti yang disetujui.
+Cuti menunggu, ditolak, dibatalkan, atau di luar tanggal presensi tidak mengganti
+status. Shift kerja asli tetap tersimpan untuk digunakan setelah cuti selesai.
+
 Foto profil tampil di samping nama pegawai, termasuk saat belum ada presensi.
 Pegawai tanpa foto profil atau foto yang gagal dimuat menggunakan inisial nama.
 Foto profil berasal dari akun pegawai dan dibuka melalui endpoint privat dengan

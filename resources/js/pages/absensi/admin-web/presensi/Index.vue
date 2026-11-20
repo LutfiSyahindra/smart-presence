@@ -52,6 +52,7 @@ interface ClockData {
 interface PresensiRow {
     id: number | null;
     has_presensi: boolean;
+    cuti: { nama: string; tanggal_mulai: string; tanggal_selesai: string } | null;
     pegawai_id: number;
     pegawai: { nama: string; nik: string | null; unit: string | null; jabatan: string | null };
     tanggal: string;
@@ -88,6 +89,16 @@ interface ShiftOption {
     jam_keluar: string;
 }
 
+interface CutiOption {
+    id: number;
+    nama: string;
+    is_tahunan: boolean;
+    tahun: number;
+    tanpa_kuota: boolean;
+    jumlah_hari: number;
+    sisa: number;
+}
+
 interface SearchableSelectOption {
     value: string | number;
     label: string;
@@ -96,6 +107,7 @@ interface SearchableSelectOption {
 }
 
 type PresensiForm = {
+    entry_type: 'shift' | 'cuti';
     pegawai_id: number;
     tanggal_presensi: string;
     shift_id: number;
@@ -104,6 +116,10 @@ type PresensiForm = {
     is_day_off: boolean;
     overtime_minutes: number;
     notes: string;
+    master_cuti_id: number;
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    alasan: string;
 };
 
 const props = defineProps<{
@@ -134,6 +150,7 @@ const previewPhoto = ref<{ url: string; label: string } | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const emptyForm = (): PresensiForm => ({
+    entry_type: 'shift',
     pegawai_id: 0,
     tanggal_presensi: props.filters.date_from,
     shift_id: 0,
@@ -142,8 +159,67 @@ const emptyForm = (): PresensiForm => ({
     is_day_off: false,
     overtime_minutes: 0,
     notes: '',
+    master_cuti_id: 0,
+    tanggal_mulai: props.filters.date_from,
+    tanggal_selesai: props.filters.date_from,
+    alasan: '',
 });
 const form = useForm<PresensiForm>(emptyForm());
+const cutiOptions = ref<CutiOption[]>([]);
+const cutiLoading = ref(false);
+const cutiLoadError = ref('');
+let cutiController: AbortController | undefined;
+const isCuti = computed(() => form.entry_type === 'cuti');
+const availableCuti = computed(() =>
+    cutiOptions.value.filter((option) => !option.is_tahunan || option.tahun === Number(form.tanggal_mulai.slice(0, 4))),
+);
+const selectedCuti = computed(() => availableCuti.value.find((option) => option.id === Number(form.master_cuti_id)) ?? null);
+const cutiDays = computed(() => {
+    const days = (Date.parse(form.tanggal_selesai) - Date.parse(form.tanggal_mulai)) / 86_400_000 + 1;
+    return Number.isFinite(days) ? Math.max(0, days) : 0;
+});
+const cutiSelectOptions = computed<SearchableSelectOption[]>(() =>
+    availableCuti.value.map((option) => ({
+        value: option.id,
+        label: option.nama,
+        description: option.is_tahunan
+            ? `Sisa ${option.sisa} dari ${option.jumlah_hari} hari · ${option.tahun}`
+            : option.tanpa_kuota
+              ? 'Tanpa kuota hari'
+              : `Maksimal ${option.jumlah_hari} hari per pengajuan`,
+    })),
+);
+
+watch(availableCuti, (options) => {
+    if (!options.some((option) => option.id === Number(form.master_cuti_id))) {
+        form.master_cuti_id = options.find((option) => option.is_tahunan)?.id ?? options[0]?.id ?? 0;
+    }
+});
+
+watch([formOpen, isCuti, () => form.pegawai_id], async ([open, cuti, pegawaiId]) => {
+    cutiController?.abort();
+    cutiOptions.value = [];
+    cutiLoadError.value = '';
+    cutiLoading.value = false;
+    if (!open || !cuti || !pegawaiId) return;
+    const controller = new AbortController();
+    cutiController = controller;
+    cutiLoading.value = true;
+    try {
+        const response = await fetch(`${manageUrl}/cuti-options?pegawai_id=${pegawaiId}`, {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+            signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Cuti tidak tersedia');
+        const data = await response.json();
+        if (!controller.signal.aborted) cutiOptions.value = data.options;
+    } catch {
+        if (!controller.signal.aborted) cutiLoadError.value = 'Gagal memuat hak cuti. Pilih ulang pegawai atau buka kembali modal.';
+    } finally {
+        if (!controller.signal.aborted) cutiLoading.value = false;
+    }
+});
 
 const hasFilters = computed(
     () => Boolean(search.value.trim()) || status.value !== 'all' || dateFrom.value !== dateTo.value || dateFrom.value !== localToday(),
@@ -219,6 +295,7 @@ const overtimeLabel = (minutes: number) => {
 };
 
 const statusMeta = (record: PresensiRow) => {
+    if (record.cuti) return { label: 'Cuti', tone: 'day-off', icon: CalendarDays };
     if (record.status === 'approval-pending') return { label: 'Menunggu persetujuan', tone: 'incomplete', icon: TimerReset };
     if (record.status === 'approval-rejected') return { label: 'Presensi ditolak', tone: 'late', icon: AlarmClock };
     if (record.status === 'day-off') return { label: 'Libur', tone: 'day-off', icon: Coffee };
@@ -255,6 +332,7 @@ watch(search, () => {
 });
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer);
+    cutiController?.abort();
 });
 
 const openCreate = (pegawaiId = 0, date = props.filters.date_from) => {
@@ -264,6 +342,8 @@ const openCreate = (pegawaiId = 0, date = props.filters.date_from) => {
         ...emptyForm(),
         pegawai_id: pegawaiId,
         tanggal_presensi: date,
+        tanggal_mulai: date,
+        tanggal_selesai: date,
         shift_id: assignedShiftId,
         is_day_off: props.options?.shifts.find((shift) => shift.id === assignedShiftId)?.is_day_off ?? false,
     });
@@ -284,8 +364,11 @@ const openEdit = (record: PresensiRow) => {
     if (!record.id) return;
     editing.value = record;
     form.defaults({
+        ...emptyForm(),
         pegawai_id: record.pegawai_id,
         tanggal_presensi: record.tanggal,
+        tanggal_mulai: record.tanggal,
+        tanggal_selesai: record.tanggal,
         shift_id: record.shift_id ?? 0,
         clock_in_time: record.clock_in.time ?? '',
         clock_out_time: record.clock_out.time ?? '',
@@ -311,11 +394,13 @@ const closeForm = () => {
 };
 
 const submitForm = () => {
+    if (form.processing) return;
     const options = {
         preserveScroll: true,
         onSuccess: closeForm,
     };
-    if (editing.value) form.put(`${manageUrl}/${editing.value.id}`, options);
+    if (isCuti.value) form.post(`${manageUrl}/cuti`, options);
+    else if (editing.value) form.put(`${manageUrl}/${editing.value.id}`, options);
     else form.post(manageUrl, options);
 };
 
@@ -345,7 +430,7 @@ watch(
                 <div class="attendance-hero-copy">
                     <span class="attendance-eyebrow"><Sparkles /> RSARSY SMART PRESENCE</span>
                     <h1>{{ pageTitle }}</h1>
-                    <p v-if="manage">Koreksi waktu presensi, tentukan durasi lembur, atau tandai hari libur pegawai dari satu panel.</p>
+                    <p v-if="manage">Atur presensi, lembur, hari libur, atau berikan cuti langsung kepada pegawai dari satu panel.</p>
                     <p v-else>
                         Pantau aktivitas clock-in dan clock-out pegawai lengkap dengan shift, lokasi, foto wajah, dan status ketepatan waktu.
                     </p>
@@ -442,7 +527,11 @@ watch(
                                     </div>
                                 </td>
                                 <td>
-                                    <div v-if="record.shift" class="shift-cell">
+                                    <div v-if="record.cuti" class="shift-cell">
+                                        <strong>CUTI · {{ record.cuti.nama }}</strong>
+                                        <span>{{ formatDate(record.cuti.tanggal_mulai) }} – {{ formatDate(record.cuti.tanggal_selesai) }}</span>
+                                    </div>
+                                    <div v-else-if="record.shift" class="shift-cell">
                                         <strong>{{ record.shift.nama }}</strong>
                                         <span
                                             ><Clock3 />
@@ -473,7 +562,7 @@ watch(
                                     />
                                 </td>
                                 <td>
-                                    <div v-if="record.has_presensi" class="status-cell">
+                                    <div v-if="record.has_presensi || record.cuti" class="status-cell">
                                         <span class="status-pill" :class="statusMeta(record).tone"
                                             ><component :is="statusMeta(record).icon" />{{ statusMeta(record).label }}</span
                                         >
@@ -521,8 +610,11 @@ watch(
                             </button>
                         </header>
                         <div class="mobile-shift">
-                            <span><BriefcaseBusiness /> {{ record.shift?.nama || '-' }}</span>
-                            <small v-if="record.shift">{{
+                            <span><BriefcaseBusiness /> {{ record.cuti ? `CUTI · ${record.cuti.nama}` : record.shift?.nama || '-' }}</span>
+                            <small v-if="record.cuti"
+                                >{{ formatDate(record.cuti.tanggal_mulai) }} – {{ formatDate(record.cuti.tanggal_selesai) }}</small
+                            >
+                            <small v-else-if="record.shift">{{
                                 record.is_day_off ? 'OFF / Libur' : `${record.shift.jam_masuk} – ${record.shift.jam_keluar}`
                             }}</small>
                         </div>
@@ -546,7 +638,7 @@ watch(
                             />
                         </div>
                         <footer>
-                            <span v-if="record.has_presensi" class="status-pill" :class="statusMeta(record).tone"
+                            <span v-if="record.has_presensi || record.cuti" class="status-pill" :class="statusMeta(record).tone"
                                 ><component :is="statusMeta(record).icon" />{{ statusMeta(record).label }}</span
                             >
                             <span v-else class="muted-value">-</span>
@@ -570,18 +662,47 @@ watch(
 
         <CrudModal
             :open="formOpen"
-            :title="editing ? 'Atur Presensi Pegawai' : 'Tambah Presensi Pegawai'"
-            description="Waktu menggunakan format 24 jam. Shift malam otomatis mencatat clock-out di hari berikutnya."
+            :title="isCuti ? 'Berikan Cuti Pegawai' : editing ? 'Atur Presensi Pegawai' : 'Tambah Presensi Pegawai'"
+            :description="
+                isCuti
+                    ? 'Cuti langsung disetujui dan tercatat di aktivitas pengajuan cuti pegawai.'
+                    : 'Waktu menggunakan format 24 jam. Shift malam otomatis mencatat clock-out di hari berikutnya.'
+            "
             @close="closeForm"
         >
             <form @submit.prevent="submitForm">
                 <div class="attendance-form-body">
+                    <div class="entry-type-picker" role="group" aria-label="Jenis pengaturan presensi">
+                        <button
+                            type="button"
+                            :class="{ active: !isCuti }"
+                            :disabled="form.processing"
+                            @click="
+                                form.entry_type = 'shift';
+                                form.clearErrors();
+                            "
+                        >
+                            <BriefcaseBusiness /> Shift / Presensi
+                        </button>
+                        <button
+                            type="button"
+                            :class="{ active: isCuti }"
+                            :disabled="form.processing"
+                            @click="
+                                form.entry_type = 'cuti';
+                                form.clearErrors();
+                            "
+                        >
+                            <CalendarDays /> Cuti
+                        </button>
+                    </div>
                     <div class="form-summary">
                         <span><SlidersHorizontal /></span>
                         <div>
-                            <small>{{ editing ? 'KOREKSI DATA PRESENSI' : 'PRESENSI MANUAL' }}</small>
+                            <small>{{ isCuti ? 'PEMBERIAN CUTI LANGSUNG' : editing ? 'KOREKSI DATA PRESENSI' : 'PRESENSI MANUAL' }}</small>
                             <strong>{{ selectedEmployee?.nama || 'Pilih pegawai' }}</strong>
-                            <p>
+                            <p v-if="isCuti">{{ selectedCuti?.nama || 'Pilih jenis cuti pegawai' }}</p>
+                            <p v-else>
                                 {{
                                     selectedShift
                                         ? `${selectedShift.nama} · ${selectedShift.is_day_off ? 'OFF / Libur' : `${selectedShift.jam_masuk}–${selectedShift.jam_keluar}`}`
@@ -589,7 +710,8 @@ watch(
                                 }}
                             </p>
                         </div>
-                        <em v-if="form.is_day_off"><Coffee /> Libur</em>
+                        <em v-if="isCuti"><CalendarDays /> Cuti</em>
+                        <em v-else-if="form.is_day_off"><Coffee /> Libur</em>
                     </div>
 
                     <div class="form-grid">
@@ -598,7 +720,7 @@ watch(
                             <SearchableSelect
                                 v-model="form.pegawai_id"
                                 :options="employeeOptions"
-                                :disabled="Boolean(editing)"
+                                :disabled="Boolean(editing) || form.processing"
                                 :placeholder-value="0"
                                 placeholder="Pilih pegawai"
                                 placeholder-disabled
@@ -609,104 +731,174 @@ watch(
                             <p v-if="form.errors.pegawai_id">{{ form.errors.pegawai_id }}</p>
                         </div>
 
-                        <label class="form-field">
-                            <span>Tanggal <b>*</b></span>
-                            <input
-                                v-model="form.tanggal_presensi"
-                                type="date"
-                                :disabled="Boolean(editing)"
-                                :class="{ invalid: form.errors.tanggal_presensi }"
-                            />
-                            <p v-if="form.errors.tanggal_presensi">{{ form.errors.tanggal_presensi }}</p>
-                        </label>
-
-                        <div class="form-field">
-                            <span>Shift <b v-if="!form.is_day_off">*</b></span>
-                            <SearchableSelect
-                                v-model="form.shift_id"
-                                :options="shiftOptions"
-                                :placeholder-value="0"
-                                :placeholder="form.is_day_off ? 'Tanpa shift' : 'Pilih shift'"
-                                search-placeholder="Cari nama atau jam shift..."
-                                :class="{ invalid: form.errors.shift_id }"
-                            />
-                            <p v-if="form.errors.shift_id">{{ form.errors.shift_id }}</p>
-                        </div>
-
-                        <label class="day-off-toggle">
-                            <input v-model="form.is_day_off" type="checkbox" :disabled="selectedShift?.is_day_off" />
-                            <span><Coffee /></span>
-                            <div><strong>Liburkan pegawai</strong><small>Clock-in, clock-out, dan lembur akan dikosongkan</small></div>
-                        </label>
-
-                        <div class="form-field time-field">
-                            <span>Clock-in</span>
-                            <TimePicker24
-                                v-model="form.clock_in_time"
-                                :disabled="form.is_day_off"
-                                :invalid="Boolean(form.errors.clock_in_time)"
-                                aria-label="Pilih waktu clock-in dalam format 24 jam"
-                            />
-                            <p v-if="form.errors.clock_in_time">{{ form.errors.clock_in_time }}</p>
-                        </div>
-
-                        <div class="form-field time-field">
-                            <span>Clock-out</span>
-                            <TimePicker24
-                                v-model="form.clock_out_time"
-                                :disabled="form.is_day_off"
-                                :invalid="Boolean(form.errors.clock_out_time)"
-                                aria-label="Pilih waktu clock-out dalam format 24 jam"
-                            />
-                            <p v-if="form.errors.clock_out_time">{{ form.errors.clock_out_time }}</p>
-                        </div>
-
-                        <label class="form-field overtime-field">
-                            <span>Durasi lembur <small>menit</small></span>
-                            <div>
-                                <Zap /><input
-                                    v-model.number="form.overtime_minutes"
-                                    type="number"
-                                    min="0"
-                                    max="1440"
-                                    step="15"
-                                    :disabled="form.is_day_off"
+                        <template v-if="isCuti">
+                            <label class="form-field">
+                                <span>Tanggal mulai <b>*</b></span>
+                                <input
+                                    v-model="form.tanggal_mulai"
+                                    type="date"
+                                    required
+                                    :disabled="form.processing"
+                                    :class="{ invalid: form.errors.tanggal_mulai }"
                                 />
+                                <p v-if="form.errors.tanggal_mulai">{{ form.errors.tanggal_mulai }}</p>
+                            </label>
+                            <label class="form-field">
+                                <span>Tanggal selesai <b>*</b></span>
+                                <input
+                                    v-model="form.tanggal_selesai"
+                                    type="date"
+                                    required
+                                    :min="form.tanggal_mulai"
+                                    :disabled="form.processing"
+                                    :class="{ invalid: form.errors.tanggal_selesai }"
+                                />
+                                <p v-if="form.errors.tanggal_selesai">{{ form.errors.tanggal_selesai }}</p>
+                            </label>
+                            <div class="form-field">
+                                <span>Jenis cuti <b>*</b></span>
+                                <SearchableSelect
+                                    v-model="form.master_cuti_id"
+                                    :options="cutiSelectOptions"
+                                    :placeholder-value="0"
+                                    placeholder="Pilih jenis cuti"
+                                    placeholder-disabled
+                                    search-placeholder="Cari jenis cuti..."
+                                    :disabled="cutiLoading || !form.pegawai_id || form.processing"
+                                    :class="{ invalid: form.errors.master_cuti_id }"
+                                />
+                                <small v-if="cutiLoading">Memuat hak cuti pegawai...</small>
+                                <p v-else-if="cutiLoadError" role="alert">{{ cutiLoadError }}</p>
+                                <small v-else-if="!form.pegawai_id">Pilih pegawai untuk melihat hak cutinya.</small>
+                                <small v-else-if="!availableCuti.length">Belum ada hak cuti untuk periode ini. Atur melalui Master Cuti.</small>
+                                <p v-if="form.errors.master_cuti_id">{{ form.errors.master_cuti_id }}</p>
                             </div>
-                            <div class="overtime-quick">
-                                <button
-                                    v-for="minutes in [60, 120, 180]"
-                                    :key="minutes"
-                                    type="button"
-                                    :disabled="form.is_day_off"
-                                    @click="form.overtime_minutes = minutes"
+                            <div class="cuti-balance-preview" role="status">
+                                <strong>{{ cutiDays }} hari kalender</strong>
+                                <span v-if="selectedCuti?.is_tahunan">
+                                    Sisa {{ selectedCuti.sisa }} hari · Setelah pemberian: {{ Math.max(0, selectedCuti.sisa - cutiDays) }} hari.
+                                    Pengajuan menunggu sudah diperhitungkan.
+                                </span>
+                                <span v-else-if="selectedCuti?.tanpa_kuota">Tanpa kuota hari. Tidak mengurangi saldo cuti tahunan.</span>
+                                <span v-else-if="selectedCuti"
+                                    >Maksimal {{ selectedCuti.jumlah_hari }} hari per pengajuan. Tidak mengurangi saldo tahunan.</span
                                 >
-                                    +{{ minutes / 60 }} jam
-                                </button>
+                                <span>Cuti langsung berstatus Disetujui dan muncul pada aktivitas pengajuan cuti di mobile.</span>
                             </div>
-                            <p v-if="form.errors.overtime_minutes">{{ form.errors.overtime_minutes }}</p>
-                        </label>
+                            <label class="form-field notes-field">
+                                <span>Alasan cuti <b>*</b></span>
+                                <textarea
+                                    v-model="form.alasan"
+                                    rows="3"
+                                    maxlength="2000"
+                                    required
+                                    :disabled="form.processing"
+                                    placeholder="Tuliskan alasan pemberian cuti pegawai"
+                                />
+                                <p v-if="form.errors.alasan">{{ form.errors.alasan }}</p>
+                            </label>
+                        </template>
 
-                        <label class="form-field notes-field">
-                            <span>Catatan <small>opsional</small></span>
-                            <textarea
-                                v-model="form.notes"
-                                rows="3"
-                                maxlength="1000"
-                                placeholder="Contoh: koreksi berdasarkan konfirmasi kepala unit"
-                            ></textarea>
-                            <p v-if="form.errors.notes">{{ form.errors.notes }}</p>
-                        </label>
+                        <template v-else>
+                            <label class="form-field">
+                                <span>Tanggal <b>*</b></span>
+                                <input
+                                    v-model="form.tanggal_presensi"
+                                    type="date"
+                                    :disabled="Boolean(editing)"
+                                    :class="{ invalid: form.errors.tanggal_presensi }"
+                                />
+                                <p v-if="form.errors.tanggal_presensi">{{ form.errors.tanggal_presensi }}</p>
+                            </label>
+
+                            <div class="form-field">
+                                <span>Shift <b v-if="!form.is_day_off">*</b></span>
+                                <SearchableSelect
+                                    v-model="form.shift_id"
+                                    :options="shiftOptions"
+                                    :placeholder-value="0"
+                                    :placeholder="form.is_day_off ? 'Tanpa shift' : 'Pilih shift'"
+                                    search-placeholder="Cari nama atau jam shift..."
+                                    :class="{ invalid: form.errors.shift_id }"
+                                />
+                                <p v-if="form.errors.shift_id">{{ form.errors.shift_id }}</p>
+                            </div>
+
+                            <label class="day-off-toggle">
+                                <input v-model="form.is_day_off" type="checkbox" :disabled="selectedShift?.is_day_off" />
+                                <span><Coffee /></span>
+                                <div><strong>Liburkan pegawai</strong><small>Clock-in, clock-out, dan lembur akan dikosongkan</small></div>
+                            </label>
+
+                            <div class="form-field time-field">
+                                <span>Clock-in</span>
+                                <TimePicker24
+                                    v-model="form.clock_in_time"
+                                    :disabled="form.is_day_off"
+                                    :invalid="Boolean(form.errors.clock_in_time)"
+                                    aria-label="Pilih waktu clock-in dalam format 24 jam"
+                                />
+                                <p v-if="form.errors.clock_in_time">{{ form.errors.clock_in_time }}</p>
+                            </div>
+
+                            <div class="form-field time-field">
+                                <span>Clock-out</span>
+                                <TimePicker24
+                                    v-model="form.clock_out_time"
+                                    :disabled="form.is_day_off"
+                                    :invalid="Boolean(form.errors.clock_out_time)"
+                                    aria-label="Pilih waktu clock-out dalam format 24 jam"
+                                />
+                                <p v-if="form.errors.clock_out_time">{{ form.errors.clock_out_time }}</p>
+                            </div>
+
+                            <label class="form-field overtime-field">
+                                <span>Durasi lembur <small>menit</small></span>
+                                <div>
+                                    <Zap /><input
+                                        v-model.number="form.overtime_minutes"
+                                        type="number"
+                                        min="0"
+                                        max="1440"
+                                        step="15"
+                                        :disabled="form.is_day_off"
+                                    />
+                                </div>
+                                <div class="overtime-quick">
+                                    <button
+                                        v-for="minutes in [60, 120, 180]"
+                                        :key="minutes"
+                                        type="button"
+                                        :disabled="form.is_day_off"
+                                        @click="form.overtime_minutes = minutes"
+                                    >
+                                        +{{ minutes / 60 }} jam
+                                    </button>
+                                </div>
+                                <p v-if="form.errors.overtime_minutes">{{ form.errors.overtime_minutes }}</p>
+                            </label>
+
+                            <label class="form-field notes-field">
+                                <span>Catatan <small>opsional</small></span>
+                                <textarea
+                                    v-model="form.notes"
+                                    rows="3"
+                                    maxlength="1000"
+                                    placeholder="Contoh: koreksi berdasarkan konfirmasi kepala unit"
+                                ></textarea>
+                                <p v-if="form.errors.notes">{{ form.errors.notes }}</p>
+                            </label>
+                        </template>
                     </div>
                 </div>
                 <footer class="attendance-form-footer">
                     <span><Clock3 /> Perubahan akan tercatat atas nama admin</span>
                     <div>
                         <button type="button" class="btn btn-outline-secondary" :disabled="form.processing" @click="closeForm">Batal</button>
-                        <button type="submit" class="btn btn-primary" :disabled="form.processing">
+                        <button type="submit" class="btn btn-primary" :disabled="form.processing || (isCuti && (cutiLoading || !selectedCuti))">
                             <LoaderCircle v-if="form.processing" class="spin" />
                             <CheckCircle2 v-else />
-                            {{ form.processing ? 'Menyimpan...' : 'Simpan Presensi' }}
+                            {{ form.processing ? 'Menyimpan...' : isCuti ? 'Berikan Cuti' : 'Simpan Presensi' }}
                         </button>
                     </div>
                 </footer>
@@ -1490,6 +1682,45 @@ watch(
 :deep(.admin-modal-header p) {
     font-size: 13px;
     line-height: 1.55;
+}
+.entry-type-picker {
+    display: flex;
+    gap: 8px;
+}
+.entry-type-picker button {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px;
+    border: 1px solid var(--rs-border);
+    border-radius: 10px;
+    color: var(--rs-text-soft);
+    background: white;
+    font-size: 13px;
+    font-weight: 700;
+}
+.entry-type-picker button.active {
+    border-color: var(--rs-primary);
+    color: var(--rs-primary-deep);
+    background: var(--rs-primary-pale);
+}
+.entry-type-picker svg {
+    width: 17px;
+    height: 17px;
+}
+.cuti-balance-preview {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 5px;
+    padding: 13px;
+    border: 1px solid var(--rs-primary-border);
+    border-radius: 11px;
+    color: var(--rs-text-soft);
+    background: var(--rs-canvas);
+    font-size: 12px;
+    line-height: 1.6;
 }
 .form-summary {
     display: flex;

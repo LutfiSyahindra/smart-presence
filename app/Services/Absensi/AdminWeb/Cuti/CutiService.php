@@ -8,6 +8,7 @@ use App\Models\Jabatan;
 use App\Models\MasterCuti;
 use App\Models\Pegawai;
 use App\Models\PegawaiCuti;
+use App\Models\Presensi;
 use App\Models\User;
 use App\Services\Absensi\ConfigurationService;
 use App\Services\Notifications\CutiNotificationService;
@@ -48,39 +49,8 @@ class CutiService
                 throw ValidationException::withMessages(['cuti' => 'Ada pengguna approver yang tidak tersedia. Hubungi administrator.']);
             }
 
-            if (CutiRequest::query()->where('pegawai_id', $pegawai->id)->whereIn('status', ['pending', 'approved'])
-                ->whereDate('tanggal_mulai', '<=', $data['tanggal_selesai'])->whereDate('tanggal_selesai', '>=', $data['tanggal_mulai'])->exists()) {
-                throw ValidationException::withMessages(['tanggal_mulai' => 'Tanggal ini bertumpang tindih dengan pengajuan cuti yang menunggu atau sudah disetujui.']);
-            }
-
-            $master = MasterCuti::query()->find($data['master_cuti_id']);
-            if (! $master?->aktif) {
-                throw ValidationException::withMessages(['master_cuti_id' => 'Jenis cuti tidak aktif atau tidak tersedia.']);
-            }
-            $start = CarbonImmutable::parse($data['tanggal_mulai']);
-            $end = CarbonImmutable::parse($data['tanggal_selesai']);
-            $days = (int) $start->diffInDays($end) + 1;
-            $annual = $master->jenis === 'tahunan';
-            if ($annual && $start->year !== $end->year) {
-                throw ValidationException::withMessages(['tanggal_selesai' => 'Cuti tahunan yang melewati pergantian tahun harus diajukan terpisah untuk setiap tahun.']);
-            }
-            $allocation = PegawaiCuti::query()->where('master_cuti_id', $master->id)->where('pegawai_id', $pegawai->id)
-                ->where('tahun', $annual ? $start->year : 0)->lockForUpdate()->first();
-            if (! $allocation) {
-                throw ValidationException::withMessages(['master_cuti_id' => 'Jenis cuti atau kuota untuk tahun tersebut belum diberikan kepada Anda.']);
-            }
-            $used = $annual ? (int) CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('master_cuti_id', $master->id)
-                ->where('tahun_cuti', $start->year)->whereIn('status', ['pending', 'approved'])->sum('jumlah_hari') : 0;
-            $available = $annual ? $allocation->jumlah_hari - $used : $master->durasi_hari;
-            if (($annual || ! $master->tanpa_kuota) && $days > $available) {
-                throw ValidationException::withMessages(['tanggal_selesai' => $annual
-                    ? 'Sisa cuti tahunan tidak mencukupi. Tersedia '.max(0, $available).' hari (pengajuan menunggu sudah diperhitungkan).'
-                    : "Durasi jenis cuti ini maksimal {$available} hari kalender per pengajuan."]);
-            }
-
             $cuti = CutiRequest::query()->create([
-                'master_cuti_id' => $master->id, 'nama_cuti' => $master->nama, 'jumlah_hari' => $days,
-                'tahun_cuti' => $annual ? $start->year : null, 'is_tahunan' => $annual,
+                ...$this->leaveAttributes($pegawai, $data),
                 'user_id' => $user->id, 'pegawai_id' => $pegawai->id, 'jabatan_id' => $jabatan->id,
                 'nama_pegawai' => $pegawai->nama, 'nama_jabatan' => $jabatan->nama, 'nama_unit' => $jabatan->unitKerja->nama,
                 'tanggal_mulai' => $data['tanggal_mulai'], 'tanggal_selesai' => $data['tanggal_selesai'], 'alasan' => $data['alasan'],
@@ -98,6 +68,78 @@ class CutiService
 
             return $cuti->load('approvals');
         });
+    }
+
+    public function assignDirectly(User $actor, array $data): CutiRequest
+    {
+        return DB::transaction(function () use ($actor, $data) {
+            // Share the employee lock with submissions, quota changes, and attendance.
+            $pegawai = Pegawai::query()->with(['user', 'jabatan.unitKerja', 'unitKerja'])
+                ->lockForUpdate()->findOrFail($data['pegawai_id']);
+            if (! $pegawai->user) {
+                throw ValidationException::withMessages(['pegawai_id' => 'Pegawai harus sudah memiliki akun pengguna.']);
+            }
+            if (Presensi::query()->where('pegawai_id', $pegawai->id)
+                ->whereBetween('tanggal_presensi', [$data['tanggal_mulai'], $data['tanggal_selesai']])
+                ->where(fn ($query) => $query->whereNotNull('clock_in_at')->orWhereNotNull('clock_out_at'))->exists()) {
+                throw ValidationException::withMessages(['tanggal_mulai' => 'Ada clock-in atau clock-out pada periode ini. Koreksi presensi terlebih dahulu sebelum memberikan cuti.']);
+            }
+
+            $cuti = CutiRequest::query()->create([
+                ...$this->leaveAttributes($pegawai, $data),
+                'user_id' => $pegawai->user_id, 'pegawai_id' => $pegawai->id, 'jabatan_id' => $pegawai->jabatan_id,
+                'nama_pegawai' => $pegawai->nama, 'nama_jabatan' => $pegawai->jabatan?->nama ?? '-',
+                'nama_unit' => $pegawai->jabatan?->unitKerja?->nama ?? $pegawai->unitKerja?->nama ?? '-',
+                'tanggal_mulai' => $data['tanggal_mulai'], 'tanggal_selesai' => $data['tanggal_selesai'], 'alasan' => $data['alasan'],
+                'status' => 'approved', 'current_level' => null, 'decided_at' => now(),
+            ]);
+            $cuti->approvals()->create([
+                'user_id' => $actor->id, 'approver_name' => $actor->name, 'level' => 1, 'status' => 'approved',
+                'note' => 'Cuti diberikan langsung melalui Set Presensi Pegawai.', 'decided_at' => now(),
+            ]);
+            $this->notifications->send($cuti, 'approved', $actor);
+
+            return $cuti->load('approvals');
+        });
+    }
+
+    /** Validate entitlement while holding the employee lock in the caller's transaction. */
+    private function leaveAttributes(Pegawai $pegawai, array $data): array
+    {
+        if (CutiRequest::query()->where('pegawai_id', $pegawai->id)->whereIn('status', ['pending', 'approved'])
+            ->whereDate('tanggal_mulai', '<=', $data['tanggal_selesai'])->whereDate('tanggal_selesai', '>=', $data['tanggal_mulai'])->exists()) {
+            throw ValidationException::withMessages(['tanggal_mulai' => 'Tanggal ini bertumpang tindih dengan pengajuan cuti yang menunggu atau sudah disetujui.']);
+        }
+
+        $master = MasterCuti::query()->find($data['master_cuti_id']);
+        if (! $master?->aktif) {
+            throw ValidationException::withMessages(['master_cuti_id' => 'Jenis cuti tidak aktif atau tidak tersedia.']);
+        }
+        $start = CarbonImmutable::parse($data['tanggal_mulai']);
+        $end = CarbonImmutable::parse($data['tanggal_selesai']);
+        $days = (int) $start->diffInDays($end) + 1;
+        $annual = $master->jenis === 'tahunan';
+        if ($annual && $start->year !== $end->year) {
+            throw ValidationException::withMessages(['tanggal_selesai' => 'Cuti tahunan yang melewati pergantian tahun harus diajukan terpisah untuk setiap tahun.']);
+        }
+        $allocation = PegawaiCuti::query()->where('master_cuti_id', $master->id)->where('pegawai_id', $pegawai->id)
+            ->where('tahun', $annual ? $start->year : 0)->lockForUpdate()->first();
+        if (! $allocation) {
+            throw ValidationException::withMessages(['master_cuti_id' => 'Jenis cuti atau kuota untuk tahun tersebut belum diberikan kepada pegawai.']);
+        }
+        $used = $annual ? (int) CutiRequest::query()->where('pegawai_id', $pegawai->id)->where('master_cuti_id', $master->id)
+            ->where('tahun_cuti', $start->year)->whereIn('status', ['pending', 'approved'])->sum('jumlah_hari') : 0;
+        $available = $annual ? $allocation->jumlah_hari - $used : $master->durasi_hari;
+        if (($annual || ! $master->tanpa_kuota) && $days > $available) {
+            throw ValidationException::withMessages(['tanggal_selesai' => $annual
+                ? 'Sisa cuti tahunan tidak mencukupi. Tersedia '.max(0, $available).' hari (pengajuan menunggu sudah diperhitungkan).'
+                : "Durasi jenis cuti ini maksimal {$available} hari kalender per pengajuan."]);
+        }
+
+        return [
+            'master_cuti_id' => $master->id, 'nama_cuti' => $master->nama, 'jumlah_hari' => $days,
+            'tahun_cuti' => $annual ? $start->year : null, 'is_tahunan' => $annual,
+        ];
     }
 
     public function cancel(CutiRequest $cuti, User $actor): CutiRequest

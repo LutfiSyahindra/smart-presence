@@ -4,6 +4,7 @@ namespace Tests\Feature\Absensi\AbsensiMobile;
 
 use App\Models\AbsensiConfiguration;
 use App\Models\ApprovalLine;
+use App\Models\CutiRequest;
 use App\Models\Jabatan;
 use App\Models\Pegawai;
 use App\Models\Presensi;
@@ -17,6 +18,7 @@ use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -77,6 +79,16 @@ class PresensiPegawaiTest extends TestCase
     {
         return Presensi::create([...['pegawai_id' => $employee->id, 'shift_id' => $this->shift->id,
             'tanggal_presensi' => '2026-11-16', 'clock_in_at' => '2026-11-16 07:17:00', 'clock_out_at' => '2026-11-16 15:00:00'], ...$attributes]);
+    }
+
+    private function cuti(Pegawai $employee, array $attributes = []): CutiRequest
+    {
+        return CutiRequest::create([
+            'pegawai_id' => $employee->id, 'user_id' => $employee->user_id,
+            'nama_pegawai' => $employee->nama, 'nama_jabatan' => '-', 'nama_unit' => '-',
+            'nama_cuti' => 'Cuti Tahunan', 'tanggal_mulai' => '2026-11-16', 'tanggal_selesai' => '2026-11-18',
+            'alasan' => 'Keperluan keluarga', 'status' => 'approved', ...$attributes,
+        ]);
     }
 
     private function approvalLine(array $employees, string $type = ApprovalLine::TYPE_PRESENSI, int $level = 1): ApprovalLine
@@ -156,6 +168,120 @@ class PresensiPegawaiTest extends TestCase
         $this->get(self::URL.'?status=late')->assertInertia(fn (Assert $page) => $page->where('records.total', 0));
         $this->get(self::URL.'?status=unrecorded')->assertInertia(fn (Assert $page) => $page
             ->where('records.total', 1)->where('records.data.0.pegawai.nama', 'B Belum presensi')->where('records.data.0.has_presensi', false));
+    }
+
+    public function test_approved_leave_overrides_an_incomplete_scheduled_record_without_changing_its_shift(): void
+    {
+        $record = $this->record($this->employee, ['clock_in_at' => null, 'clock_out_at' => null]);
+        $this->cuti($this->employee);
+
+        $this->actingAs($this->head)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 1)->where('records.data.0.id', $record->id)
+            ->where('records.data.0.has_presensi', true)->where('records.data.0.status', 'cuti')
+            ->where('records.data.0.cuti.nama', 'Cuti Tahunan')
+            ->where('records.data.0.cuti.tanggal_mulai', '2026-11-16')
+            ->where('records.data.0.cuti.tanggal_selesai', '2026-11-18'));
+        $this->get(self::URL.'?status=incomplete')->assertInertia(fn (Assert $page) => $page->where('records.total', 0));
+        $this->get(self::URL.'?status=cuti')->assertInertia(fn (Assert $page) => $page
+            ->where('filters.status', 'cuti')->where('records.total', 1)->where('records.data.0.status', 'cuti'));
+        $this->assertSame($this->shift->id, $record->fresh()->shift_id);
+        $this->assertSame($this->shift->id, $this->employee->fresh()->shift_id);
+        $this->assertDatabaseCount('presensis', 1);
+    }
+
+    public function test_approved_leave_without_attendance_is_listed_as_cuti_and_not_unrecorded(): void
+    {
+        $this->cuti($this->employee, ['tanggal_mulai' => '2026-11-18']);
+        $noAccount = $this->employee('B Tanpa akun', $this->unit);
+        $this->cuti($noAccount);
+        $this->cuti($this->outsider);
+        $this->employee('C Belum presensi', $this->unit);
+        $period = '?date_from=2026-11-16&date_to=2026-11-18';
+
+        $this->actingAs($this->head)->get(self::URL.$period)->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 3)->where('records.data.0.has_presensi', false)
+            ->where('records.data.0.status', 'cuti')->where('records.data.0.tanggal', '2026-11-18')
+            ->where('records.data.1.status', 'cuti')->where('records.data.1.pegawai_id', $noAccount->id)
+            ->where('records.data.2.status', null)->where('overview.total', 0));
+        $this->get(self::URL.$period.'&status=unrecorded')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 1)->where('records.data.0.pegawai.nama', 'C Belum presensi'));
+        $this->get(self::URL.$period.'&status=cuti')->assertInertia(fn (Assert $page) => $page->where('records.total', 2));
+        $this->get(self::URL.$period.'&status=cuti&search='.urlencode($this->outsider->nik))
+            ->assertInertia(fn (Assert $page) => $page->where('records.total', 0));
+        $this->assertDatabaseCount('presensis', 0);
+    }
+
+    #[DataProvider('inactiveLeave')]
+    public function test_only_approved_leave_covering_the_record_date_overrides_attendance(string $status, string $from, string $to): void
+    {
+        $this->record($this->employee, ['clock_in_at' => null, 'clock_out_at' => null]);
+        $this->cuti($this->employee, ['status' => $status, 'tanggal_mulai' => $from, 'tanggal_selesai' => $to]);
+        $this->actingAs($this->head)->get(self::URL.'?status=incomplete')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 1)->where('records.data.0.status', 'incomplete')->where('records.data.0.cuti', null));
+        $this->get(self::URL.'?status=cuti')->assertInertia(fn (Assert $page) => $page->where('records.total', 0));
+    }
+
+    public static function inactiveLeave(): array
+    {
+        return [
+            'pending' => ['pending', '2026-11-16', '2026-11-18'],
+            'rejected' => ['rejected', '2026-11-16', '2026-11-18'],
+            'cancelled' => ['cancelled', '2026-11-16', '2026-11-18'],
+            'already ended' => ['approved', '2026-11-14', '2026-11-15'],
+            'not started' => ['approved', '2026-11-17', '2026-11-18'],
+        ];
+    }
+
+    public function test_leave_uses_each_attendance_date_in_a_period_including_overnight_and_boundary_dates(): void
+    {
+        $this->shift->update(['jam_masuk' => '22:00', 'jam_keluar' => '06:00']);
+        $this->record($this->employee, ['tanggal_presensi' => '2026-11-15',
+            'clock_in_at' => '2026-11-15 22:00:00', 'clock_out_at' => '2026-11-16 06:00:00']);
+        foreach ([16, 18, 19] as $day) {
+            $this->record($this->employee, ['tanggal_presensi' => "2026-11-{$day}", 'clock_in_at' => null, 'clock_out_at' => null]);
+        }
+        $this->cuti($this->employee);
+        $period = '?date_from=2026-11-15&date_to=2026-11-19';
+
+        $this->actingAs($this->head)->get(self::URL.$period)->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 4)->where('records.data.0.status', 'incomplete')
+            ->where('records.data.1.status', 'cuti')->where('records.data.2.status', 'cuti')
+            ->where('records.data.3.status', 'on-time')->where('records.data.3.cuti', null)
+            ->where('overview.present', 1)->where('overview.late', 0));
+        $this->get(self::URL.$period.'&status=cuti')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 2)->where('records.data.0.tanggal', '2026-11-18')->where('records.data.1.tanggal', '2026-11-16'));
+        $this->get(self::URL.$period.'&status=incomplete')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 1)->where('records.data.0.tanggal', '2026-11-19'));
+    }
+
+    public function test_leave_takes_precedence_in_filters_and_summary_and_cancellation_restores_attendance_status(): void
+    {
+        $this->record($this->employee, ['clock_out_at' => null, 'overtime_minutes' => 60]);
+        $cuti = $this->cuti($this->employee);
+        $this->actingAs($this->head)->get(self::URL)->assertInertia(fn (Assert $page) => $page
+            ->where('records.data.0.status', 'cuti')->where('overview.total', 1)
+            ->where('overview.present', 0)->where('overview.late', 0)->where('overview.overtime', 0)->where('overview.day_off', 0));
+        foreach (['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off', 'unrecorded'] as $status) {
+            $this->get(self::URL.'?status='.$status)->assertInertia(fn (Assert $page) => $page->where('records.total', 0));
+        }
+        $cuti->update(['status' => 'cancelled']);
+        $this->get(self::URL.'?status=incomplete')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 1)->where('records.data.0.status', 'incomplete')->where('records.data.0.cuti', null)
+            ->where('overview.present', 1)->where('overview.late', 1)->where('overview.overtime', 1));
+        $this->get(self::URL.'?status=cuti')->assertInertia(fn (Assert $page) => $page->where('records.total', 0));
+    }
+
+    public function test_leave_filter_is_applied_before_pagination(): void
+    {
+        for ($index = 1; $index <= 13; $index++) {
+            $employee = $this->employee(sprintf('B Cuti %02d', $index), $this->unit);
+            $this->cuti($employee);
+        }
+        $this->actingAs($this->head)->get(self::URL.'?status=cuti')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 13)->where('records.last_page', 2)->has('records.data', 12));
+        $this->get(self::URL.'?status=cuti&page=2')->assertInertia(fn (Assert $page) => $page
+            ->where('records.total', 13)->has('records.data', 1)->where('records.data.0.status', 'cuti')
+            ->where('records.data.0.pegawai.nama', 'B Cuti 13'));
     }
 
     public function test_history_preserves_night_shift_clock_dates_and_pagination(): void

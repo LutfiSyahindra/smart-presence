@@ -18,6 +18,7 @@ type Record = {
     id: number | null;
     pegawai_id: number;
     has_presensi: boolean;
+    cuti: { nama: string | null; tanggal_mulai: string; tanggal_selesai: string } | null;
     pegawai: { nama: string; nik: string | null; unit: string | null; jabatan: string | null; profile_photo_url: string | null };
     tanggal_label: string;
     status: string | null;
@@ -62,6 +63,7 @@ const statuses: { value: string; label: string }[] = [
     { value: 'on-time', label: 'Tepat waktu' },
     { value: 'incomplete', label: 'Belum lengkap' },
     { value: 'unrecorded', label: 'Belum ada presensi' },
+    { value: 'cuti', label: 'Cuti' },
     { value: 'day-off', label: 'Hari libur' },
     { value: 'overtime', label: 'Lembur' },
     { value: 'approval-pending', label: 'Menunggu persetujuan' },
@@ -71,6 +73,7 @@ const statusLabels: { [key: string]: string } = {
     late: 'Terlambat',
     'on-time': 'Tepat waktu',
     incomplete: 'Belum lengkap',
+    cuti: 'Cuti',
     'day-off': 'Hari libur',
     'approval-pending': 'Menunggu persetujuan',
     'approval-rejected': 'Ditolak',
@@ -92,6 +95,10 @@ function applyFilters(reset = false) {
         onError: (errors) => (error.value = Object.values(errors).join(' ')),
         onFinish: () => (loading.value = false),
     });
+}
+
+function formatDate(date: string): string {
+    return date.split('-').reverse().join('/');
 }
 </script>
 
@@ -197,10 +204,16 @@ function applyFilters(reset = false) {
                                 record.status ? statusLabels[record.status] : 'Belum ada presensi'
                             }}</span>
                         </div>
-                        <template v-if="record.has_presensi">
-                            <p class="record-date">
-                                <CalendarDays /> {{ record.tanggal_label }}<span v-if="record.shift">{{ record.shift.nama }}</span>
-                            </p>
+                        <p v-if="record.has_presensi || record.cuti" class="record-date">
+                            <CalendarDays /> {{ record.tanggal_label }}
+                            <span v-if="record.cuti">CUTI · {{ record.cuti.nama || 'Cuti' }}</span>
+                            <span v-else-if="record.shift">{{ record.shift.nama }}</span>
+                        </p>
+                        <div v-if="record.cuti" class="cuti-details">
+                            <p>{{ formatDate(record.cuti.tanggal_mulai) }} – {{ formatDate(record.cuti.tanggal_selesai) }}</p>
+                            <p>Cuti disetujui.</p>
+                        </div>
+                        <template v-else-if="record.has_presensi">
                             <div class="clock-times">
                                 <div>
                                     <LogIn /><span
@@ -511,6 +524,10 @@ button:disabled {
     background: #e7f4ed;
     color: #277250;
 }
+.status-badge.cuti {
+    background: #eaf0fb;
+    color: #466a9a;
+}
 .status-badge.late,
 .status-badge.incomplete,
 .status-badge.approval-pending {
@@ -537,6 +554,19 @@ button:disabled {
 .record-date span {
     margin-left: auto;
     font-size: 9px;
+}
+.cuti-details {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #f2f5fb;
+    color: #466a9a;
+    font-size: 11px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+.cuti-details p {
+    margin: 0;
 }
 .clock-times {
     display: grid;

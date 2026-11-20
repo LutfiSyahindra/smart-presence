@@ -139,6 +139,8 @@ Route::middleware(['auth', 'verified', 'can:'.AccessPermission::ADMIN_ACCESS])
             Route::get('pegawai', [PresensiController::class, 'index'])->middleware('can:'.AccessPermission::PRESENSI_VIEW)->name('index');
             Route::get('set-pegawai', [PresensiController::class, 'manage'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('manage');
             Route::post('set-pegawai', [PresensiController::class, 'store'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('store');
+            Route::get('set-pegawai/cuti-options', [PresensiController::class, 'cutiOptions'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('cuti-options');
+            Route::post('set-pegawai/cuti', [PresensiController::class, 'assignCuti'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('assign-cuti');
             Route::put('set-pegawai/{presensi}', [PresensiController::class, 'update'])->middleware('can:'.AccessPermission::PRESENSI_MANAGE)->name('update');
             Route::get('foto/{presensi}/{type}', [PresensiController::class, 'photo'])->name('photo');
         });

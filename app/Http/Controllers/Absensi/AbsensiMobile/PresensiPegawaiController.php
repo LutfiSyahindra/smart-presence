@@ -28,7 +28,7 @@ class PresensiPegawaiController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
             'date_from' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:2100-12-31'],
             'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:2100-12-31'],
-            'status' => ['nullable', Rule::in(['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off', 'approval-pending', 'approval-rejected', 'unrecorded'])],
+            'status' => ['nullable', Rule::in(['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off', 'cuti', 'approval-pending', 'approval-rejected', 'unrecorded'])],
         ]);
         $filters = $service->normalizeFilters($validated);
         $filters['status'] = $validated['status'] ?? null;

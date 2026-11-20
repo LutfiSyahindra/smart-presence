@@ -2,6 +2,7 @@
 
 namespace App\Services\Absensi\AdminWeb\Presensi;
 
+use App\Models\CutiRequest;
 use App\Models\Pegawai;
 use App\Models\Presensi;
 use App\Models\Shift;
@@ -29,7 +30,7 @@ class PresensiService
             [$from, $to] = [$to, $from];
         }
 
-        $allowedStatuses = ['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off', 'approval-pending', 'approval-rejected'];
+        $allowedStatuses = ['present', 'late', 'on-time', 'incomplete', 'overtime', 'day-off', 'cuti', 'approval-pending', 'approval-rejected'];
         $status = in_array($filters['status'] ?? null, $allowedStatuses, true) ? $filters['status'] : null;
 
         return [
@@ -59,12 +60,20 @@ class PresensiService
             ->get()
             ->keyBy('id');
 
-        return $paginator->through(fn (Pegawai $pegawai) => $this->row(
-            $pegawai,
-            $presensis->get($pegawai->getAttribute('presensi_record_id')),
-            $filters['date_from'],
-            $photoRoute,
-        ));
+        $cutis = CutiRequest::query()->whereIn('pegawai_id', $paginator->getCollection()->pluck('id'))
+            ->where('status', 'approved')->whereDate('tanggal_mulai', '<=', $filters['date_to'])
+            ->whereDate('tanggal_selesai', '>=', $filters['date_from'])->orderBy('tanggal_mulai')->get()->groupBy('pegawai_id');
+
+        return $paginator->through(function (Pegawai $pegawai) use ($presensis, $cutis, $filters, $photoRoute) {
+            $presensi = $presensis->get($pegawai->getAttribute('presensi_record_id'));
+            $date = $presensi?->tanggal_presensi?->format('Y-m-d') ?? $filters['date_from'];
+            if (! $presensi && ($firstCuti = $cutis->get($pegawai->id)?->first())) {
+                $date = max($date, $firstCuti->tanggal_mulai->format('Y-m-d'));
+            }
+            $cuti = $cutis->get($pegawai->id)?->first(fn (CutiRequest $cuti) => $cuti->tanggal_mulai->format('Y-m-d') <= $date && $cuti->tanggal_selesai->format('Y-m-d') >= $date);
+
+            return $this->row($pegawai, $presensi, $date, $photoRoute, $cuti);
+        });
     }
 
     /** @param array<string, mixed> $filters */
@@ -116,7 +125,7 @@ class PresensiService
     }
 
     /** @return array<string, mixed> */
-    private function row(Pegawai $pegawai, ?Presensi $presensi, string $fallbackDate, string $photoRoute): array
+    private function row(Pegawai $pegawai, ?Presensi $presensi, string $fallbackDate, string $photoRoute, ?CutiRequest $cuti = null): array
     {
         $lateMinutes = $presensi ? $this->lateMinutes($presensi) : 0;
         $earlyDepartureMinutes = $presensi?->earlyDepartureMinutes() ?? 0;
@@ -126,6 +135,8 @@ class PresensiService
         return [
             'id' => $presensi?->id,
             'has_presensi' => $presensi !== null,
+            'cuti' => $cuti ? ['nama' => $cuti->nama_cuti, 'tanggal_mulai' => $cuti->tanggal_mulai->format('Y-m-d'),
+                'tanggal_selesai' => $cuti->tanggal_selesai->format('Y-m-d')] : null,
             'pegawai_id' => $pegawai->id,
             'pegawai' => [
                 'nama' => $pegawai->nama,
@@ -166,7 +177,7 @@ class PresensiService
                 'adjusted_time' => $schedule['start_time'],
             ] : null,
             'early_departure_minutes' => $earlyDepartureMinutes,
-            'status' => $presensi ? $this->status($presensi, $lateMinutes) : null,
+            'status' => $cuti ? 'cuti' : ($presensi ? $this->status($presensi, $lateMinutes) : null),
             'updated_by' => $presensi?->updatedBy?->name,
             'updated_at' => $presensi?->updated_at?->format('d/m/Y H:i'),
         ];

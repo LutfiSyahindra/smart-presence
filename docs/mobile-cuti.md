@@ -17,6 +17,24 @@ Akses memakai permission `mobile.access` dan verifikasi email yang sudah berlaku
 
 ## Jadwal dan presensi saat cuti
 
+Admin dengan permission **Set Presensi Pegawai** (`presensi.manage`) dapat memilih
+**Cuti** pada modal di `/absensi/admin-web/presensi/set-pegawai`, memilih pegawai,
+jenis cuti yang telah dialokasikan, tanggal mulai/selesai, dan alasan. Cuti ini
+langsung berstatus **Disetujui**, tanpa menunggu approval line. Detail pengajuan
+mencatat nama admin, waktu, dan catatan pemberian langsung. Aktivitas pengajuan
+cuti mobile, notifikasi, saldo, serta jadwal CUTI memakai catatan yang sama.
+
+Durasi memakai hari kalender inklusif. Cuti tahunan mengurangi saldo sesuai tahun
+tanggal mulai, dengan pengajuan menunggu tetap dicadangkan. Cuti biasa mengikuti
+batas durasi per pengajuan; cuti tanpa kuota tidak mengurangi saldo tahunan.
+Saldo yang kurang, jenis tidak aktif/belum dialokasikan, pengajuan bertumpang
+tindih, dan cuti tahunan lintas tahun ditolak. Pengiriman ulang tidak membuat
+pengurangan ganda. Admin dapat mencatat periode lampau untuk koreksi presensi;
+konfigurasi pengajuan lampau bagi pegawai tetap berlaku pada pengajuan biasa.
+Periode yang sudah memiliki clock-in/clock-out ditolak agar catatan presensi
+tidak ditimpa. Pemberian langsung tidak membuat presensi libur atau mengganti
+shift bawaan pegawai, dan tidak memerlukan migrasi database baru.
+
 Konfigurasi **Izinkan pengajuan cuti untuk tanggal yang sudah lewat** memungkinkan
 pengajuan cuti kemarin atau tanggal sebelumnya melalui web dan mobile/PWA. Opsi
 ini secara default tidak aktif dan memerlukan `php artisan migrate` setelah
